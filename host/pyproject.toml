@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "deskwave-host"
+version = "0.1.0"
+description = "Linux media bridge for the DeskWave ESP32 controller"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "DeskWave contributors" }]
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest==9.1.1"]
+
+[project.scripts]
+deskwave-host = "deskwave_host.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/deskwave_host"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
