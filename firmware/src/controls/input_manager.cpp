@@ -30,7 +30,10 @@ InputManager::InputManager(const QueueHandle_t eventQueue)
       rightButton_(core::ButtonTiming{25, 700, 300, 160, true}),
       menuButton_(core::ButtonTiming{25, 900, 450, 120, false}) {}
 
-void InputManager::begin() {
+bool InputManager::begin() {
+    if (task_ != nullptr) {
+        return true;
+    }
     pinMode(hardware::kEncoderA, INPUT_PULLUP);
     pinMode(hardware::kEncoderB, INPUT_PULLUP);
     pinMode(hardware::kEncoderSwitch, INPUT_PULLUP);
@@ -39,6 +42,20 @@ void InputManager::begin() {
     pinMode(hardware::kMenuButton, INPUT_PULLUP);
     encoder_.reset(digitalRead(hardware::kEncoderA) != LOW,
                    digitalRead(hardware::kEncoderB) != LOW, micros());
+    return xTaskCreatePinnedToCore(taskEntry, "deskwave-input", 3'072, this, 3, &task_, 1) ==
+           pdPASS;
+}
+
+void InputManager::taskEntry(void* context) {
+    static_cast<InputManager*>(context)->run();
+    vTaskDelete(nullptr);
+}
+
+void InputManager::run() {
+    while (true) {
+        poll(millis(), micros());
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
 }
 
 void InputManager::publish(const core::PhysicalControl control, const core::Gesture gesture) {
@@ -77,10 +94,12 @@ void InputManager::poll(const std::uint32_t nowMs, const std::uint32_t nowUs) {
                   core::PhysicalControl::RightButton, nowMs);
     processButton(menuButton_, digitalRead(hardware::kMenuButton) == LOW,
                   core::PhysicalControl::MenuButton, nowMs);
+    factoryResetChordActive_ =
+        leftButton_.isPressed() && rightButton_.isPressed() && menuButton_.isPressed();
 }
 
 bool InputManager::factoryResetChordActive() const noexcept {
-    return leftButton_.isPressed() && rightButton_.isPressed() && menuButton_.isPressed();
+    return factoryResetChordActive_;
 }
 
 }  // namespace deskwave::controls

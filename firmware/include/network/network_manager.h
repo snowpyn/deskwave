@@ -16,7 +16,8 @@ class NetworkManager {
   public:
     NetworkManager(storage::SettingsStore& settingsStore, QueueHandle_t playbackQueue,
                    QueueHandle_t noticeQueue, QueueHandle_t commandQueue,
-                   QueueHandle_t feedbackQueue, QueueHandle_t artworkQueue);
+                   QueueHandle_t feedbackQueue, QueueHandle_t artworkQueue,
+                   QueueHandle_t playerQueue);
     [[nodiscard]] bool begin();
 
   private:
@@ -35,6 +36,7 @@ class NetworkManager {
     void handleProtocolMessage(const std::uint8_t* payload, std::size_t length);
     void handlePlaybackState(JsonObjectConst payload);
     void handleCommandResult(JsonObjectConst payload);
+    void handlePlayers(JsonObjectConst payload);
     void processCommands();
     void sendCommand(const app::ControlRequest& request);
     void rejectQueuedCommands(const char* reason);
@@ -50,6 +52,7 @@ class NetworkManager {
     QueueHandle_t commandQueue_;
     QueueHandle_t feedbackQueue_;
     QueueHandle_t artworkQueue_;
+    QueueHandle_t playerQueue_;
     ProvisioningPortal provisioningPortal_;
     WebSocketsClient webSocket_;
     core::StateMachine stateMachine_;

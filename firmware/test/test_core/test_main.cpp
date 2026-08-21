@@ -76,6 +76,15 @@ void test_control_mapper_changes_with_context() {
     TEST_ASSERT_EQUAL(ControlCommand::BrightnessDown,
                       mapper.map(ControlContext::Settings, PhysicalControl::LeftButton,
                                  Gesture::ShortPress));
+    TEST_ASSERT_EQUAL(ControlCommand::NextSetting,
+                      mapper.map(ControlContext::Settings, PhysicalControl::EncoderClockwise,
+                                 Gesture::Rotate));
+    TEST_ASSERT_EQUAL(ControlCommand::SelectPlayer,
+                      mapper.map(ControlContext::Device, PhysicalControl::EncoderButton,
+                                 Gesture::ShortPress));
+    TEST_ASSERT_EQUAL(ControlCommand::PreviousPlayer,
+                      mapper.map(ControlContext::Device,
+                                 PhysicalControl::EncoderCounterClockwise, Gesture::Rotate));
 }
 
 void test_progress_extrapolates_only_while_playing_and_clamps() {

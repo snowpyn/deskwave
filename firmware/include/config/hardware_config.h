@@ -11,6 +11,8 @@ namespace deskwave::hardware {
 // Change this file, not application logic, when adapting a board or wiring loom.
 inline constexpr char kBoardName[] = "ESP32-S3-DevKitC-1-N8";
 inline constexpr char kDisplayDriver[] = "ILI9341";
+inline constexpr std::uint16_t kPanelWidth = 240;
+inline constexpr std::uint16_t kPanelHeight = 320;
 inline constexpr std::uint16_t kDisplayWidth = 320;
 inline constexpr std::uint16_t kDisplayHeight = 240;
 inline constexpr std::uint8_t kDisplayRotation = 1;

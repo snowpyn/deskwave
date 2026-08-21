@@ -46,7 +46,7 @@ class EncoderTracker {
     bool initialized_{false};
 };
 
-enum class ControlContext : std::uint8_t { Playback, Actions, Settings };
+enum class ControlContext : std::uint8_t { Playback, Actions, Device, Settings };
 enum class PhysicalControl : std::uint8_t {
     EncoderClockwise,
     EncoderCounterClockwise,
@@ -72,6 +72,12 @@ enum class ControlCommand : std::uint8_t {
     CycleRepeat,
     BrightnessDown,
     BrightnessUp,
+    PreviousSetting,
+    NextSetting,
+    ActivateSetting,
+    PreviousPlayer,
+    NextPlayer,
+    SelectPlayer,
     RequestFactoryReset,
 };
 
@@ -84,7 +90,7 @@ struct ControlBinding {
 
 class ControlMapper {
   public:
-    static constexpr std::size_t kMaxBindings = 24;
+    static constexpr std::size_t kMaxBindings = 32;
 
     ControlMapper();
     [[nodiscard]] ControlCommand map(ControlContext context, PhysicalControl control,

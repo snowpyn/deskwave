@@ -14,11 +14,13 @@ struct InputEvent {
 class InputManager {
   public:
     explicit InputManager(QueueHandle_t eventQueue);
-    void begin();
+    [[nodiscard]] bool begin();
     void poll(std::uint32_t nowMs, std::uint32_t nowUs);
     [[nodiscard]] bool factoryResetChordActive() const noexcept;
 
   private:
+    static void taskEntry(void* context);
+    void run();
     void publish(core::PhysicalControl control, core::Gesture gesture);
     void processButton(core::ButtonTracker& tracker, bool pressed,
                        core::PhysicalControl control, std::uint32_t nowMs);
@@ -29,7 +31,9 @@ class InputManager {
     core::ButtonTracker leftButton_;
     core::ButtonTracker rightButton_;
     core::ButtonTracker menuButton_;
+    TaskHandle_t task_{nullptr};
     std::uint32_t lastQueueWarningMs_{0};
+    volatile bool factoryResetChordActive_{false};
 };
 
 }  // namespace deskwave::controls

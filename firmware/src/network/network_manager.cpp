@@ -44,13 +44,14 @@ std::uint64_t boundedMilliseconds(const JsonVariantConst value, const std::uint6
 NetworkManager::NetworkManager(storage::SettingsStore& settingsStore,
                                const QueueHandle_t playbackQueue, const QueueHandle_t noticeQueue,
                                const QueueHandle_t commandQueue, const QueueHandle_t feedbackQueue,
-                               const QueueHandle_t artworkQueue)
+                               const QueueHandle_t artworkQueue, const QueueHandle_t playerQueue)
     : settingsStore_(settingsStore),
       playbackQueue_(playbackQueue),
       noticeQueue_(noticeQueue),
       commandQueue_(commandQueue),
       feedbackQueue_(feedbackQueue),
       artworkQueue_(artworkQueue),
+      playerQueue_(playerQueue),
       provisioningPortal_(settingsStore) {
     const auto chipId = static_cast<std::uint32_t>(ESP.getEfuseMac());
     char identifier[20];
@@ -430,6 +431,8 @@ void NetworkManager::handleProtocolMessage(const std::uint8_t* payload,
         handlePlaybackState(body);
     } else if (type == "command_result") {
         handleCommandResult(body);
+    } else if (type == "players") {
+        handlePlayers(body);
     } else if (type == "hello") {
         if (body["protocol"] != 1) {
             publishNotice(app::SystemNoticeType::RecoverableError, "Protocol mismatch");
@@ -494,6 +497,8 @@ void NetworkManager::handlePlaybackState(const JsonObjectConst payload) {
             snapshot.volumePercent = static_cast<std::int16_t>(std::lround(volume * 100.0F));
         }
     }
+    snapshot.mutedKnown = payload["muted"].is<bool>();
+    snapshot.muted = payload["muted"] | false;
     snapshot.shuffleKnown = payload["shuffle"].is<bool>();
     snapshot.shuffle = payload["shuffle"] | false;
     if (payload["repeat"].is<const char*>()) {
@@ -546,6 +551,42 @@ void NetworkManager::handleCommandResult(const JsonObjectConst payload) {
     }
 }
 
+void NetworkManager::handlePlayers(const JsonObjectConst payload) {
+    if (!payload["players"].is<JsonArrayConst>()) {
+        return;
+    }
+    app::PlayerListSnapshot snapshot;
+    const JsonArrayConst players = payload["players"].as<JsonArrayConst>();
+    for (const JsonObjectConst player : players) {
+        if (snapshot.count >= app::kMaximumPlayers || !player["id"].is<const char*>() ||
+            !player["name"].is<const char*>() || !player["status"].is<const char*>()) {
+            continue;
+        }
+        auto& destination = snapshot.players[snapshot.count];
+        const String id = player["id"].as<String>();
+        const String name = player["name"].as<String>();
+        const String status = player["status"].as<String>();
+        if (id.isEmpty() || id.length() >= sizeof(destination.id) || name.isEmpty() ||
+            name.length() >= sizeof(destination.name)) {
+            continue;
+        }
+        app::copyText(destination.id, id.c_str());
+        app::copyText(destination.name, name.c_str());
+        if (status == "playing") {
+            destination.status = app::PlaybackStatus::Playing;
+        } else if (status == "paused") {
+            destination.status = app::PlaybackStatus::Paused;
+        } else if (status == "stopped") {
+            destination.status = app::PlaybackStatus::Stopped;
+        } else {
+            continue;
+        }
+        ++snapshot.count;
+    }
+    snapshot.receivedAtMs = millis();
+    xQueueOverwrite(playerQueue_, &snapshot);
+}
+
 const char* NetworkManager::commandName(const app::HostCommand command) {
     switch (command) {
         case app::HostCommand::Play:
@@ -576,6 +617,8 @@ const char* NetworkManager::commandName(const app::HostCommand command) {
             return "refresh";
         case app::HostCommand::SelectPlayer:
             return "select_player";
+        case app::HostCommand::ListPlayers:
+            return "list_players";
     }
     return "refresh";
 }
@@ -583,11 +626,14 @@ const char* NetworkManager::commandName(const app::HostCommand command) {
 void NetworkManager::sendCommand(const app::ControlRequest& request) {
     JsonDocument document;
     document["protocol"] = 1;
-    document["type"] = "control";
+    document["type"] =
+        request.command == app::HostCommand::ListPlayers ? "list_players" : "control";
     document["sequence"] = ++outgoingSequence_;
     document["timestamp_ms"] = millis();
     JsonObject payload = document["payload"].to<JsonObject>();
-    payload["command"] = commandName(request.command);
+    if (request.command != app::HostCommand::ListPlayers) {
+        payload["command"] = commandName(request.command);
+    }
     if (request.command == app::HostCommand::SetVolume) {
         payload["value"] = std::clamp(request.decimalValue, 0.0F, 1.0F);
     } else if (request.command == app::HostCommand::Seek) {

@@ -106,6 +106,8 @@ SettingsLoadStatus SettingsStore::load(DeviceSettings& settings) {
     settings.hostPort = preferences.getUShort("port", config::kDefaultHostPort);
     settings.brightness = preferences.getUChar("brightness", 180);
     settings.defaultScreen = preferences.getUChar("screen", 0);
+    settings.volumeStepPercent =
+        preferences.getUChar("volume_step", config::kDefaultVolumeStepPercent);
     settings.dimTimeoutSeconds = preferences.getULong("dim_seconds", 300);
     preferences.end();
     unlock();
@@ -114,7 +116,8 @@ SettingsLoadStatus SettingsStore::load(DeviceSettings& settings) {
          (!validSsid(settings.wifiSsid) || !validPassword(settings.wifiPassword))) ||
         (settings.paired && !validToken(settings.hostToken)) ||
         !validHost(settings.hostOverride) || settings.hostPort == 0 || settings.brightness < 10 ||
-        settings.defaultScreen > 4 ||
+        settings.defaultScreen > 3 || settings.volumeStepPercent < 1 ||
+        settings.volumeStepPercent > 20 ||
         (settings.dimTimeoutSeconds != 0 &&
          (settings.dimTimeoutSeconds < 30 || settings.dimTimeoutSeconds > 86'400))) {
         settings = DeviceSettings{};
@@ -174,8 +177,10 @@ bool SettingsStore::clearToken() {
 }
 
 bool SettingsStore::saveDisplay(const std::uint8_t brightness, const std::uint8_t defaultScreen,
-                                const std::uint32_t dimTimeoutSeconds) {
-    if (brightness < 10 || defaultScreen > 4 ||
+                                const std::uint32_t dimTimeoutSeconds,
+                                const std::uint8_t volumeStepPercent) {
+    if (brightness < 10 || defaultScreen > 3 || volumeStepPercent < 1 ||
+        volumeStepPercent > 20 ||
         (dimTimeoutSeconds != 0 && (dimTimeoutSeconds < 30 || dimTimeoutSeconds > 86'400)) ||
         !lock()) {
         return false;
@@ -186,6 +191,8 @@ bool SettingsStore::saveDisplay(const std::uint8_t brightness, const std::uint8_
         preferences.putUChar("schema", config::kSettingsSchemaVersion);
         success = preferences.putUChar("brightness", brightness) == sizeof(brightness) &&
                   preferences.putUChar("screen", defaultScreen) == sizeof(defaultScreen) &&
+                  preferences.putUChar("volume_step", volumeStepPercent) ==
+                      sizeof(volumeStepPercent) &&
                   preferences.putULong("dim_seconds", dimTimeoutSeconds) ==
                       sizeof(dimTimeoutSeconds);
         preferences.end();

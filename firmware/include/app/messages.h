@@ -40,6 +40,8 @@ struct PlaybackSnapshot {
     PlaybackStatus status{PlaybackStatus::Stopped};
     RepeatMode repeat{RepeatMode::Unknown};
     bool hasDuration{false};
+    bool mutedKnown{false};
+    bool muted{false};
     bool shuffleKnown{false};
     bool shuffle{false};
     bool canSeek{false};
@@ -80,6 +82,7 @@ enum class HostCommand : std::uint8_t {
     SetRepeat,
     Refresh,
     SelectPlayer,
+    ListPlayers,
 };
 
 struct ControlRequest {
@@ -109,6 +112,20 @@ struct ArtworkResult {
     char artworkId[65]{};
     char localPath[96]{};
     char error[80]{};
+};
+
+inline constexpr std::size_t kMaximumPlayers = 6;
+
+struct PlayerSummary {
+    char id[129]{};
+    char name[65]{};
+    PlaybackStatus status{PlaybackStatus::Stopped};
+};
+
+struct PlayerListSnapshot {
+    std::array<PlayerSummary, kMaximumPlayers> players{};
+    std::uint32_t receivedAtMs{0};
+    std::uint8_t count{0};
 };
 
 }  // namespace deskwave::app
