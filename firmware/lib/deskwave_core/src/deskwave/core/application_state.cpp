@@ -47,7 +47,11 @@ bool StateMachine::transition(const StateEvent event) noexcept {
             }
             break;
         case SystemState::DiscoveringHost:
-            if (event == StateEvent::HostDiscovered) {
+            if (event == StateEvent::HostConnected) {
+                // WebSocketsClient reconnects in place after a brief host outage,
+                // without returning through mDNS discovery first.
+                next = SystemState::Ready;
+            } else if (event == StateEvent::HostDiscovered) {
                 next = SystemState::ConnectingHost;
             } else if (event == StateEvent::PairingNeeded) {
                 next = SystemState::Pairing;

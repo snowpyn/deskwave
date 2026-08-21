@@ -23,6 +23,10 @@ void test_state_machine_happy_path_and_recovery() {
     TEST_ASSERT_EQUAL(SystemState::Playing, machine.state());
     TEST_ASSERT_TRUE(machine.transition(StateEvent::HostDisconnected));
     TEST_ASSERT_EQUAL(SystemState::DiscoveringHost, machine.state());
+    TEST_ASSERT_TRUE(machine.transition(StateEvent::HostConnected));
+    TEST_ASSERT_TRUE(machine.hostConnected());
+    TEST_ASSERT_TRUE(machine.transition(StateEvent::HostDisconnected));
+    TEST_ASSERT_EQUAL(SystemState::DiscoveringHost, machine.state());
     TEST_ASSERT_TRUE(machine.transition(StateEvent::WifiLost));
     TEST_ASSERT_EQUAL(SystemState::Offline, machine.state());
     TEST_ASSERT_TRUE(machine.transition(StateEvent::Retry));
