@@ -98,7 +98,7 @@ void NetworkManager::transition(const core::StateEvent event, const char* primar
 
 void NetworkManager::run() {
     storage::DeviceSettings settings;
-    const auto loadStatus = settingsStore_.load(settings);
+    auto loadStatus = settingsStore_.load(settings);
     if (loadStatus == storage::SettingsLoadStatus::Unsupported ||
         loadStatus == storage::SettingsLoadStatus::Corrupt) {
         transition(core::StateEvent::FatalError, "Settings unavailable",
@@ -108,6 +108,30 @@ void NetworkManager::run() {
         while (true) {
             vTaskDelay(pdMS_TO_TICKS(1'000));
         }
+    }
+    const bool bootstrapRequested =
+        config::kBootstrapWifiEnabled &&
+        (loadStatus == storage::SettingsLoadStatus::Empty ||
+         (config::kForceBootstrapWifi && settings.wifiSsid != config::kBootstrapWifiSsid));
+    if (bootstrapRequested) {
+        if (!settingsStore_.saveWifi(config::kBootstrapWifiSsid,
+                                     config::kBootstrapWifiPassword)) {
+            transition(core::StateEvent::FatalError, "Wi-Fi profile unavailable",
+                       "Private bootstrap profile could not be saved");
+            while (true) {
+                vTaskDelay(pdMS_TO_TICKS(1'000));
+            }
+        }
+        loadStatus = settingsStore_.load(settings);
+        if (loadStatus != storage::SettingsLoadStatus::Ok &&
+            loadStatus != storage::SettingsLoadStatus::Migrated) {
+            transition(core::StateEvent::FatalError, "Wi-Fi profile unavailable",
+                       "Saved profile could not be loaded");
+            while (true) {
+                vTaskDelay(pdMS_TO_TICKS(1'000));
+            }
+        }
+        DW_LOG_INFO("network", "Private first-boot Wi-Fi profile installed");
     }
     if (!settings.wifiConfigured) {
         transition(core::StateEvent::BootWithoutCredentials, "Wi-Fi setup required");
@@ -224,8 +248,9 @@ bool NetworkManager::discoverHost(const storage::DeviceSettings& settings) {
     }
     const int count = MDNS.queryService(config::kMdnsService, config::kMdnsProtocol);
     if (count <= 0) {
-        publishNotice(app::SystemNoticeType::RecoverableError, "DeskWave Host offline",
-                      "Searching again");
+        // Keep discovery quiet while the backoff clock runs. The current
+        // "Finding DeskWave Host" state is already visible and actionable;
+        // repeating error toasts made a healthy retry loop look like a fault.
         vTaskDelay(pdMS_TO_TICKS(hostBackoff_.next(esp_random())));
         return false;
     }
