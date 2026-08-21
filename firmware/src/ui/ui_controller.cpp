@@ -18,17 +18,17 @@ constexpr std::uint16_t rgb565(const std::uint8_t red, const std::uint8_t green,
                                       (blue >> 3U));
 }
 
-constexpr std::uint16_t kBackground = rgb565(5, 6, 20);
-constexpr std::uint16_t kBackgroundLift = rgb565(15, 11, 39);
-constexpr std::uint16_t kPanel = rgb565(18, 20, 48);
-constexpr std::uint16_t kPanelRaised = rgb565(29, 33, 69);
-constexpr std::uint16_t kText = rgb565(247, 247, 255);
-constexpr std::uint16_t kTextMuted = rgb565(155, 164, 190);
-constexpr std::uint16_t kAccent = rgb565(87, 231, 226);
-constexpr std::uint16_t kAccentDim = rgb565(25, 93, 104);
-constexpr std::uint16_t kViolet = rgb565(153, 105, 255);
-constexpr std::uint16_t kMagenta = rgb565(241, 99, 186);
-constexpr std::uint16_t kWarning = rgb565(244, 184, 76);
+constexpr std::uint16_t kBackground = rgb565(7, 10, 18);
+constexpr std::uint16_t kBackgroundLift = rgb565(16, 25, 38);
+constexpr std::uint16_t kPanel = rgb565(18, 29, 41);
+constexpr std::uint16_t kPanelRaised = rgb565(28, 42, 57);
+constexpr std::uint16_t kText = rgb565(241, 244, 242);
+constexpr std::uint16_t kTextMuted = rgb565(169, 181, 190);
+constexpr std::uint16_t kAccent = rgb565(111, 218, 194);
+constexpr std::uint16_t kAccentDim = rgb565(34, 91, 86);
+constexpr std::uint16_t kViolet = rgb565(168, 145, 222);
+constexpr std::uint16_t kMagenta = rgb565(224, 152, 178);
+constexpr std::uint16_t kWarning = rgb565(232, 192, 119);
 constexpr std::uint16_t kError = rgb565(246, 105, 105);
 constexpr std::uint16_t kLine = rgb565(55, 62, 105);
 
@@ -39,7 +39,6 @@ constexpr std::uint32_t kTrackTransitionMs = 220;
 constexpr std::uint32_t kOverlayDurationMs = 1'600;
 constexpr std::uint32_t kToastDurationMs = 2'200;
 constexpr std::uint32_t kProgressFrameMs = 500;
-constexpr std::uint32_t kAmbientFrameMs = 160;
 
 std::uint16_t blend565(const std::uint16_t foreground, const std::uint16_t background,
                        const std::uint8_t amount) {
@@ -54,21 +53,6 @@ std::uint16_t blend565(const std::uint16_t foreground, const std::uint16_t backg
     const auto green = (foregroundGreen * amount + backgroundGreen * inverse) / 255U;
     const auto blue = (foregroundBlue * amount + backgroundBlue * inverse) / 255U;
     return static_cast<std::uint16_t>((red << 11U) | (green << 5U) | blue);
-}
-
-std::uint16_t rainbow565(const std::uint8_t hue) {
-    if (hue < 85U) {
-        return rgb565(static_cast<std::uint8_t>(255U - hue * 3U),
-                      static_cast<std::uint8_t>(hue * 3U), 0);
-    }
-    if (hue < 170U) {
-        const auto offset = static_cast<std::uint8_t>(hue - 85U);
-        return rgb565(0, static_cast<std::uint8_t>(255U - offset * 3U),
-                      static_cast<std::uint8_t>(offset * 3U));
-    }
-    const auto offset = static_cast<std::uint8_t>(hue - 170U);
-    return rgb565(static_cast<std::uint8_t>(offset * 3U), 0,
-                  static_cast<std::uint8_t>(255U - offset * 3U));
 }
 
 const char* playbackStatusName(const app::PlaybackStatus status) {
@@ -283,6 +267,10 @@ void UiController::setArtwork(const app::ArtworkResult& result, const std::uint3
         }
         return;
     }
+    if (std::strcmp(artworkId_, result.artworkId) == 0 &&
+        std::strcmp(artworkPath_, result.localPath) == 0) {
+        return;
+    }
     app::copyText(artworkId_, result.artworkId);
     app::copyText(artworkPath_, result.localPath);
     if (screen_ == Screen::NowPlaying && !connectionScreenActive() &&
@@ -467,10 +455,6 @@ void UiController::tick(const std::uint32_t nowMs) {
         renderHeader(nowMs);
         lastAnimationFrameMs_ = nowMs;
     }
-    if (static_cast<std::uint32_t>(nowMs - lastAmbientFrameMs_) >= kAmbientFrameMs) {
-        renderAmbientEdge(nowMs);
-        lastAmbientFrameMs_ = nowMs;
-    }
 }
 
 void UiController::tickTrackTransition(const std::uint32_t nowMs) {
@@ -549,8 +533,6 @@ void UiController::render(const std::uint32_t nowMs) {
     } else if (toastUntilMs_ != 0) {
         renderToast();
     }
-    renderAmbientEdge(nowMs);
-    lastAmbientFrameMs_ = nowMs;
 }
 
 void UiController::renderAtmosphere() {
@@ -577,26 +559,6 @@ void UiController::renderAtmosphere() {
     for (std::size_t index = 0; index < stars.size(); ++index) {
         display_.fillCircle(stars[index][0], stars[index][1], index % 3 == 0 ? 1 : 0,
                             blend565(index % 2 == 0 ? kAccent : kViolet, kBackground, 105));
-    }
-}
-
-void UiController::renderAmbientEdge(const std::uint32_t nowMs) {
-    constexpr std::int32_t segment = 10;
-    constexpr std::int32_t perimeter = 2 * (320 + 240);
-    const auto phase = static_cast<std::uint8_t>((nowMs / 40U) & 0xFFU);
-    auto colorAt = [phase](const std::int32_t distance) {
-        const auto offset = static_cast<std::uint8_t>((distance * 256) / perimeter);
-        return rainbow565(static_cast<std::uint8_t>(phase + offset));
-    };
-    for (std::int32_t x = 0; x < 320; x += segment) {
-        const auto width = std::min(segment, 320 - x);
-        display_.fillRect(x, 0, width, 2, colorAt(x));
-        display_.fillRect(320 - x - width, 238, width, 2, colorAt(800 + x));
-    }
-    for (std::int32_t y = 0; y < 240; y += segment) {
-        const auto height = std::min(segment, 240 - y);
-        display_.fillRect(318, y, 2, height, colorAt(320 + y));
-        display_.fillRect(0, 240 - y - height, 2, height, colorAt(560 + y));
     }
 }
 

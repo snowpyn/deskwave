@@ -24,6 +24,39 @@ constexpr std::uint32_t kHealthLogMs = 60'000;
 constexpr std::uint32_t kPlayerRefreshMs = 5'000;
 constexpr std::int32_t kSeekStepMs = 10'000;
 
+#if defined(DESKWAVE_FOCUS_CLASSIC)
+void writeRgbStatusLed(const std::uint8_t red, const std::uint8_t green,
+                       const std::uint8_t blue) {
+    // The CYD RGB LED is common-anode, so PWM values are inverted.
+    analogWrite(hardware::kStatusLedRed, 255U - red);
+    analogWrite(hardware::kStatusLedGreen, 255U - green);
+    analogWrite(hardware::kStatusLedBlue, 255U - blue);
+}
+
+void rainbowStatusColor(const std::uint8_t hue, std::uint8_t& red, std::uint8_t& green,
+                        std::uint8_t& blue) {
+    if (hue < 85U) {
+        red = static_cast<std::uint8_t>(255U - hue * 3U);
+        green = static_cast<std::uint8_t>(hue * 3U);
+        blue = 0;
+    } else if (hue < 170U) {
+        const auto offset = static_cast<std::uint8_t>(hue - 85U);
+        red = 0;
+        green = static_cast<std::uint8_t>(255U - offset * 3U);
+        blue = static_cast<std::uint8_t>(offset * 3U);
+    } else {
+        const auto offset = static_cast<std::uint8_t>(hue - 170U);
+        red = static_cast<std::uint8_t>(offset * 3U);
+        green = 0;
+        blue = static_cast<std::uint8_t>(255U - offset * 3U);
+    }
+    constexpr std::uint16_t brightness = 150;
+    red = static_cast<std::uint8_t>(red * brightness / 255U);
+    green = static_cast<std::uint8_t>(green * brightness / 255U);
+    blue = static_cast<std::uint8_t>(blue * brightness / 255U);
+}
+#endif
+
 }  // namespace
 
 Application::Application(storage::SettingsStore& settingsStore,
@@ -51,8 +84,15 @@ bool Application::begin() {
     if (begun_) {
         return true;
     }
+#if defined(DESKWAVE_FOCUS_CLASSIC)
+    pinMode(hardware::kStatusLedRed, OUTPUT);
+    pinMode(hardware::kStatusLedGreen, OUTPUT);
+    pinMode(hardware::kStatusLedBlue, OUTPUT);
+    writeRgbStatusLed(0, 0, 0);
+#else
     pinMode(hardware::kStatusLed, OUTPUT);
     digitalWrite(hardware::kStatusLed, LOW);
+#endif
 
     storage::DeviceSettings loaded;
     const auto loadStatus = settingsStore_.load(loaded);
@@ -537,7 +577,11 @@ bool Application::handleFactoryResetChord(const std::uint32_t nowMs) {
 
 void Application::performFactoryReset() {
     ui_.showResetting();
+#if defined(DESKWAVE_FOCUS_CLASSIC)
+    writeRgbStatusLed(150, 150, 150);
+#else
     digitalWrite(hardware::kStatusLed, HIGH);
+#endif
     if (!settingsStore_.factoryReset()) {
         ui_.showToast("Factory reset failed; settings were not changed", millis(), true);
         factoryResetChordTiming_ = false;
@@ -601,6 +645,22 @@ void Application::updateHealth(const std::uint32_t nowMs) {
 }
 
 void Application::updateStatusLed(const std::uint32_t nowMs) {
+#if defined(DESKWAVE_FOCUS_CLASSIC)
+    if (static_cast<std::uint32_t>(nowMs - lastStatusLedUpdateMs_) < 40U) {
+        return;
+    }
+    lastStatusLedUpdateMs_ = nowMs;
+    if (deviceStatus_.state == core::SystemState::Error) {
+        writeRgbStatusLed((nowMs / 150U) % 2U == 0 ? 180 : 0, 0, 0);
+        return;
+    }
+    std::uint8_t red = 0;
+    std::uint8_t green = 0;
+    std::uint8_t blue = 0;
+    // One complete, gentle hue cycle every 12.8 seconds.
+    rainbowStatusColor(static_cast<std::uint8_t>((nowMs / 50U) & 0xFFU), red, green, blue);
+    writeRgbStatusLed(red, green, blue);
+#else
     bool enabled = false;
     if (deviceStatus_.hostConnected) {
         enabled = true;
@@ -610,6 +670,7 @@ void Application::updateStatusLed(const std::uint32_t nowMs) {
         enabled = (nowMs / 600U) % 4U == 0;
     }
     digitalWrite(hardware::kStatusLed, enabled ? HIGH : LOW);
+#endif
 }
 
 }  // namespace deskwave::app

@@ -29,6 +29,9 @@ From the repository root:
 This creates `~/.local/share/deskwave/venv`, installs the exact runtime
 dependencies declared in `pyproject.toml`, creates a CLI symlink, installs the
 user service, and preserves any existing `~/.config/deskwave/config.toml`.
+The service starts automatically with the user session. To start it at boot
+before interactive login, enable lingering once with `loginctl enable-linger
+$USER`.
 
 Service operations:
 

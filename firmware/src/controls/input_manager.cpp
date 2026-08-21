@@ -216,8 +216,27 @@ void InputManager::pollTouch(const std::uint32_t nowMs) {
     if (pressed) {
         if (!touchActive_) {
             touchActive_ = true;
+            touchStable_ = false;
+            touchStableSamples_ = 1;
             touchMoved_ = false;
             touchLongEmitted_ = false;
+            touchLastX_ = x;
+            touchLastY_ = y;
+            return;
+        }
+        if (!touchStable_) {
+            if (std::abs(static_cast<int>(x) - touchLastX_) < 25 &&
+                std::abs(static_cast<int>(y) - touchLastY_) < 25) {
+                touchStableSamples_ = std::min<std::uint8_t>(10, touchStableSamples_ + 1);
+            } else {
+                touchStableSamples_ = 1;
+            }
+            touchLastX_ = x;
+            touchLastY_ = y;
+            if (touchStableSamples_ < 3) {
+                return;
+            }
+            touchStable_ = true;
             touchStartedAtMs_ = nowMs;
             nextTouchRepeatAtMs_ = nowMs + 1'200;
             touchStartX_ = x;
@@ -246,6 +265,11 @@ void InputManager::pollTouch(const std::uint32_t nowMs) {
     if (!touchActive_) {
         return;
     }
+    if (!touchStable_) {
+        touchActive_ = false;
+        touchStableSamples_ = 0;
+        return;
+    }
     const auto duration = static_cast<std::uint32_t>(nowMs - touchStartedAtMs_);
     if (touchMoved_) {
         const auto deltaX = static_cast<int>(touchLastX_) - touchStartX_;
@@ -267,6 +291,8 @@ void InputManager::pollTouch(const std::uint32_t nowMs) {
         publish(touchControl_, gesture);
     }
     touchActive_ = false;
+    touchStable_ = false;
+    touchStableSamples_ = 0;
     touchMoved_ = false;
     touchLongEmitted_ = false;
 }

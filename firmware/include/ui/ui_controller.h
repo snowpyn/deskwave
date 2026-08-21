@@ -69,7 +69,6 @@ class UiController {
    private:
     void render(std::uint32_t nowMs);
     void renderAtmosphere();
-    void renderAmbientEdge(std::uint32_t nowMs);
     void renderBoot();
     void renderHeader(std::uint32_t nowMs);
     void renderConnection(std::uint32_t nowMs);
@@ -118,7 +117,6 @@ class UiController {
     std::uint32_t toastUntilMs_{0};
     std::uint32_t lastAnimationFrameMs_{0};
     std::uint32_t lastProgressFrameMs_{0};
-    std::uint32_t lastAmbientFrameMs_{0};
     std::int16_t volumeOverlayPercent_{-1};
     std::uint8_t resetSecondsRemaining_{0};
     bool hasPlayback_{false};

@@ -51,7 +51,9 @@ class InputManager {
     std::int16_t touchStartY_{0};
     std::int16_t touchLastX_{0};
     std::int16_t touchLastY_{0};
+    std::uint8_t touchStableSamples_{0};
     bool touchActive_{false};
+    bool touchStable_{false};
     bool touchMoved_{false};
     bool touchLongEmitted_{false};
     volatile core::ControlContext controlContext_{core::ControlContext::Playback};

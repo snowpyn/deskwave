@@ -21,6 +21,9 @@ versioning.
   skip, shuffle, and repeat controls remain available after a brief host outage.
 - Spotify position updates redraw only the progress region instead of the full
   screen, eliminating the recurring TFT flicker.
+- Repeated cached artwork results no longer decode and repaint an unchanged
+  album cover, and Focus touch targets wait for stable coordinates before a tap
+  is classified.
 - The hardened user service permits the read-only netlink access required for
   Zeroconf to inspect interfaces and publish the IPv4 mDNS service.
 - Ubuntu Snap players such as Spotify can now expose MPRIS metadata and controls
@@ -29,8 +32,8 @@ versioning.
 
 ### Changed
 
-- The display now has a slow, flowing rainbow edge-light animation that evokes
-  an RGB backlight without requiring RGB-capable backlight hardware.
+- The Focus board's physical RGB status LED now flows through a calm rainbow;
+  the display itself uses a softer sea-glass, lavender, and moonlit palette.
 
 ## [0.1.0] - 2026-08-21
 

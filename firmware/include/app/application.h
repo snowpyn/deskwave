@@ -68,6 +68,7 @@ class Application {
     std::uint32_t lastHealthUpdateMs_{0};
     std::uint32_t lastHealthLogMs_{0};
     std::uint32_t lastPlayerRequestMs_{0};
+    std::uint32_t lastStatusLedUpdateMs_{0};
     std::uint32_t factoryResetChordStartedAtMs_{0};
     std::int16_t optimisticVolumePercent_{-1};
     std::uint8_t selectedPlayer_{0};

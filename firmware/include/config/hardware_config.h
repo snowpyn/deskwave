@@ -47,12 +47,17 @@ inline constexpr int kTouchIrq = 36;
 inline constexpr int kTouchDin = 32;
 inline constexpr int kTouchMiso = 39;
 inline constexpr int kTouchClk = 25;
+inline constexpr bool kHasRgbStatusLed = true;
+inline constexpr int kStatusLedRed = 4;
+inline constexpr int kStatusLedGreen = 16;
+inline constexpr int kStatusLedBlue = 17;
 inline constexpr int kStatusLed = 17;
 inline constexpr int kBuzzer = -1;
 
 inline constexpr std::array kAssignedPins{
     kDisplaySclk, kDisplayMosi, kDisplayMiso, kDisplayCs, kDisplayDc, kBacklight,
-    kTouchCs,    kTouchIrq,    kTouchDin,    kTouchMiso, kTouchClk, kStatusLed,
+    kTouchCs,       kTouchIrq,      kTouchDin,     kTouchMiso, kTouchClk,
+    kStatusLedRed,  kStatusLedGreen, kStatusLedBlue,
 };
 #else
 inline constexpr int kDisplaySclk = 12;
@@ -78,6 +83,10 @@ inline constexpr int kTouchIrq = -1;
 inline constexpr int kTouchDin = -1;
 inline constexpr int kTouchMiso = -1;
 inline constexpr int kTouchClk = -1;
+inline constexpr bool kHasRgbStatusLed = false;
+inline constexpr int kStatusLedRed = -1;
+inline constexpr int kStatusLedGreen = -1;
+inline constexpr int kStatusLedBlue = 17;
 inline constexpr int kStatusLed = 17;
 inline constexpr int kBuzzer = -1;
 

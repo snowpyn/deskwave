@@ -44,7 +44,13 @@ void setup() {
                      artworkRequestQueue, artworkResultQueue, playerQueue)) {
         DW_LOG_ERROR("system", "Required application queues could not be allocated");
         fatalStartupError = true;
+#if defined(DESKWAVE_FOCUS_CLASSIC)
+        pinMode(deskwave::hardware::kStatusLedRed, OUTPUT);
+        pinMode(deskwave::hardware::kStatusLedGreen, OUTPUT);
+        pinMode(deskwave::hardware::kStatusLedBlue, OUTPUT);
+#else
         pinMode(deskwave::hardware::kStatusLed, OUTPUT);
+#endif
         return;
     }
 
@@ -72,6 +78,13 @@ void loop() {
         application->loop();
         return;
     }
+#if defined(DESKWAVE_FOCUS_CLASSIC)
+    const auto enabled = (millis() / 150U) % 2U == 0;
+    analogWrite(deskwave::hardware::kStatusLedRed, enabled ? 75 : 255);
+    analogWrite(deskwave::hardware::kStatusLedGreen, 255);
+    analogWrite(deskwave::hardware::kStatusLedBlue, 255);
+#else
     digitalWrite(deskwave::hardware::kStatusLed, (millis() / 150U) % 2U == 0 ? HIGH : LOW);
+#endif
     vTaskDelay(pdMS_TO_TICKS(20));
 }
