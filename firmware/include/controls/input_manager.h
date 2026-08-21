@@ -24,6 +24,13 @@ class InputManager {
     void publish(core::PhysicalControl control, core::Gesture gesture);
     void processButton(core::ButtonTracker& tracker, bool pressed, core::PhysicalControl control,
                        std::uint32_t nowMs);
+#if defined(DESKWAVE_FOCUS_CLASSIC)
+    void initializeTouch();
+    [[nodiscard]] bool readTouch(std::int16_t& x, std::int16_t& y);
+    [[nodiscard]] std::uint16_t touchReadAdc(std::uint8_t command);
+    void pollTouch(std::uint32_t nowMs);
+    [[nodiscard]] static core::PhysicalControl touchControlAt(std::int16_t x, std::int16_t y);
+#endif
 
     QueueHandle_t eventQueue_;
     core::EncoderTracker encoder_;
@@ -34,6 +41,19 @@ class InputManager {
     TaskHandle_t task_{nullptr};
     std::uint32_t lastQueueWarningMs_{0};
     volatile bool factoryResetChordActive_{false};
+#if defined(DESKWAVE_FOCUS_CLASSIC)
+    core::PhysicalControl touchControl_{core::PhysicalControl::EncoderButton};
+    std::uint32_t lastTouchPollMs_{0};
+    std::uint32_t touchStartedAtMs_{0};
+    std::uint32_t nextTouchRepeatAtMs_{0};
+    std::int16_t touchStartX_{0};
+    std::int16_t touchStartY_{0};
+    std::int16_t touchLastX_{0};
+    std::int16_t touchLastY_{0};
+    bool touchActive_{false};
+    bool touchMoved_{false};
+    bool touchLongEmitted_{false};
+#endif
 };
 
 }  // namespace deskwave::controls

@@ -81,6 +81,19 @@ All board-specific assumptions are centralized in
 The exact reference pinout and electrical cautions are in
 [Wiring](docs/WIRING.md). Confirm the wiring before applying power.
 
+### ESP32 Focus-board compatibility
+
+The locally verified ESP32-D0WD-V3 board used by the `esp32-focus` project is
+supported by the `esp32-focus` PlatformIO environment. It uses the known-good
+ILI9341/XPT2046 wiring from that project and replaces the reference encoder and
+buttons with touch controls: tap the footer controls, swipe vertically to turn
+the encoder, and swipe horizontally for previous/next. Build and flash it with:
+
+```bash
+.tools/bin/pio run -e esp32-focus
+.tools/bin/pio run -e esp32-focus -t upload --upload-port /dev/ttyUSB1
+```
+
 ## Quick start
 
 ### 1. Clone
@@ -279,8 +292,10 @@ TLS, so network confidentiality depends on the trusted LAN. See
 - Linux/MPRIS is the only production host backend in `0.1.0`; Windows and macOS
   can be added behind the existing backend abstraction.
 - Portable MPRIS has no queue API, so DeskWave does not show a Queue/Next screen.
-- The reference firmware is configured for one ILI9341/ESP32-S3 wiring profile;
-  other displays require a hardware adapter in the centralized config layer.
+- The reference firmware targets the ILI9341/ESP32-S3 wiring profile, with a
+  compatibility profile for the locally verified ILI9341/XPT2046 classic ESP32
+  Focus board; other displays require a hardware adapter in the centralized
+  config layer.
 - Firmware updates are wired through PlatformIO. Safe signed OTA is reserved for
   a later release.
 - Automated software verification does not prove display orientation, electrical
@@ -302,7 +317,7 @@ a backend that exposes real queue data.
 ```text
 .github/workflows/  Firmware and host CI
 docs/               Architecture, protocol, wiring, recovery, and test guides
-firmware/           ESP32-S3 application and portable core tests
+firmware/           ESP32 application profiles and portable core tests
 host/               Linux package, systemd unit, installer, and tests
 scripts/            Version/build support
 platformio.ini      Reproducible firmware environments

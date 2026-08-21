@@ -29,6 +29,31 @@ change only the panel flags/rotation in
 `firmware/include/config/hardware_config.h` and the display adapter—not UI
 coordinates or application logic.
 
+## Classic ESP32 Focus profile
+
+The `esp32-focus` PlatformIO environment targets the locally verified
+ESP32-D0WD-V3 board and its known-good Focus panel loom:
+
+| Signal | ESP32 GPIO |
+| --- | ---: |
+| TFT CS | 15 |
+| TFT DC | 2 |
+| TFT SCLK | 14 |
+| TFT MOSI | 13 |
+| TFT MISO | 12 |
+| TFT reset | Not connected (`-1`) |
+| TFT backlight | 21 |
+| Touch CS | 33 |
+| Touch IRQ | 36 |
+| Touch DIN | 32 |
+| Touch MISO | 39 |
+| Touch CLK | 25 |
+
+This profile has no encoder/button loom. Touching the footer activates the
+previous, play/pause, next, and menu controls; vertical swipes act as encoder
+turns, and horizontal swipes act as previous/next. The touch calibration is the
+same 200–3900 endpoint mapping used by the verified Focus firmware.
+
 ### Backlight caution
 
 GPIO 14 is configured as a 20 kHz PWM signal. It must drive a breakout's logic
