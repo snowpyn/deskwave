@@ -32,8 +32,7 @@ Application::Application(storage::SettingsStore& settingsStore,
                          network::ArtworkManager& artworkManager, ui::UiController& ui,
                          const QueueHandle_t inputQueue, const QueueHandle_t playbackQueue,
                          const QueueHandle_t noticeQueue, const QueueHandle_t commandQueue,
-                         const QueueHandle_t feedbackQueue,
-                         const QueueHandle_t artworkResultQueue,
+                         const QueueHandle_t feedbackQueue, const QueueHandle_t artworkResultQueue,
                          const QueueHandle_t playerQueue)
     : settingsStore_(settingsStore),
       inputManager_(inputManager),
@@ -120,9 +119,8 @@ void Application::loop() {
     }
     persistSettingsIfDue(now);
     updateHealth(now);
-    if (settings_.dimTimeoutSeconds != 0 &&
-        static_cast<std::uint32_t>(now - lastActivityAtMs_) >=
-            settings_.dimTimeoutSeconds * 1'000U) {
+    if (settings_.dimTimeoutSeconds != 0 && static_cast<std::uint32_t>(now - lastActivityAtMs_) >=
+                                                settings_.dimTimeoutSeconds * 1'000U) {
         if (!dimmed_) {
             dimmed_ = true;
             ui_.setDimmed(true, settings_.brightness);
@@ -292,8 +290,8 @@ void Application::handleCommand(const core::ControlCommand command, const std::u
                 playback_.mutedKnown = true;
                 playback_.muted = !playback_.muted;
                 ui_.setPlayback(playback_, nowMs);
-                ui_.showVolume(std::max<std::int16_t>(0, optimisticVolumePercent_),
-                               playback_.muted, nowMs);
+                ui_.showVolume(std::max<std::int16_t>(0, optimisticVolumePercent_), playback_.muted,
+                               nowMs);
             }
             return;
         case core::ControlCommand::Previous:
@@ -307,7 +305,7 @@ void Application::handleCommand(const core::ControlCommand command, const std::u
                 return;
             }
             request.command = command == core::ControlCommand::Previous ? HostCommand::Previous
-                                                                         : HostCommand::Next;
+                                                                        : HostCommand::Next;
             if (!sendRequest(request, "Track command queue is full", nowMs)) {
                 return;
             }
@@ -322,8 +320,8 @@ void Application::handleCommand(const core::ControlCommand command, const std::u
                 return;
             }
             request.command = HostCommand::Seek;
-            request.integerValue = command == core::ControlCommand::SeekBackward ? -kSeekStepMs
-                                                                                  : kSeekStepMs;
+            request.integerValue =
+                command == core::ControlCommand::SeekBackward ? -kSeekStepMs : kSeekStepMs;
             if (sendRequest(request, "Seek command queue is full", nowMs)) {
                 ui_.optimisticSeek(request.integerValue, nowMs);
             }
@@ -437,12 +435,12 @@ void Application::adjustSetting(const std::int8_t direction, const std::uint32_t
             break;
         }
         case 2:
-            settings_.volumeStepPercent = static_cast<std::uint8_t>(std::clamp<int>(
-                settings_.volumeStepPercent + direction, 1, 20));
+            settings_.volumeStepPercent = static_cast<std::uint8_t>(
+                std::clamp<int>(settings_.volumeStepPercent + direction, 1, 20));
             break;
         case 3:
-            settings_.defaultScreen = static_cast<std::uint8_t>(
-                (settings_.defaultScreen + 4 + direction) % 4);
+            settings_.defaultScreen =
+                static_cast<std::uint8_t>((settings_.defaultScreen + 4 + direction) % 4);
             break;
         case 4:
             requestFactoryResetConfirmation(nowMs);
@@ -469,9 +467,7 @@ void Application::requestFactoryResetConfirmation(const std::uint32_t nowMs) {
     ui_.showToast("Hold the encoder knob to confirm reset", nowMs, false);
 }
 
-void Application::updateSettingsView() {
-    ui_.setSettings(settings_);
-}
+void Application::updateSettingsView() { ui_.setSettings(settings_); }
 
 void Application::requestPlayers(const std::uint32_t nowMs) {
     if (!deviceStatus_.hostConnected) {
@@ -488,14 +484,13 @@ void Application::selectRelativePlayer(const std::int8_t direction) {
     if (players_.count == 0) {
         return;
     }
-    selectedPlayer_ = static_cast<std::uint8_t>(
-        (selectedPlayer_ + players_.count + direction) % players_.count);
+    selectedPlayer_ =
+        static_cast<std::uint8_t>((selectedPlayer_ + players_.count + direction) % players_.count);
     ui_.setSelectedPlayer(selectedPlayer_);
 }
 
 void Application::selectPlayer(const std::uint32_t nowMs) {
-    if (!deviceStatus_.hostConnected || players_.count == 0 ||
-        selectedPlayer_ >= players_.count) {
+    if (!deviceStatus_.hostConnected || players_.count == 0 || selectedPlayer_ >= players_.count) {
         ui_.showToast("No playback device is available", nowMs, true);
         return;
     }
@@ -556,8 +551,7 @@ void Application::persistSettingsIfDue(const std::uint32_t nowMs) {
         return;
     }
     if (settingsStore_.saveDisplay(settings_.brightness, settings_.defaultScreen,
-                                   settings_.dimTimeoutSeconds,
-                                   settings_.volumeStepPercent)) {
+                                   settings_.dimTimeoutSeconds, settings_.volumeStepPercent)) {
         settingsDirty_ = false;
         DW_LOG_INFO("storage", "Display and control preferences saved");
     } else {

@@ -14,6 +14,6 @@
     Serial.printf("[DEBUG][%s] " format "\n", component, ##__VA_ARGS__)
 #else
 #define DW_LOG_DEBUG(component, format, ...) \
-    do {                                      \
+    do {                                     \
     } while (false)
 #endif

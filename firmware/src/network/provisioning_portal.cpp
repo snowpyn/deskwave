@@ -115,13 +115,9 @@ void ProvisioningPortal::stop() {
     DW_LOG_INFO("provisioning", "Temporary access point stopped");
 }
 
-bool ProvisioningPortal::credentialsSaved() const noexcept {
-    return credentialsSaved_;
-}
+bool ProvisioningPortal::credentialsSaved() const noexcept { return credentialsSaved_; }
 
-const String& ProvisioningPortal::accessPointName() const noexcept {
-    return accessPointName_;
-}
+const String& ProvisioningPortal::accessPointName() const noexcept { return accessPointName_; }
 
 const String& ProvisioningPortal::accessPointPassword() const noexcept {
     return accessPointPassword_;

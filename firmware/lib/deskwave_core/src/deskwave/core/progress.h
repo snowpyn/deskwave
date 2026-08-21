@@ -5,7 +5,7 @@
 namespace deskwave::core {
 
 class ProgressClock {
-  public:
+   public:
     void synchronize(std::uint64_t positionMs, std::uint64_t durationMs, bool playing,
                      std::uint32_t localNowMs) noexcept;
     void seek(std::int64_t offsetMs, std::uint32_t localNowMs) noexcept;
@@ -13,7 +13,7 @@ class ProgressClock {
     [[nodiscard]] std::uint64_t duration() const noexcept;
     [[nodiscard]] float fraction(std::uint32_t localNowMs) const noexcept;
 
-  private:
+   private:
     std::uint64_t positionMs_{0};
     std::uint64_t durationMs_{0};
     std::uint32_t synchronizedAtMs_{0};

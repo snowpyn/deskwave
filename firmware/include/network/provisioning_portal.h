@@ -8,7 +8,7 @@
 namespace deskwave::network {
 
 class ProvisioningPortal {
-  public:
+   public:
     explicit ProvisioningPortal(storage::SettingsStore& settingsStore);
     [[nodiscard]] bool begin(const String& deviceSuffix);
     void loop();
@@ -17,7 +17,7 @@ class ProvisioningPortal {
     [[nodiscard]] const String& accessPointName() const noexcept;
     [[nodiscard]] const String& accessPointPassword() const noexcept;
 
-  private:
+   private:
     void handleRoot();
     void handleSave();
     void sendHeaders();

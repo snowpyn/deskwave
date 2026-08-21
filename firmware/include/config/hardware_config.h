@@ -40,9 +40,9 @@ inline constexpr int kStatusLed = 17;
 inline constexpr int kBuzzer = -1;
 
 inline constexpr std::array kAssignedPins{
-    kDisplaySclk,  kDisplayMosi,   kDisplayMiso, kDisplayCs,  kDisplayDc,
-    kDisplayReset, kBacklight,     kEncoderA,    kEncoderB,   kEncoderSwitch,
-    kLeftButton,   kRightButton,   kMenuButton,  kStatusLed,
+    kDisplaySclk,  kDisplayMosi, kDisplayMiso, kDisplayCs, kDisplayDc,
+    kDisplayReset, kBacklight,   kEncoderA,    kEncoderB,  kEncoderSwitch,
+    kLeftButton,   kRightButton, kMenuButton,  kStatusLed,
 };
 
 static_assert(core::pinsUnique(kAssignedPins), "DeskWave GPIO assignments must be unique");

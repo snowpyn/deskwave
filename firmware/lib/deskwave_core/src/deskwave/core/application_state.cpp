@@ -2,9 +2,7 @@
 
 namespace deskwave::core {
 
-SystemState StateMachine::state() const noexcept {
-    return state_;
-}
+SystemState StateMachine::state() const noexcept { return state_; }
 
 bool StateMachine::hostConnected() const noexcept {
     return state_ == SystemState::Ready || state_ == SystemState::Playing ||

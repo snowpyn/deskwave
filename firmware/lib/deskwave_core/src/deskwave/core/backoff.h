@@ -6,7 +6,7 @@
 namespace deskwave::core {
 
 class ReconnectBackoff {
-  public:
+   public:
     constexpr ReconnectBackoff(std::uint32_t baseMs = 500, std::uint32_t maximumMs = 30000)
         : baseMs_(baseMs), maximumMs_(maximumMs) {}
 
@@ -25,7 +25,7 @@ class ReconnectBackoff {
     void reset() noexcept { attempt_ = 0; }
     [[nodiscard]] std::uint8_t attempts() const noexcept { return attempt_; }
 
-  private:
+   private:
     std::uint32_t baseMs_;
     std::uint32_t maximumMs_;
     std::uint8_t attempt_{0};

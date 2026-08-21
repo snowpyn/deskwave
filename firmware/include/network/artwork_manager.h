@@ -7,11 +7,11 @@
 namespace deskwave::network {
 
 class ArtworkManager {
-  public:
+   public:
     ArtworkManager(QueueHandle_t requestQueue, QueueHandle_t resultQueue);
     [[nodiscard]] bool begin();
 
-  private:
+   private:
     static void taskEntry(void* context);
     void run();
     [[nodiscard]] app::ArtworkResult download(const app::ArtworkRequest& request);

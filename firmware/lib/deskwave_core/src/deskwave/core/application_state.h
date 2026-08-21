@@ -39,12 +39,12 @@ enum class StateEvent : std::uint8_t {
 };
 
 class StateMachine {
-  public:
+   public:
     [[nodiscard]] SystemState state() const noexcept;
     [[nodiscard]] bool transition(StateEvent event) noexcept;
     [[nodiscard]] bool hostConnected() const noexcept;
 
-  private:
+   private:
     SystemState state_{SystemState::Boot};
 };
 

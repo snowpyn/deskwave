@@ -37,7 +37,7 @@ struct SettingsView {
 };
 
 class UiController {
-  public:
+   public:
     explicit UiController(display::DisplayDriver& display);
     [[nodiscard]] bool begin(std::uint8_t brightness, std::uint8_t defaultScreen,
                              std::uint32_t nowMs);
@@ -66,7 +66,7 @@ class UiController {
     void hideFactoryResetChord();
     void showResetting();
 
-  private:
+   private:
     void render(std::uint32_t nowMs);
     void renderBoot();
     void renderHeader(std::uint32_t nowMs);
@@ -87,9 +87,8 @@ class UiController {
     void drawFitted(const char* text, std::int32_t x, std::int32_t y, std::int32_t maxWidth,
                     const lgfx::IFont* font, std::uint16_t color,
                     lgfx::textdatum_t datum = lgfx::textdatum_t::top_left);
-    void drawTransportIcon(std::int32_t centerX, std::int32_t centerY,
-                           app::PlaybackStatus status, std::uint16_t color,
-                           std::uint8_t pulse = 0);
+    void drawTransportIcon(std::int32_t centerX, std::int32_t centerY, app::PlaybackStatus status,
+                           std::uint16_t color, std::uint8_t pulse = 0);
     void drawConnectionGlyph(std::int32_t x, std::int32_t y, std::uint32_t nowMs);
     [[nodiscard]] bool connectionScreenActive() const noexcept;
     [[nodiscard]] bool trackChanged(const app::PlaybackSnapshot& snapshot) const noexcept;

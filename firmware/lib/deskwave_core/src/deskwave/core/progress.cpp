@@ -36,9 +36,7 @@ void ProgressClock::seek(const std::int64_t offsetMs, const std::uint32_t localN
     synchronizedAtMs_ = localNowMs;
 }
 
-std::uint64_t ProgressClock::duration() const noexcept {
-    return durationMs_;
-}
+std::uint64_t ProgressClock::duration() const noexcept { return durationMs_; }
 
 float ProgressClock::fraction(const std::uint32_t localNowMs) const noexcept {
     if (durationMs_ == 0) {

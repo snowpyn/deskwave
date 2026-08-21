@@ -8,21 +8,15 @@ namespace {
 
 constexpr char kNamespace[] = "deskwave";
 
-bool validSsid(const String& value) {
-    return !value.isEmpty() && value.length() <= 32;
-}
+bool validSsid(const String& value) { return !value.isEmpty() && value.length() <= 32; }
 
 bool validPassword(const String& value) {
     return value.isEmpty() || (value.length() >= 8 && value.length() <= 63);
 }
 
-bool validToken(const String& value) {
-    return value.length() >= 32 && value.length() <= 128;
-}
+bool validToken(const String& value) { return value.length() >= 32 && value.length() <= 128; }
 
-bool validHost(const String& value) {
-    return value.length() <= 253 && value.indexOf(' ') < 0;
-}
+bool validHost(const String& value) { return value.length() <= 253 && value.indexOf(' ') < 0; }
 
 }  // namespace
 
@@ -38,9 +32,7 @@ bool SettingsStore::lock() {
     return mutex_ != nullptr && xSemaphoreTake(mutex_, pdMS_TO_TICKS(1'000)) == pdTRUE;
 }
 
-void SettingsStore::unlock() {
-    xSemaphoreGive(mutex_);
-}
+void SettingsStore::unlock() { xSemaphoreGive(mutex_); }
 
 bool SettingsStore::migrateLegacy(Preferences& preferences) {
     const String legacySsid = preferences.getString("wifi_ssid", "");
@@ -114,10 +106,9 @@ SettingsLoadStatus SettingsStore::load(DeviceSettings& settings) {
 
     if ((settings.wifiConfigured &&
          (!validSsid(settings.wifiSsid) || !validPassword(settings.wifiPassword))) ||
-        (settings.paired && !validToken(settings.hostToken)) ||
-        !validHost(settings.hostOverride) || settings.hostPort == 0 || settings.brightness < 10 ||
-        settings.defaultScreen > 3 || settings.volumeStepPercent < 1 ||
-        settings.volumeStepPercent > 20 ||
+        (settings.paired && !validToken(settings.hostToken)) || !validHost(settings.hostOverride) ||
+        settings.hostPort == 0 || settings.brightness < 10 || settings.defaultScreen > 3 ||
+        settings.volumeStepPercent < 1 || settings.volumeStepPercent > 20 ||
         (settings.dimTimeoutSeconds != 0 &&
          (settings.dimTimeoutSeconds < 30 || settings.dimTimeoutSeconds > 86'400))) {
         settings = DeviceSettings{};
@@ -179,8 +170,7 @@ bool SettingsStore::clearToken() {
 bool SettingsStore::saveDisplay(const std::uint8_t brightness, const std::uint8_t defaultScreen,
                                 const std::uint32_t dimTimeoutSeconds,
                                 const std::uint8_t volumeStepPercent) {
-    if (brightness < 10 || defaultScreen > 3 || volumeStepPercent < 1 ||
-        volumeStepPercent > 20 ||
+    if (brightness < 10 || defaultScreen > 3 || volumeStepPercent < 1 || volumeStepPercent > 20 ||
         (dimTimeoutSeconds != 0 && (dimTimeoutSeconds < 30 || dimTimeoutSeconds > 86'400)) ||
         !lock()) {
         return false;
@@ -189,12 +179,11 @@ bool SettingsStore::saveDisplay(const std::uint8_t brightness, const std::uint8_
     bool success = preferences.begin(kNamespace, false);
     if (success) {
         preferences.putUChar("schema", config::kSettingsSchemaVersion);
-        success = preferences.putUChar("brightness", brightness) == sizeof(brightness) &&
-                  preferences.putUChar("screen", defaultScreen) == sizeof(defaultScreen) &&
-                  preferences.putUChar("volume_step", volumeStepPercent) ==
-                      sizeof(volumeStepPercent) &&
-                  preferences.putULong("dim_seconds", dimTimeoutSeconds) ==
-                      sizeof(dimTimeoutSeconds);
+        success =
+            preferences.putUChar("brightness", brightness) == sizeof(brightness) &&
+            preferences.putUChar("screen", defaultScreen) == sizeof(defaultScreen) &&
+            preferences.putUChar("volume_step", volumeStepPercent) == sizeof(volumeStepPercent) &&
+            preferences.putULong("dim_seconds", dimTimeoutSeconds) == sizeof(dimTimeoutSeconds);
         preferences.end();
     }
     unlock();

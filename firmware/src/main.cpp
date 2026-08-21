@@ -55,12 +55,11 @@ void setup() {
     static deskwave::network::ArtworkManager artworkManager(artworkRequestQueue,
                                                             artworkResultQueue);
     static deskwave::network::NetworkManager networkManager(
-        settingsStore, playbackQueue, noticeQueue, commandQueue, feedbackQueue,
-        artworkRequestQueue, playerQueue);
-    static deskwave::app::Application controller(
-        settingsStore, inputManager, networkManager, artworkManager, ui, inputQueue,
-        playbackQueue, noticeQueue, commandQueue, feedbackQueue, artworkResultQueue,
+        settingsStore, playbackQueue, noticeQueue, commandQueue, feedbackQueue, artworkRequestQueue,
         playerQueue);
+    static deskwave::app::Application controller(
+        settingsStore, inputManager, networkManager, artworkManager, ui, inputQueue, playbackQueue,
+        noticeQueue, commandQueue, feedbackQueue, artworkResultQueue, playerQueue);
     application = &controller;
     if (!application->begin()) {
         fatalStartupError = true;
@@ -73,7 +72,6 @@ void loop() {
         application->loop();
         return;
     }
-    digitalWrite(deskwave::hardware::kStatusLed,
-                 (millis() / 150U) % 2U == 0 ? HIGH : LOW);
+    digitalWrite(deskwave::hardware::kStatusLed, (millis() / 150U) % 2U == 0 ? HIGH : LOW);
     vTaskDelay(pdMS_TO_TICKS(20));
 }

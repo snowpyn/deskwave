@@ -17,12 +17,12 @@ struct ButtonTiming {
 };
 
 class ButtonTracker {
-  public:
+   public:
     explicit ButtonTracker(ButtonTiming timing = {});
     [[nodiscard]] ButtonSignal update(bool pressed, std::uint32_t nowMs) noexcept;
     [[nodiscard]] bool isPressed() const noexcept;
 
-  private:
+   private:
     ButtonTiming timing_;
     bool rawPressed_{false};
     bool stablePressed_{false};
@@ -33,12 +33,12 @@ class ButtonTracker {
 };
 
 class EncoderTracker {
-  public:
+   public:
     explicit EncoderTracker(std::uint32_t minimumEdgeIntervalUs = 180);
     [[nodiscard]] std::int8_t update(bool channelA, bool channelB, std::uint32_t nowUs) noexcept;
     void reset(bool channelA, bool channelB, std::uint32_t nowUs) noexcept;
 
-  private:
+   private:
     std::uint8_t previous_{0};
     std::int8_t accumulator_{0};
     std::uint32_t lastEdgeAt_{0};
@@ -89,7 +89,7 @@ struct ControlBinding {
 };
 
 class ControlMapper {
-  public:
+   public:
     static constexpr std::size_t kMaxBindings = 32;
 
     ControlMapper();
@@ -97,7 +97,7 @@ class ControlMapper {
                                      Gesture gesture) const noexcept;
     [[nodiscard]] bool setBinding(std::size_t index, ControlBinding binding) noexcept;
 
-  private:
+   private:
     std::array<ControlBinding, kMaxBindings> bindings_{};
     std::size_t bindingCount_{0};
 };

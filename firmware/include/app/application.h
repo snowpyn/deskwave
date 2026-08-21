@@ -15,17 +15,16 @@
 namespace deskwave::app {
 
 class Application {
-  public:
+   public:
     Application(storage::SettingsStore& settingsStore, controls::InputManager& inputManager,
                 network::NetworkManager& networkManager, network::ArtworkManager& artworkManager,
                 ui::UiController& ui, QueueHandle_t inputQueue, QueueHandle_t playbackQueue,
-                QueueHandle_t noticeQueue, QueueHandle_t commandQueue,
-                QueueHandle_t feedbackQueue, QueueHandle_t artworkResultQueue,
-                QueueHandle_t playerQueue);
+                QueueHandle_t noticeQueue, QueueHandle_t commandQueue, QueueHandle_t feedbackQueue,
+                QueueHandle_t artworkResultQueue, QueueHandle_t playerQueue);
     [[nodiscard]] bool begin();
     void loop();
 
-  private:
+   private:
     void consumeQueues(std::uint32_t nowMs);
     void consumeInput(std::uint32_t nowMs);
     void handleInput(const controls::InputEvent& event, std::uint32_t nowMs);

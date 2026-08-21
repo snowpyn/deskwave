@@ -24,7 +24,7 @@ struct DeviceSettings {
 };
 
 class SettingsStore {
-  public:
+   public:
     SettingsStore();
     ~SettingsStore();
     SettingsStore(const SettingsStore&) = delete;
@@ -35,12 +35,11 @@ class SettingsStore {
     [[nodiscard]] bool saveToken(const String& token);
     [[nodiscard]] bool clearToken();
     [[nodiscard]] bool saveDisplay(std::uint8_t brightness, std::uint8_t defaultScreen,
-                                   std::uint32_t dimTimeoutSeconds,
-                                   std::uint8_t volumeStepPercent);
+                                   std::uint32_t dimTimeoutSeconds, std::uint8_t volumeStepPercent);
     [[nodiscard]] bool saveHostOverride(const String& host, std::uint16_t port);
     [[nodiscard]] bool factoryReset();
 
-  private:
+   private:
     [[nodiscard]] bool lock();
     void unlock();
     [[nodiscard]] bool migrateLegacy(Preferences& preferences);

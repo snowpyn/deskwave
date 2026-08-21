@@ -13,14 +13,14 @@
 namespace deskwave::network {
 
 class NetworkManager {
-  public:
+   public:
     NetworkManager(storage::SettingsStore& settingsStore, QueueHandle_t playbackQueue,
                    QueueHandle_t noticeQueue, QueueHandle_t commandQueue,
                    QueueHandle_t feedbackQueue, QueueHandle_t artworkQueue,
                    QueueHandle_t playerQueue);
     [[nodiscard]] bool begin();
 
-  private:
+   private:
     static void taskEntry(void* context);
     void run();
     [[nodiscard]] bool provision(storage::DeviceSettings& settings);
@@ -28,8 +28,8 @@ class NetworkManager {
     [[nodiscard]] bool discoverHost(const storage::DeviceSettings& settings);
     [[nodiscard]] bool pairDevice(storage::DeviceSettings& settings);
     [[nodiscard]] bool runWebSocket(storage::DeviceSettings& settings);
-    [[nodiscard]] bool postJson(const String& path, const String& requestBody,
-                                int& responseCode, String& responseBody);
+    [[nodiscard]] bool postJson(const String& path, const String& requestBody, int& responseCode,
+                                String& responseBody);
     [[nodiscard]] bool hostHealthy();
     void configureWebSocket(const String& token);
     void handleWebSocketEvent(WStype_t type, std::uint8_t* payload, std::size_t length);
@@ -40,8 +40,8 @@ class NetworkManager {
     void processCommands();
     void sendCommand(const app::ControlRequest& request);
     void rejectQueuedCommands(const char* reason);
-    void publishNotice(app::SystemNoticeType type, const char* primary,
-                       const char* secondary = "", std::int32_t value = 0);
+    void publishNotice(app::SystemNoticeType type, const char* primary, const char* secondary = "",
+                       std::int32_t value = 0);
     void transition(core::StateEvent event, const char* primary, const char* secondary = "");
     [[nodiscard]] String deviceSuffix() const;
     [[nodiscard]] static const char* commandName(app::HostCommand command);

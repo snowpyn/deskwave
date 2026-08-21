@@ -12,18 +12,18 @@ struct InputEvent {
 };
 
 class InputManager {
-  public:
+   public:
     explicit InputManager(QueueHandle_t eventQueue);
     [[nodiscard]] bool begin();
     void poll(std::uint32_t nowMs, std::uint32_t nowUs);
     [[nodiscard]] bool factoryResetChordActive() const noexcept;
 
-  private:
+   private:
     static void taskEntry(void* context);
     void run();
     void publish(core::PhysicalControl control, core::Gesture gesture);
-    void processButton(core::ButtonTracker& tracker, bool pressed,
-                       core::PhysicalControl control, std::uint32_t nowMs);
+    void processButton(core::ButtonTracker& tracker, bool pressed, core::PhysicalControl control,
+                       std::uint32_t nowMs);
 
     QueueHandle_t eventQueue_;
     core::EncoderTracker encoder_;
