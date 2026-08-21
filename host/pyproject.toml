@@ -10,10 +10,24 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{ name = "DeskWave contributors" }]
-dependencies = []
+dependencies = [
+    "aiohttp==3.14.3",
+    "dbus-next==0.2.3",
+    "Pillow==12.3.0",
+    "zeroconf==0.150.0",
+]
 
 [project.optional-dependencies]
-test = ["pytest==9.1.1"]
+test = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+]
+dev = [
+    "mypy==2.3.1",
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "ruff==0.16.3",
+]
 
 [project.scripts]
 deskwave-host = "deskwave_host.cli:main"
@@ -23,3 +37,25 @@ packages = ["src/deskwave_host"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "S", "PERF", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+pretty = true
+packages = ["deskwave_host"]
+
+[[tool.mypy.overrides]]
+module = ["dbus_next.*"]
+ignore_missing_imports = true

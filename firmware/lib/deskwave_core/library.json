@@ -1,0 +1,8 @@
+{
+  "name": "deskwave_core",
+  "version": "0.1.0",
+  "description": "Hardware-independent DeskWave state and input logic",
+  "build": {
+    "includeDir": "src"
+  }
+}

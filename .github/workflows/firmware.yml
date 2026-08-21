@@ -1,0 +1,50 @@
+name: Firmware
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firmware-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: platformio.ini
+
+      - name: Install build tools
+        run: python -m pip install platformio==6.1.19 clang-format==18.1.8
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-${{ hashFiles('platformio.ini', 'firmware/lib/**/library.json') }}
+          restore-keys: platformio-${{ runner.os }}-
+
+      - name: Check authoritative version
+        run: python scripts/check_version.py
+
+      - name: Check C++ formatting
+        run: >-
+          find firmware -type f \( -name '*.cpp' -o -name '*.h' \) -print0 |
+          xargs -0 clang-format --dry-run --Werror
+
+      - name: Build ESP32-S3 firmware
+        run: pio run -e esp32-s3-devkitc-1
+
+      - name: Run hardware-independent firmware tests
+        run: pio test -e native

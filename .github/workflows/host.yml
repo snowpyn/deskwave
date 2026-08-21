@@ -1,0 +1,54 @@
+name: Host
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: host-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: host/pyproject.toml
+
+      - name: Install DeskWave Host and development tools
+        run: python -m pip install -e 'host[dev]'
+
+      - name: Check authoritative version
+        run: python scripts/check_version.py
+
+      - name: Check formatting
+        run: ruff format --check host scripts
+
+      - name: Lint
+        run: ruff check host scripts
+
+      - name: Type check
+        run: mypy host/src
+
+      - name: Run host unit tests
+        run: pytest -q host/tests --ignore=host/tests/integration
+
+      - name: Run host integration tests
+        run: pytest -q host/tests/integration
+
+      - name: Build installable wheel
+        run: python -m pip wheel ./host --wheel-dir dist --no-deps

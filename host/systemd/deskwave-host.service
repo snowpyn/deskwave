@@ -1,0 +1,26 @@
+[Unit]
+Description=DeskWave Linux media bridge
+Documentation=https://github.com/snowpyn/deskwave
+After=graphical-session.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/deskwave-host run
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=10s
+UMask=0077
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.config/deskwave %h/.cache/deskwave %h/.local/state/deskwave
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=default.target

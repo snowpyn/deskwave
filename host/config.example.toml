@@ -1,0 +1,14 @@
+[host]
+bind = "0.0.0.0"
+port = 8765
+service_name = "DeskWave Host"
+log_level = "INFO"
+
+# Set this to a complete MPRIS bus name to retain a manual player preference.
+# preferred_player = "org.mpris.MediaPlayer2.spotify"
+
+# Disabled by default to prevent an untrusted MPRIS client from using artwork
+# URLs to probe private HTTP services. Local file:// artwork remains supported.
+allow_private_artwork_hosts = false
+artwork_max_bytes = 8388608
+artwork_cache_bytes = 134217728
