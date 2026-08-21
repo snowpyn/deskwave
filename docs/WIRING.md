@@ -54,6 +54,10 @@ previous, play/pause, next, and menu controls; vertical swipes act as encoder
 turns, and horizontal swipes act as previous/next. The touch calibration is the
 same 200–3900 endpoint mapping used by the verified Focus firmware.
 
+The on-screen Shuffle and Repeat chips are direct touch targets. The top-right
+status target opens or closes the Actions screen; the footer `MORE` target still
+advances through the primary screens.
+
 ### Backlight caution
 
 GPIO 14 is configured as a 20 kHz PWM signal. It must drive a breakout's logic

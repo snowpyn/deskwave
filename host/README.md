@@ -120,6 +120,14 @@ The ESP32 Device screen can request up to six detected players and select one.
 The preference lasts for the host process lifetime; set `preferred_player` in
 the TOML file for a startup preference.
 
+DeskWave controls a phone only when a desktop bridge publishes that phone's
+media session as an MPRIS player. KDE Connect is one common route. The ESP32 is
+still only a controller/display: audio remains on the selected phone or PC.
+
+MPRIS exposes shuffle as a boolean and repeat as off/track/playlist. Smart
+Shuffle is a proprietary player mode with no supported MPRIS command, so the
+host never reports a fake success for it.
+
 ## Artwork safety
 
 Artwork is read from MPRIS `mpris:artUrl`. Local `file://` paths and public

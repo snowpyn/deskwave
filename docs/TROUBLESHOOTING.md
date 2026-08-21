@@ -90,6 +90,10 @@ The service advertises `_deskwave._tcp.local.`. From another Linux machine,
 `avahi-browse -rt _deskwave._tcp` can independently confirm discovery when
 Avahi tools are installed.
 
+If the journal reports `Address family not supported by protocol`, reinstall
+the current user-service unit. Its `RestrictAddressFamilies` list must include
+`AF_NETLINK`, which Zeroconf uses only to inspect local network interfaces.
+
 ## Pairing code never appears
 
 Pairing begins only after Wi-Fi and host discovery. Resolve the state shown
@@ -126,6 +130,10 @@ Start playback in a compatible desktop application. Browser media sessions may
 appear only while a tab is actively presenting media. Sandboxed applications
 may require their desktop integration/portal. DeskWave cannot synthesize
 metadata that the player does not expose.
+
+For phone playback, the phone session must be bridged into this same desktop
+D-Bus (for example by KDE Connect). DeskWave cannot directly inspect Android or
+iOS media sessions over Wi-Fi.
 
 ## Track information is missing
 

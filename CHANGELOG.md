@@ -3,6 +3,23 @@
 All notable DeskWave changes are documented here. The project follows semantic
 versioning.
 
+## [Unreleased]
+
+### Added
+
+- Classic ESP32 Focus-board profile with the verified ILI9341/XPT2046 wiring,
+  direct touch transport, shuffle/repeat targets, and private first-boot Wi-Fi
+  bootstrap support.
+- Immersive aurora-style 320x240 Now Playing interface with framed album art,
+  title/artist/album, elapsed and total time, transport, mode chips, player
+  identity, and cached-state presentation during host rediscovery.
+
+### Fixed
+
+- Host discovery retries no longer produce a repeating offline toast.
+- The hardened user service permits the read-only netlink access required for
+  Zeroconf to inspect interfaces and publish the IPv4 mDNS service.
+
 ## [0.1.0] - 2026-08-21
 
 ### Added

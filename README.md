@@ -30,6 +30,8 @@ the automated checks.
 - Provides Now Playing, Device, Settings, Actions, About, idle, provisioning,
   pairing, reconnecting, and error screens. Queue UI is intentionally hidden
   because MPRIS does not expose a portable queue.
+- Acts only as a remote control and display. Audio continues playing on the
+  selected PC or phone; DeskWave never receives or outputs the audio stream.
 
 ## System overview
 
@@ -93,6 +95,11 @@ the encoder, and swipe horizontally for previous/next. Build and flash it with:
 .tools/bin/pio run -e esp32-focus
 .tools/bin/pio run -e esp32-focus -t upload --upload-port /dev/ttyUSB1
 ```
+
+On Now Playing, tap the Shuffle or Repeat chip directly. Tap the top-right
+connection target to open the full action palette. A phone is controllable when
+it is exposed to the Linux desktop as an MPRIS player, such as through KDE
+Connect; otherwise the host has no phone media session to command.
 
 ## Quick start
 
@@ -236,6 +243,15 @@ They include brightness, idle dim timeout, default screen, and volume step. A
 manual host override exists in the storage model for networks where mDNS is not
 available; ordinary users do not need to edit firmware source for Wi-Fi,
 pairing, display preferences, or player selection.
+
+For a dedicated device that must join one known network on first boot, copy
+`firmware/include/config/device_secrets.example.h` to `device_secrets.h` and
+fill in the private values. The real file is ignored by Git; the firmware saves
+the profile to NVS. Ordinary builds retain the provisioning portal.
+
+Smart Shuffle is intentionally not fabricated. MPRIS and Spotify's supported
+playback-control API expose shuffle as on/off only, so the Actions screen marks
+Smart Shuffle unavailable while normal shuffle and repeat remain live controls.
 
 ## Development and verification
 

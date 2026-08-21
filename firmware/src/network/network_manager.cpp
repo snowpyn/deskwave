@@ -114,8 +114,7 @@ void NetworkManager::run() {
         (loadStatus == storage::SettingsLoadStatus::Empty ||
          (config::kForceBootstrapWifi && settings.wifiSsid != config::kBootstrapWifiSsid));
     if (bootstrapRequested) {
-        if (!settingsStore_.saveWifi(config::kBootstrapWifiSsid,
-                                     config::kBootstrapWifiPassword)) {
+        if (!settingsStore_.saveWifi(config::kBootstrapWifiSsid, config::kBootstrapWifiPassword)) {
             transition(core::StateEvent::FatalError, "Wi-Fi profile unavailable",
                        "Private bootstrap profile could not be saved");
             while (true) {
@@ -352,6 +351,9 @@ bool NetworkManager::pairDevice(storage::DeviceSettings& settings) {
 void NetworkManager::configureWebSocket(const String& token) {
     activeToken_ = token;
     const String authorization = "Bearer " + token;
+    // WebSocketsClient::begin() clears its authorization fields, so configure
+    // the endpoint before installing the bearer header.
+    webSocket_.begin(host_.c_str(), hostPort_, config::kWebSocketPath, "");
     webSocket_.setAuthorization(authorization.c_str());
     webSocket_.setReconnectInterval(3'000);
     webSocket_.enableHeartbeat(15'000, 3'000, 2);
@@ -359,7 +361,6 @@ void NetworkManager::configureWebSocket(const String& token) {
         [this](const WStype_t type, std::uint8_t* payload, const std::size_t length) {
             handleWebSocketEvent(type, payload, length);
         });
-    webSocket_.begin(host_.c_str(), hostPort_, config::kWebSocketPath, "");
     disconnectedAtMs_ = millis();
 }
 
