@@ -110,6 +110,7 @@ bool Application::hostState(const core::SystemState state) noexcept {
 void Application::loop() {
     const auto now = millis();
     consumeQueues(now);
+    inputManager_.setControlContext(ui_.controlContext());
     if (!handleFactoryResetChord(now)) {
         consumeInput(now);
     }
@@ -136,6 +137,10 @@ void Application::consumeQueues(const std::uint32_t nowMs) {
     while (xQueueReceive(noticeQueue_, &notice, 0) == pdTRUE) {
         deviceStatus_.state = notice.state;
         deviceStatus_.hostConnected = hostState(notice.state);
+        if (notice.state == core::SystemState::Offline ||
+            notice.state == core::SystemState::ConnectingWifi) {
+            deviceStatus_.wifiConnected = false;
+        }
         if (notice.type == SystemNoticeType::NetworkDetails) {
             copyText(deviceStatus_.ipAddress, notice.primary);
             copyText(deviceStatus_.ssid, notice.secondary);

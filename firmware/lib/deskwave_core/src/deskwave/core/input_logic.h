@@ -54,6 +54,8 @@ enum class PhysicalControl : std::uint8_t {
     LeftButton,
     RightButton,
     MenuButton,
+    ShuffleButton,
+    RepeatButton,
 };
 enum class Gesture : std::uint8_t { Rotate, ShortPress, LongPress, Repeat };
 enum class ControlCommand : std::uint8_t {
@@ -90,7 +92,7 @@ struct ControlBinding {
 
 class ControlMapper {
    public:
-    static constexpr std::size_t kMaxBindings = 32;
+    static constexpr std::size_t kMaxBindings = 36;
 
     ControlMapper();
     [[nodiscard]] ControlCommand map(ControlContext context, PhysicalControl control,

@@ -74,6 +74,12 @@ void test_control_mapper_changes_with_context() {
         ControlCommand::ShuffleToggle,
         mapper.map(ControlContext::Actions, PhysicalControl::LeftButton, Gesture::ShortPress));
     TEST_ASSERT_EQUAL(
+        ControlCommand::ShuffleToggle,
+        mapper.map(ControlContext::Playback, PhysicalControl::ShuffleButton, Gesture::ShortPress));
+    TEST_ASSERT_EQUAL(
+        ControlCommand::CycleRepeat,
+        mapper.map(ControlContext::Playback, PhysicalControl::RepeatButton, Gesture::ShortPress));
+    TEST_ASSERT_EQUAL(
         ControlCommand::BrightnessDown,
         mapper.map(ControlContext::Settings, PhysicalControl::LeftButton, Gesture::ShortPress));
     TEST_ASSERT_EQUAL(

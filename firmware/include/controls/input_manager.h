@@ -17,6 +17,7 @@ class InputManager {
     [[nodiscard]] bool begin();
     void poll(std::uint32_t nowMs, std::uint32_t nowUs);
     [[nodiscard]] bool factoryResetChordActive() const noexcept;
+    void setControlContext(core::ControlContext context) noexcept;
 
    private:
     static void taskEntry(void* context);
@@ -29,7 +30,7 @@ class InputManager {
     [[nodiscard]] bool readTouch(std::int16_t& x, std::int16_t& y);
     [[nodiscard]] std::uint16_t touchReadAdc(std::uint8_t command);
     void pollTouch(std::uint32_t nowMs);
-    [[nodiscard]] static core::PhysicalControl touchControlAt(std::int16_t x, std::int16_t y);
+    [[nodiscard]] core::PhysicalControl touchControlAt(std::int16_t x, std::int16_t y) const;
 #endif
 
     QueueHandle_t eventQueue_;
@@ -53,6 +54,7 @@ class InputManager {
     bool touchActive_{false};
     bool touchMoved_{false};
     bool touchLongEmitted_{false};
+    volatile core::ControlContext controlContext_{core::ControlContext::Playback};
 #endif
 };
 

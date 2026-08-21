@@ -110,6 +110,14 @@ void InputManager::poll(const std::uint32_t nowMs, const std::uint32_t nowUs) {
 
 bool InputManager::factoryResetChordActive() const noexcept { return factoryResetChordActive_; }
 
+void InputManager::setControlContext(const core::ControlContext context) noexcept {
+#if defined(DESKWAVE_FOCUS_CLASSIC)
+    controlContext_ = context;
+#else
+    (void)context;
+#endif
+}
+
 #if defined(DESKWAVE_FOCUS_CLASSIC)
 
 void InputManager::initializeTouch() {
@@ -138,7 +146,8 @@ std::uint16_t InputManager::touchReadAdc(const std::uint8_t command) {
     for (std::uint8_t bit = 0; bit < 13; ++bit) {
         digitalWrite(hardware::kTouchClk, LOW);
         delayMicroseconds(3);
-        value = static_cast<std::uint16_t>((value << 1U) | (digitalRead(hardware::kTouchMiso) ? 1U : 0U));
+        value = static_cast<std::uint16_t>((value << 1U) |
+                                           (digitalRead(hardware::kTouchMiso) ? 1U : 0U));
         digitalWrite(hardware::kTouchClk, HIGH);
         delayMicroseconds(3);
     }
@@ -153,18 +162,28 @@ bool InputManager::readTouch(std::int16_t& x, std::int16_t& y) {
     if (rawY <= 100 || rawY >= 4'080 || rawX <= 100 || rawX >= 4'000) {
         return false;
     }
-    x = static_cast<std::int16_t>(constrain(map(constrain(rawY, std::uint16_t(200),
-                                                         std::uint16_t(3'900)),
-                                                  200, 3'900, 0, 320),
-                                              0, 319));
-    y = static_cast<std::int16_t>(constrain(map(constrain(rawX, std::uint16_t(200),
-                                                         std::uint16_t(3'900)),
-                                                  200, 3'900, 0, 240),
-                                              0, 239));
+    x = static_cast<std::int16_t>(constrain(
+        map(constrain(rawY, std::uint16_t(200), std::uint16_t(3'900)), 200, 3'900, 0, 320), 0,
+        319));
+    y = static_cast<std::int16_t>(constrain(
+        map(constrain(rawX, std::uint16_t(200), std::uint16_t(3'900)), 200, 3'900, 0, 240), 0,
+        239));
     return true;
 }
 
-core::PhysicalControl InputManager::touchControlAt(const std::int16_t x, const std::int16_t y) {
+core::PhysicalControl InputManager::touchControlAt(const std::int16_t x,
+                                                   const std::int16_t y) const {
+    if (controlContext_ == core::ControlContext::Actions && y >= 72 && y <= 188) {
+        return x < 160 ? core::PhysicalControl::ShuffleButton : core::PhysicalControl::RepeatButton;
+    }
+    if (y >= 134 && y <= 178) {
+        if (x >= 235) {
+            return core::PhysicalControl::RepeatButton;
+        }
+        if (x >= 154) {
+            return core::PhysicalControl::ShuffleButton;
+        }
+    }
     // The Focus panel's footer is the primary touch control strip. It mirrors
     // the reference physical controls without changing the core command map.
     if (y >= 195) {
@@ -236,13 +255,16 @@ void InputManager::pollTouch(const std::uint32_t nowMs) {
                                : core::PhysicalControl::EncoderCounterClockwise,
                     core::Gesture::Rotate);
         } else if (std::abs(deltaX) >= 40) {
-            publish(deltaX < 0 ? core::PhysicalControl::LeftButton
-                               : core::PhysicalControl::RightButton,
-                    core::Gesture::ShortPress);
+            publish(
+                deltaX < 0 ? core::PhysicalControl::LeftButton : core::PhysicalControl::RightButton,
+                core::Gesture::ShortPress);
         }
     } else if (!touchLongEmitted_) {
-        publish(touchControl_, duration >= 700 ? core::Gesture::LongPress
-                                               : core::Gesture::ShortPress);
+        auto gesture = duration >= 700 ? core::Gesture::LongPress : core::Gesture::ShortPress;
+        if (touchStartX_ >= 276 && touchStartY_ < 36 && gesture == core::Gesture::ShortPress) {
+            gesture = core::Gesture::LongPress;
+        }
+        publish(touchControl_, gesture);
     }
     touchActive_ = false;
     touchMoved_ = false;

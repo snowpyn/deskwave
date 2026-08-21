@@ -68,6 +68,7 @@ class UiController {
 
    private:
     void render(std::uint32_t nowMs);
+    void renderAtmosphere();
     void renderBoot();
     void renderHeader(std::uint32_t nowMs);
     void renderConnection(std::uint32_t nowMs);
