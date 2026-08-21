@@ -17,7 +17,9 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=%h/.config/deskwave %h/.cache/deskwave %h/.local/state/deskwave
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# Zeroconf/ifaddr inspects local interfaces through a read-only netlink socket
+# before it opens the IPv4 mDNS socket.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 RestrictSUIDSGID=true
 LockPersonality=true
 MemoryDenyWriteExecute=true
