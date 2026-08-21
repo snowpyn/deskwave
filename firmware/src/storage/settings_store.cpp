@@ -158,6 +158,21 @@ bool SettingsStore::saveToken(const String& token) {
     return success;
 }
 
+bool SettingsStore::clearToken() {
+    if (!lock()) {
+        return false;
+    }
+    Preferences preferences;
+    bool success = preferences.begin(kNamespace, false);
+    if (success) {
+        preferences.putBool("paired", false);
+        success = preferences.remove("token");
+        preferences.end();
+    }
+    unlock();
+    return success;
+}
+
 bool SettingsStore::saveDisplay(const std::uint8_t brightness, const std::uint8_t defaultScreen,
                                 const std::uint32_t dimTimeoutSeconds) {
     if (brightness < 10 || defaultScreen > 4 ||

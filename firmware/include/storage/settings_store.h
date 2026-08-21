@@ -32,6 +32,7 @@ class SettingsStore {
     [[nodiscard]] SettingsLoadStatus load(DeviceSettings& settings);
     [[nodiscard]] bool saveWifi(const String& ssid, const String& password);
     [[nodiscard]] bool saveToken(const String& token);
+    [[nodiscard]] bool clearToken();
     [[nodiscard]] bool saveDisplay(std::uint8_t brightness, std::uint8_t defaultScreen,
                                    std::uint32_t dimTimeoutSeconds);
     [[nodiscard]] bool saveHostOverride(const String& host, std::uint16_t port);
