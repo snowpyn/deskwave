@@ -10,11 +10,13 @@ ExecStart=%h/.local/bin/deskwave-host run
 Restart=on-failure
 RestartSec=3s
 TimeoutStopSec=10s
+UMask=0077
+Environment=PYTHONUNBUFFERED=1
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=-%h/.config/deskwave -%h/.cache/deskwave -%h/.local/state/deskwave
+ReadWritePaths=%h/.config/deskwave %h/.cache/deskwave %h/.local/state/deskwave
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 RestrictSUIDSGID=true
 LockPersonality=true
