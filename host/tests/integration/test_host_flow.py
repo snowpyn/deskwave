@@ -67,6 +67,10 @@ async def test_pair_control_disconnect_and_reconnect(
         state = await receive_type(websocket, "playback_state")
         assert state["payload"]["title"] == "A real track"
 
+        await websocket.send_str(json.dumps(make_message("list_players", 43, {})))
+        player_list = await receive_type(websocket, "players")
+        assert player_list["payload"]["players"][0]["name"] == "Test Player"
+
         command = make_message("control", 44, {"command": "toggle"})
         await websocket.send_str(json.dumps(command))
         result = await receive_type(websocket, "command_result")

@@ -17,7 +17,7 @@ from deskwave_host import __version__
 from deskwave_host.artwork import ArtworkCache
 from deskwave_host.config import HostConfig
 from deskwave_host.discovery import DiscoveryService
-from deskwave_host.models import PlaybackState
+from deskwave_host.models import PlaybackState, PlayerSummary
 from deskwave_host.protocol import (
     MAX_MESSAGE_BYTES,
     MAX_SEQUENCE,
@@ -37,6 +37,7 @@ SERVICE_KEY: web.AppKey[MediaService] = web.AppKey("service", MediaService)
 ARTWORK_KEY: web.AppKey[ArtworkCache] = web.AppKey("artwork", ArtworkCache)
 RATE_LIMIT_KEY: web.AppKey[RateLimiter]  # assigned after class definition
 MAX_PAIRING_BODY = 2048
+MAX_DEVICE_PLAYERS = 6
 
 
 @dataclass(slots=True)
@@ -84,6 +85,13 @@ def _state_payload(state: PlaybackState) -> dict[str, Any]:
         f"/v1/artwork/{state.artwork_id}.jpg" if state.artwork_id is not None else None
     )
     return payload
+
+
+def _players_payload(summaries: list[PlayerSummary]) -> list[dict[str, str]]:
+    return [
+        {"id": player.player_id, "name": player.name, "status": player.status.value}
+        for player in summaries[:MAX_DEVICE_PLAYERS]
+    ]
 
 
 async def health(request: web.Request) -> web.Response:
@@ -187,12 +195,7 @@ async def players(request: web.Request) -> web.Response:
     request.app[STORE_KEY].touch(device_id)
     summaries = await request.app[SERVICE_KEY].players()
     return web.json_response(
-        {
-            "players": [
-                {"id": player.player_id, "name": player.name, "status": player.status.value}
-                for player in summaries
-            ]
-        },
+        {"players": _players_payload(summaries)},
         headers={"Cache-Control": "no-store"},
     )
 
@@ -256,10 +259,7 @@ class DeviceSession:
                 "players",
                 {
                     "request_sequence": message.sequence,
-                    "players": [
-                        {"id": player.player_id, "name": player.name, "status": player.status.value}
-                        for player in summaries
-                    ],
+                    "players": _players_payload(summaries),
                 },
             )
             return
