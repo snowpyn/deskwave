@@ -103,8 +103,12 @@ after changing an override.
 - Resized artwork: `~/.cache/deskwave/artwork/`
 - Device database: `~/.local/state/deskwave/devices.sqlite3`
 
-Directories are mode `0700`, the SQLite file and cache objects are mode `0600`,
-and the service has write access only to these three DeskWave directories.
+Directories are mode `0700`, and the SQLite file and cache objects are mode
+`0600`. The service intentionally avoids systemd mount-namespace restrictions:
+on Ubuntu they put user services under the `unprivileged_userns` AppArmor
+profile, which confined Snap players such as Spotify reject for MPRIS calls.
+The remaining service hardening includes no-new-privileges, a restricted socket
+family set, personality locking, SUID/SGID restrictions, and W^X enforcement.
 
 ## Player selection
 

@@ -19,6 +19,9 @@ versioning.
 - Host discovery retries no longer produce a repeating offline toast.
 - The hardened user service permits the read-only netlink access required for
   Zeroconf to inspect interfaces and publish the IPv4 mDNS service.
+- Ubuntu Snap players such as Spotify can now expose MPRIS metadata and controls
+  to the user service; incompatible mount-namespace directives no longer place
+  DeskWave under the cross-profile-blocked `unprivileged_userns` AppArmor label.
 
 ## [0.1.0] - 2026-08-21
 

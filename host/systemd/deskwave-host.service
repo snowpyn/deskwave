@@ -13,10 +13,11 @@ TimeoutStopSec=10s
 UMask=0077
 Environment=PYTHONUNBUFFERED=1
 NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=read-only
-ReadWritePaths=%h/.config/deskwave %h/.cache/deskwave %h/.local/state/deskwave
+# Do not add mount-namespace directives such as PrivateTmp, ProtectSystem,
+# ProtectHome, or ReadWritePaths here. On Ubuntu, systemd implements them for
+# user services with an unprivileged user namespace. AppArmor then labels the
+# host `unprivileged_userns`, and confined Snap players (including Spotify)
+# reject its otherwise valid MPRIS calls.
 # Zeroconf/ifaddr inspects local interfaces through a read-only netlink socket
 # before it opens the IPv4 mDNS socket.
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
