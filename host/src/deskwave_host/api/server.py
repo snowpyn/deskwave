@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections import OrderedDict, defaultdict, deque
+from collections import OrderedDict, deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from time import monotonic
@@ -44,12 +44,25 @@ MAX_DEVICE_PLAYERS = 6
 class RateLimiter:
     limit: int = 12
     window_seconds: float = 60.0
-    _attempts: dict[str, deque[float]] = field(default_factory=lambda: defaultdict(deque))
+    maximum_identities: int = 256
+    _attempts: OrderedDict[str, deque[float]] = field(default_factory=OrderedDict)
 
     def allow(self, identity: str) -> bool:
         now = monotonic()
-        attempts = self._attempts[identity]
         cutoff = now - self.window_seconds
+        attempts = self._attempts.get(identity)
+        if attempts is None:
+            for stale_identity, stale_attempts in tuple(self._attempts.items()):
+                while stale_attempts and stale_attempts[0] < cutoff:
+                    stale_attempts.popleft()
+                if not stale_attempts:
+                    self._attempts.pop(stale_identity, None)
+            while len(self._attempts) >= self.maximum_identities:
+                self._attempts.popitem(last=False)
+            attempts = deque()
+            self._attempts[identity] = attempts
+        else:
+            self._attempts.move_to_end(identity)
         while attempts and attempts[0] < cutoff:
             attempts.popleft()
         if len(attempts) >= self.limit:
@@ -325,6 +338,11 @@ async def websocket(request: web.Request) -> web.StreamResponse:
                     "error",
                     {"code": "unsupported_frame", "message": "binary frames are not supported"},
                 )
+                if session.invalid_messages >= 3:
+                    await ws.close(
+                        code=WSCloseCode.POLICY_VIOLATION,
+                        message=b"too many invalid messages",
+                    )
             elif incoming.type in {WSMsgType.ERROR, WSMsgType.CLOSE, WSMsgType.CLOSING}:
                 break
     except TimeoutError:

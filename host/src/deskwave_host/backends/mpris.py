@@ -31,6 +31,7 @@ PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 POLL_SECONDS = 0.4
 PLAYER_SCAN_SECONDS = 2.0
 POSITION_SYNC_SECONDS = 2.0
+MAX_SNAPSHOT_FAILURES = 3
 
 
 def _value(properties: dict[str, Any], key: str, default: Any = None) -> Any:
@@ -139,6 +140,7 @@ class MPRISBackend(MediaBackend):
         self._dbus: Any = None
         self._players: dict[str, _MPRISPlayer] = {}
         self._snapshots: dict[str, PlaybackState] = {}
+        self._snapshot_failures: dict[str, int] = {}
         self._current = PlaybackState()
         self._callback: StateCallback | None = None
         self._poll_task: asyncio.Task[None] | None = None
@@ -167,6 +169,7 @@ class MPRISBackend(MediaBackend):
         self._dbus = None
         self._players.clear()
         self._snapshots.clear()
+        self._snapshot_failures.clear()
 
     async def current_state(self) -> PlaybackState:
         return self._current
@@ -298,6 +301,7 @@ class MPRISBackend(MediaBackend):
                 self._dbus = None
                 self._players.clear()
                 self._snapshots.clear()
+                self._snapshot_failures.clear()
                 await self._set_empty_state()
                 await self._wait(reconnect_delay)
                 reconnect_delay = min(30.0, reconnect_delay * 2)
@@ -319,6 +323,7 @@ class MPRISBackend(MediaBackend):
             for stale in set(self._players) - player_ids:
                 self._players.pop(stale, None)
                 self._snapshots.pop(stale, None)
+                self._snapshot_failures.pop(stale, None)
             for new_player in player_ids - set(self._players):
                 try:
                     self._players[new_player] = await _MPRISPlayer.connect(self._bus, new_player)  # type: ignore[arg-type]
@@ -329,8 +334,13 @@ class MPRISBackend(MediaBackend):
         for player_id, player in list(self._players.items()):
             try:
                 self._snapshots[player_id] = await player.snapshot()
+                self._snapshot_failures.pop(player_id, None)
             except (DBusError, OSError, RuntimeError, TimeoutError) as error:
                 LOGGER.debug("Could not refresh MPRIS player %s: %s", player_id, error)
+                failures = self._snapshot_failures.get(player_id, 0) + 1
+                self._snapshot_failures[player_id] = failures
+                if failures >= MAX_SNAPSHOT_FAILURES:
+                    self._snapshots.pop(player_id, None)
         summaries = [
             PlayerSummary(player_id, state.player_name or player_id, state.status)
             for player_id, state in self._snapshots.items()

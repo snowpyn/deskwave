@@ -13,9 +13,22 @@ namespace {
 constexpr char kArtworkDirectory[] = "/art";
 constexpr char kTemporaryPath[] = "/art/.download";
 
+bool validArtworkIdentifier(const char* value) {
+    if (value == nullptr || std::strlen(value) != 64) {
+        return false;
+    }
+    for (std::size_t index = 0; index < 64; ++index) {
+        const char character = value[index];
+        if (!((character >= '0' && character <= '9') || (character >= 'a' && character <= 'f'))) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool validRequest(const app::ArtworkRequest& request) {
     return request.port != 0 && request.host[0] != '\0' && request.token[0] != '\0' &&
-           std::strlen(request.artworkId) == 64 &&
+           validArtworkIdentifier(request.artworkId) &&
            std::strncmp(request.path, "/v1/artwork/", 12) == 0 &&
            std::strstr(request.path, "..") == nullptr;
 }
@@ -123,15 +136,14 @@ app::ArtworkResult ArtworkManager::download(const app::ArtworkRequest& request) 
             vTaskDelay(pdMS_TO_TICKS(5));
             continue;
         }
-        const auto wanted = std::min<std::size_t>(sizeof(buffer),
-                                                  static_cast<std::size_t>(contentLength) - total);
+        const auto wanted =
+            std::min<std::size_t>(sizeof(buffer), static_cast<std::size_t>(contentLength) - total);
         const auto count = stream->readBytes(buffer, std::min<std::size_t>(wanted, available));
         if (count == 0 || output.write(buffer, count) != count) {
             break;
         }
-        if (total == 0 && count >= 2) {
-            first[0] = buffer[0];
-            first[1] = buffer[1];
+        for (std::size_t index = 0; index < count && total + index < 2; ++index) {
+            first[total + index] = buffer[index];
         }
         if (count >= 2) {
             last[0] = buffer[count - 2];

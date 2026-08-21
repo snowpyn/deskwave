@@ -17,6 +17,7 @@ namespace {
 
 constexpr std::size_t kMaximumHttpBody = 2'048;
 constexpr std::uint32_t kWebSocketDiscoveryTimeoutMs = 30'000;
+constexpr std::uint32_t kMaximumProtocolSequence = 2'147'483'647;
 
 bool isHexIdentifier(const char* value) {
     if (value == nullptr || std::strlen(value) != 64) {
@@ -24,8 +25,7 @@ bool isHexIdentifier(const char* value) {
     }
     for (std::size_t index = 0; index < 64; ++index) {
         const char character = value[index];
-        if (!((character >= '0' && character <= '9') ||
-              (character >= 'a' && character <= 'f'))) {
+        if (!((character >= '0' && character <= '9') || (character >= 'a' && character <= 'f'))) {
             return false;
         }
     }
@@ -55,8 +55,7 @@ NetworkManager::NetworkManager(storage::SettingsStore& settingsStore,
       provisioningPortal_(settingsStore) {
     const auto chipId = static_cast<std::uint32_t>(ESP.getEfuseMac());
     char identifier[20];
-    std::snprintf(identifier, sizeof(identifier), "dw-%08lx",
-                  static_cast<unsigned long>(chipId));
+    std::snprintf(identifier, sizeof(identifier), "dw-%08lx", static_cast<unsigned long>(chipId));
     deviceId_ = identifier;
 }
 
@@ -73,9 +72,7 @@ void NetworkManager::taskEntry(void* context) {
     vTaskDelete(nullptr);
 }
 
-String NetworkManager::deviceSuffix() const {
-    return deviceId_.substring(deviceId_.length() - 4);
-}
+String NetworkManager::deviceSuffix() const { return deviceId_.substring(deviceId_.length() - 4); }
 
 void NetworkManager::publishNotice(const app::SystemNoticeType type, const char* primary,
                                    const char* secondary, const std::int32_t value) {
@@ -171,7 +168,8 @@ bool NetworkManager::provision(storage::DeviceSettings& settings) {
         }
     }
     const auto status = settingsStore_.load(settings);
-    if (status != storage::SettingsLoadStatus::Ok && status != storage::SettingsLoadStatus::Migrated) {
+    if (status != storage::SettingsLoadStatus::Ok &&
+        status != storage::SettingsLoadStatus::Migrated) {
         return false;
     }
     transition(core::StateEvent::CredentialsSaved, "Connecting to Wi-Fi");
@@ -297,8 +295,7 @@ bool NetworkManager::pairDevice(storage::DeviceSettings& settings) {
     body.clear();
     serializeJson(statusDocument, body);
     const auto expiresAt = millis() + 300'000;
-    while (WiFi.status() == WL_CONNECTED &&
-           static_cast<std::int32_t>(millis() - expiresAt) < 0) {
+    while (WiFi.status() == WL_CONNECTED && static_cast<std::int32_t>(millis() - expiresAt) < 0) {
         vTaskDelay(pdMS_TO_TICKS(config::kPairingPollMs));
         responseBody.clear();
         if (!postJson("/v1/pairing/status", body, responseCode, responseBody)) {
@@ -333,9 +330,10 @@ void NetworkManager::configureWebSocket(const String& token) {
     webSocket_.setAuthorization(authorization.c_str());
     webSocket_.setReconnectInterval(3'000);
     webSocket_.enableHeartbeat(15'000, 3'000, 2);
-    webSocket_.onEvent([this](const WStype_t type, std::uint8_t* payload, const std::size_t length) {
-        handleWebSocketEvent(type, payload, length);
-    });
+    webSocket_.onEvent(
+        [this](const WStype_t type, std::uint8_t* payload, const std::size_t length) {
+            handleWebSocketEvent(type, payload, length);
+        });
     webSocket_.begin(host_.c_str(), hostPort_, config::kWebSocketPath, "");
     disconnectedAtMs_ = millis();
 }
@@ -359,8 +357,7 @@ bool NetworkManager::runWebSocket(storage::DeviceSettings& settings) {
                     settings.hostToken.clear();
                 }
             }
-            transition(core::StateEvent::HostDisconnected, "DeskWave Host offline",
-                       "Reconnecting");
+            transition(core::StateEvent::HostDisconnected, "DeskWave Host offline", "Reconnecting");
             return false;
         }
         vTaskDelay(pdMS_TO_TICKS(5));
@@ -410,8 +407,7 @@ void NetworkManager::handleWebSocketEvent(const WStype_t type, std::uint8_t* pay
     }
 }
 
-void NetworkManager::handleProtocolMessage(const std::uint8_t* payload,
-                                           const std::size_t length) {
+void NetworkManager::handleProtocolMessage(const std::uint8_t* payload, const std::size_t length) {
     if (length == 0 || length > config::kMaximumProtocolMessageBytes) {
         DW_LOG_WARN("protocol", "Rejected message with invalid size %u",
                     static_cast<unsigned>(length));
@@ -473,9 +469,8 @@ void NetworkManager::handlePlaybackState(const JsonObjectConst payload) {
     app::copyText(snapshot.trackId, payload["track_id"] | "");
     snapshot.hasDuration = payload["duration_ms"].is<std::uint64_t>();
     snapshot.durationMs = boundedMilliseconds(payload["duration_ms"], 7ULL * 24 * 60 * 60 * 1000);
-    snapshot.positionMs = boundedMilliseconds(payload["position_ms"], snapshot.durationMs == 0
-                                                                           ? UINT64_MAX
-                                                                           : snapshot.durationMs);
+    snapshot.positionMs = boundedMilliseconds(
+        payload["position_ms"], snapshot.durationMs == 0 ? UINT64_MAX : snapshot.durationMs);
     snapshot.receivedAtMs = millis();
     const String status = payload["status"].as<String>();
     if (status == "playing") {
@@ -628,7 +623,8 @@ void NetworkManager::sendCommand(const app::ControlRequest& request) {
     document["protocol"] = 1;
     document["type"] =
         request.command == app::HostCommand::ListPlayers ? "list_players" : "control";
-    document["sequence"] = ++outgoingSequence_;
+    outgoingSequence_ = outgoingSequence_ >= kMaximumProtocolSequence ? 0 : outgoingSequence_ + 1;
+    document["sequence"] = outgoingSequence_;
     document["timestamp_ms"] = millis();
     JsonObject payload = document["payload"].to<JsonObject>();
     if (request.command != app::HostCommand::ListPlayers) {

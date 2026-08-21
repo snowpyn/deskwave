@@ -15,6 +15,8 @@ from time import time
 from urllib.parse import ParseResult, unquote, urljoin, urlparse
 
 import aiohttp
+from aiohttp.abc import AbstractResolver, ResolveResult
+from aiohttp.resolver import DefaultResolver
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from deskwave_host.config import HostConfig
@@ -24,11 +26,42 @@ ARTWORK_SIZE = (240, 240)
 MAX_IMAGE_PIXELS = 20_000_000
 HTTP_CACHE_SECONDS = 24 * 60 * 60
 MAX_REDIRECTS = 3
+MAX_SOURCE_MAPPINGS = 2_048
 Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
 
 class ArtworkError(ValueError):
     """Artwork could not be retrieved or decoded safely."""
+
+
+class _SafeResolver(AbstractResolver):
+    """Resolve once and validate the exact addresses given to aiohttp."""
+
+    def __init__(self, allow_private: bool) -> None:
+        self._allow_private = allow_private
+        self._delegate = DefaultResolver()
+
+    async def resolve(
+        self,
+        host: str,
+        port: int = 0,
+        family: socket.AddressFamily = socket.AF_INET,
+    ) -> list[ResolveResult]:
+        results = await self._delegate.resolve(host, port, family)
+        if not results:
+            raise OSError("artwork host did not resolve")
+        if not self._allow_private:
+            for result in results:
+                try:
+                    address = ipaddress.ip_address(result["host"].split("%", 1)[0])
+                except ValueError as error:
+                    raise OSError("artwork host resolved to an invalid address") from error
+                if not address.is_global:
+                    raise OSError("private or special-purpose artwork hosts are disabled")
+        return results
+
+    async def close(self) -> None:
+        await self._delegate.close()
 
 
 class ArtworkCache:
@@ -37,6 +70,8 @@ class ArtworkCache:
         self._directory = config.paths.cache_dir / "artwork"
         self._mapping_directory = self._directory / "sources"
         self._locks: dict[str, asyncio.Lock] = {}
+        self._lock_users: dict[str, int] = {}
+        self._cache_lock = asyncio.Lock()
 
     async def resolve(self, url: str) -> str | None:
         try:
@@ -49,17 +84,28 @@ class ArtworkCache:
                 return cached
             lock_key = mapping_path.stem
             lock = self._locks.setdefault(lock_key, asyncio.Lock())
-            async with lock:
-                cached = self._read_mapping(mapping_path, url)
-                if cached is not None:
-                    return cached
-                raw = await self._fetch(url)
-                rendered = await asyncio.to_thread(self._transform, raw)
-                artwork_id = hashlib.sha256(rendered).hexdigest()
-                await asyncio.to_thread(self._store, artwork_id, rendered, mapping_path)
-                await asyncio.to_thread(self._evict)
-                return artwork_id
-        except (ArtworkError, OSError, aiohttp.ClientError, TimeoutError) as error:
+            self._lock_users[lock_key] = self._lock_users.get(lock_key, 0) + 1
+            try:
+                async with lock:
+                    cached = self._read_mapping(mapping_path, url)
+                    if cached is not None:
+                        return cached
+                    raw = await self._fetch(url)
+                    rendered = await asyncio.to_thread(self._transform, raw)
+                    artwork_id = hashlib.sha256(rendered).hexdigest()
+                    async with self._cache_lock:
+                        await asyncio.to_thread(self._store, artwork_id, rendered, mapping_path)
+                        await asyncio.to_thread(self._evict)
+                    return artwork_id
+            finally:
+                users = self._lock_users[lock_key] - 1
+                if users == 0:
+                    self._lock_users.pop(lock_key, None)
+                    if self._locks.get(lock_key) is lock:
+                        self._locks.pop(lock_key, None)
+                else:
+                    self._lock_users[lock_key] = users
+        except (ArtworkError, OSError, ValueError, aiohttp.ClientError, TimeoutError) as error:
             LOGGER.warning("Artwork unavailable for %s: %s", self._redact_url(url), error)
             return None
 
@@ -92,6 +138,7 @@ class ArtworkCache:
             artwork_path = self.path_for(artwork_id)
             if artwork_path is not None:
                 os.utime(artwork_path, None)
+                os.utime(path, None)
                 return artwork_id
         except (FileNotFoundError, OSError, UnicodeError):
             return None
@@ -127,67 +174,71 @@ class ArtworkCache:
     async def _fetch_http(self, url: str) -> bytes:
         timeout = aiohttp.ClientTimeout(total=8.0, connect=3.0, sock_read=4.0)
         current = url
-        async with aiohttp.ClientSession(timeout=timeout, auto_decompress=False) as session:
-            for redirect_count in range(MAX_REDIRECTS + 1):
-                await self._validate_remote(current)
-                async with session.get(
-                    current,
-                    allow_redirects=False,
-                    headers={"User-Agent": "DeskWave-Host/0.1.0", "Accept": "image/*"},
-                ) as response:
-                    if response.status in {301, 302, 303, 307, 308}:
-                        if redirect_count == MAX_REDIRECTS:
-                            raise ArtworkError("artwork redirected too many times")
-                        location = response.headers.get("Location")
-                        if not location:
-                            raise ArtworkError("artwork redirect omitted Location")
-                        current = urljoin(current, location)
-                        continue
-                    if response.status != 200:
-                        raise ArtworkError(f"artwork server returned HTTP {response.status}")
-                    content_type = response.headers.get("Content-Type", "").split(";", 1)[0]
-                    if not content_type.startswith("image/"):
-                        raise ArtworkError("artwork response is not an image")
-                    length = response.content_length
-                    if length is not None and length > self._config.artwork_max_bytes:
-                        raise ArtworkError("remote artwork exceeds the size limit")
-                    chunks: list[bytes] = []
-                    received = 0
-                    async for chunk in response.content.iter_chunked(65_536):
-                        received += len(chunk)
-                        if received > self._config.artwork_max_bytes:
+        resolver = _SafeResolver(self._config.allow_private_artwork_hosts)
+        connector = aiohttp.TCPConnector(resolver=resolver)
+        try:
+            async with aiohttp.ClientSession(
+                timeout=timeout, auto_decompress=False, connector=connector
+            ) as session:
+                for redirect_count in range(MAX_REDIRECTS + 1):
+                    self._validate_remote_url(current)
+                    async with session.get(
+                        current,
+                        allow_redirects=False,
+                        headers={"User-Agent": "DeskWave-Host/0.1.0", "Accept": "image/*"},
+                    ) as response:
+                        if response.status in {301, 302, 303, 307, 308}:
+                            if redirect_count == MAX_REDIRECTS:
+                                raise ArtworkError("artwork redirected too many times")
+                            location = response.headers.get("Location")
+                            if not location:
+                                raise ArtworkError("artwork redirect omitted Location")
+                            current = urljoin(current, location)
+                            continue
+                        if response.status != 200:
+                            raise ArtworkError(f"artwork server returned HTTP {response.status}")
+                        content_type = response.headers.get("Content-Type", "").split(";", 1)[0]
+                        if not content_type.startswith("image/"):
+                            raise ArtworkError("artwork response is not an image")
+                        length = response.content_length
+                        if length is not None and length > self._config.artwork_max_bytes:
                             raise ArtworkError("remote artwork exceeds the size limit")
-                        chunks.append(chunk)
-                    return b"".join(chunks)
+                        chunks: list[bytes] = []
+                        received = 0
+                        async for chunk in response.content.iter_chunked(65_536):
+                            received += len(chunk)
+                            if received > self._config.artwork_max_bytes:
+                                raise ArtworkError("remote artwork exceeds the size limit")
+                            chunks.append(chunk)
+                        return b"".join(chunks)
+        finally:
+            await resolver.close()
         raise ArtworkError("artwork redirect handling failed")
 
-    async def _validate_remote(self, url: str) -> None:
-        parsed = urlparse(url)
+    def _validate_remote_url(self, url: str) -> None:
+        try:
+            parsed = urlparse(url)
+            _ = parsed.port
+        except ValueError as error:
+            raise ArtworkError("artwork URL is malformed") from error
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
             raise ArtworkError("artwork URL is malformed")
         if parsed.username is not None or parsed.password is not None:
             raise ArtworkError("artwork URL credentials are not allowed")
-        port = parsed.port or (443 if parsed.scheme == "https" else 80)
         try:
-            addresses = await asyncio.get_running_loop().getaddrinfo(
-                parsed.hostname, port, type=socket.SOCK_STREAM
-            )
-        except OSError as error:
-            raise ArtworkError("artwork host did not resolve") from error
-        if not addresses:
-            raise ArtworkError("artwork host did not resolve")
-        if self._config.allow_private_artwork_hosts:
+            address = ipaddress.ip_address(parsed.hostname.split("%", 1)[0])
+        except ValueError:
             return
-        for address in addresses:
-            ip = ipaddress.ip_address(address[4][0])
-            if not ip.is_global:
-                raise ArtworkError("private or special-purpose artwork hosts are disabled")
+        if not self._config.allow_private_artwork_hosts and not address.is_global:
+            raise ArtworkError("private or special-purpose artwork hosts are disabled")
 
     def _transform(self, raw: bytes) -> bytes:
         if not raw:
             raise ArtworkError("artwork is empty")
         try:
             with Image.open(BytesIO(raw)) as source:
+                if source.width * source.height > MAX_IMAGE_PIXELS:
+                    raise ArtworkError("artwork exceeds the pixel limit")
                 source.verify()
             with Image.open(BytesIO(raw)) as source:
                 image = ImageOps.exif_transpose(source).convert("RGB")
@@ -229,10 +280,29 @@ class ArtworkCache:
             size = path.stat().st_size
             path.unlink(missing_ok=True)
             total -= size
+        mappings = sorted(
+            self._mapping_directory.glob("*.map"), key=lambda path: path.stat().st_mtime
+        )
+        retained_mappings: list[Path] = []
+        for path in mappings:
+            try:
+                artwork_id = path.read_text(encoding="ascii").strip()
+            except (OSError, UnicodeError):
+                path.unlink(missing_ok=True)
+                continue
+            if self.path_for(artwork_id) is None:
+                path.unlink(missing_ok=True)
+            else:
+                retained_mappings.append(path)
+        for path in retained_mappings[:-MAX_SOURCE_MAPPINGS]:
+            path.unlink(missing_ok=True)
 
     @staticmethod
     def _redact_url(url: str) -> str:
-        parsed = urlparse(url)
+        try:
+            parsed = urlparse(url)
+        except ValueError:
+            return "<invalid artwork URL>"
         if parsed.scheme == "file":
             return "file://<local artwork>"
         return f"{parsed.scheme}://{parsed.hostname or '<invalid>'}/…"

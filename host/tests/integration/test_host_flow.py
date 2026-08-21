@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from aiohttp import ClientWebSocketResponse
+from aiohttp import ClientWebSocketResponse, WSMsgType
 from aiohttp.test_utils import TestClient, TestServer
 from conftest import FakeBackend
 
@@ -85,5 +85,11 @@ async def test_pair_control_disconnect_and_reconnect(
         await receive_type(reconnected, "hello")
         recovered = await receive_type(reconnected, "playback_state")
         assert recovered["payload"]["status"] == "paused"
+        for _ in range(3):
+            await reconnected.send_bytes(b"unsupported")
+            invalid = await receive_type(reconnected, "error")
+            assert invalid["payload"]["code"] == "unsupported_frame"
+        closing = await reconnected.receive()
+        assert closing.type in {WSMsgType.CLOSE, WSMsgType.CLOSED}
         await reconnected.close()
     store.close()
