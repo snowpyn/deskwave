@@ -11,6 +11,7 @@ from typing import Any
 from dbus_next import DBusError, Variant  # type: ignore[attr-defined]
 from dbus_next.aio import MessageBus  # type: ignore[attr-defined]
 from dbus_next.constants import BusType
+from dbus_next.errors import InterfaceNotFoundError
 
 from deskwave_host.backends.base import MediaBackend, StateCallback
 from deskwave_host.models import (
@@ -328,7 +329,13 @@ class MPRISBackend(MediaBackend):
                 try:
                     self._players[new_player] = await _MPRISPlayer.connect(self._bus, new_player)  # type: ignore[arg-type]
                     LOGGER.info("Detected MPRIS player %s", new_player)
-                except (DBusError, OSError, RuntimeError, TimeoutError) as error:
+                except (
+                    DBusError,
+                    InterfaceNotFoundError,
+                    OSError,
+                    RuntimeError,
+                    TimeoutError,
+                ) as error:
                     LOGGER.debug("Could not inspect MPRIS player %s: %s", new_player, error)
             self._last_scan = now
         for player_id, player in list(self._players.items()):
