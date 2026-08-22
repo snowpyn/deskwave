@@ -25,9 +25,10 @@ power design explicitly supports it.
 | GND | GND | — | Required common ground |
 | VCC | Per breakout | — | Use the voltage specified by the module vendor |
 
-The physical panel is 240×320 and firmware rotates it 180 degrees into the
-correct 320×240 landscape orientation for the Revision 3.1 loom. The touch
-coordinates apply the matching swapped-axis and 180-degree inverse transform.
+The physical panel is 240×320 and firmware uses rotation `1` for the required
+320×240 landscape screen orientation on the Revision 3.1 loom. The touch
+coordinates use the separately calibrated swapped-axis and 180-degree inverse
+transform so the controls remain aligned with the touch overlay.
 If colors are swapped, orientation is wrong, or the module inverts brightness,
 change only the panel flags/rotation in
 `firmware/include/config/hardware_config.h` and the display adapter—not UI

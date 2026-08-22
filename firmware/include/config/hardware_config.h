@@ -23,9 +23,9 @@ inline constexpr std::uint16_t kPanelHeight = 320;
 inline constexpr std::uint16_t kDisplayWidth = 320;
 inline constexpr std::uint16_t kDisplayHeight = 240;
 #if defined(DESKWAVE_ESP32_D0WD_V3)
-// The ESP32-D0WD-V3 panel loom is mounted 180 degrees opposite the touch overlay.
-// The unsupported legacy fallback keeps its established landscape orientation.
-inline constexpr std::uint8_t kDisplayRotation = 3;
+// The touch transform is calibrated independently; rotation 1 is the required
+// 180-degree flip for the rendered screen on the Revision 3.1 panel.
+inline constexpr std::uint8_t kDisplayRotation = 1;
 #else
 inline constexpr std::uint8_t kDisplayRotation = 1;
 #endif
