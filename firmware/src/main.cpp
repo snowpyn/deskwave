@@ -44,7 +44,7 @@ void setup() {
                      artworkRequestQueue, artworkResultQueue, playerQueue)) {
         DW_LOG_ERROR("system", "Required application queues could not be allocated");
         fatalStartupError = true;
-#if defined(DESKWAVE_FOCUS_CLASSIC)
+#if defined(DESKWAVE_ESP32_D0WD_V3)
         pinMode(deskwave::hardware::kStatusLedRed, OUTPUT);
         pinMode(deskwave::hardware::kStatusLedGreen, OUTPUT);
         pinMode(deskwave::hardware::kStatusLedBlue, OUTPUT);
@@ -78,7 +78,7 @@ void loop() {
         application->loop();
         return;
     }
-#if defined(DESKWAVE_FOCUS_CLASSIC)
+#if defined(DESKWAVE_ESP32_D0WD_V3)
     const auto enabled = (millis() / 150U) % 2U == 0;
     analogWrite(deskwave::hardware::kStatusLedRed, enabled ? 75 : 255);
     analogWrite(deskwave::hardware::kStatusLedGreen, 255);

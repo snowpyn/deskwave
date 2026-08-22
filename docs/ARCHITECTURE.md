@@ -11,7 +11,7 @@ flowchart LR
     Backend --> Service["Media service"]
     Service --> API["Authenticated HTTP and WebSocket API"]
     Service --> Art["Bounded artwork processor and cache"]
-    API -->|"mDNS + trusted LAN"| Net["ESP32 network task"]
+    API -->|"mDNS + trusted LAN"| Net["ESP32-D0WD-V3 network task"]
     Art -->|"320 x 320 JPEG"| Artwork["ESP32 artwork task"]
     Net --> Queues["Fixed-size FreeRTOS queues"]
     Artwork --> Queues
@@ -64,7 +64,8 @@ bounded delay after desktop suspend, session restart, or bus failure.
 
 ## Firmware execution model
 
-The firmware uses four execution contexts, not one blocking super-loop.
+The published ESP32-D0WD-V3 firmware uses four execution contexts, not one
+blocking super-loop.
 
 | Context | Core / priority | Owns | May block on |
 | --- | --- | --- | --- |

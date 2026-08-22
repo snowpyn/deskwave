@@ -37,8 +37,8 @@ Host journal attachment:
 - [ ] Backlight is not driven directly beyond ESP32 GPIO limits.
 - [ ] All modules share ground.
 - [ ] Every signal matches [WIRING.md](WIRING.md); no GPIO is duplicated.
-- [ ] The board is identified as an ESP32-S3-DevKitC-1-N8 or the hardware profile
-      was deliberately adapted and reviewed.
+- [ ] The board is identified as an ESP32-D0WD-V3 Revision 3.1 and the touch/display
+      loom matches [WIRING.md](WIRING.md).
 
 Stop immediately for unexpected heating, odor, unstable supply voltage, or USB
 over-current warnings.
@@ -50,11 +50,11 @@ From a clean checkout:
 ```bash
 python3 -m venv .qualification-tools
 .qualification-tools/bin/python -m pip install platformio==6.1.19
-.qualification-tools/bin/pio run -e esp32-s3-devkitc-1 -t clean
-.qualification-tools/bin/pio run -e esp32-s3-devkitc-1
-sha256sum .pio/build/esp32-s3-devkitc-1/firmware.bin
-.qualification-tools/bin/pio run -e esp32-s3-devkitc-1 -t upload \
-  --upload-port /dev/ttyACM0
+.qualification-tools/bin/pio run -e esp32-d0wd-v3 -t clean
+.qualification-tools/bin/pio run -e esp32-d0wd-v3
+sha256sum .pio/build/esp32-d0wd-v3/firmware.bin
+.qualification-tools/bin/pio run -e esp32-d0wd-v3 -t upload \
+  --upload-port /dev/ttyUSB1
 ```
 
 - [ ] Clean build succeeds with no project warnings.
@@ -77,27 +77,27 @@ sha256sum .pio/build/esp32-s3-devkitc-1/firmware.bin
 
 Record any panel flag or rotation change in the test record and hardware config.
 
-## Encoder and buttons
+## Touch input
 
-- [ ] One clockwise detent produces one volume increase.
-- [ ] One counter-clockwise detent produces one volume decrease.
-- [ ] Encoder short press toggles play/pause once, on release.
-- [ ] Encoder long press mutes/unmutes once and does not also toggle playback.
-- [ ] Left/Right short presses produce exactly one previous/next command.
-- [ ] Left/Right long presses seek in the expected direction only when supported.
-- [ ] Continued hold produces controlled seek repeats without a command flood.
-- [ ] Menu short press cycles primary screens once.
-- [ ] Menu long press opens/closes Actions once.
-- [ ] Rapid rotation, simultaneous network activity, and artwork decoding do not
-      lose control responsiveness or fill the input queue.
-- [ ] Contact bounce does not cause duplicate commands.
+- [ ] Display corners and the footer are visually upright after the 180-degree
+      panel/touch correction.
+- [ ] A tap on Shuffle, Previous, center Play, Next, and More activates the
+      matching visible target exactly once.
+- [ ] Holding Previous/Next seeks in the expected direction only when supported.
+- [ ] Holding center Play mutes/unmutes once and does not also toggle playback.
+- [ ] Vertical swipes change volume in the expected direction.
+- [ ] Horizontal swipes produce exactly one previous/next command.
+- [ ] Three-sample touch stabilization rejects noisy first ADC samples.
+- [ ] Touches remain responsive during network activity and artwork decoding.
+- [ ] Settings selection, activation, and factory-reset confirmation work through
+      vertical swipe, tap, and center-Play hold gestures.
 
 ## Provisioning and persistence
 
-Begin with a deliberate factory reset.
+Begin with a deliberate factory reset from Settings, using the center Play hold
+to confirm.
 
-- [ ] Recovery chord requires all three buttons for five seconds and cancels on
-      early release.
+- [ ] Factory-reset confirmation is required and an early release does not reset.
 - [ ] Temporary `DeskWave-xxxx` AP appears with the displayed random password.
 - [ ] Incorrect AP password cannot join.
 - [ ] Setup page loads at `192.168.4.1` and rejects a missing/changed nonce.

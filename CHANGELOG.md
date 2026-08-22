@@ -7,7 +7,7 @@ versioning.
 
 ### Added
 
-- Classic ESP32 Focus-board profile with the verified ILI9341/XPT2046 wiring,
+- ESP32-D0WD-V3 Revision 3.1 profile with the verified ILI9341/XPT2046 wiring,
   direct touch transport, shuffle/More targets, and private first-boot Wi-Fi
   bootstrap support.
 - Immersive 320x240 Now Playing interface with framed album art, a fully readable
@@ -23,9 +23,10 @@ versioning.
 - Spotify position updates redraw only the progress region instead of the full
   screen, eliminating the recurring TFT flicker.
 - Repeated cached artwork results no longer decode and repaint an unchanged
-  album cover, and Focus touch targets wait for stable coordinates before a tap
+  album cover, and ESP32-D0WD-V3 touch targets wait for stable coordinates before
+  a tap
   is classified.
-- Focus footer hitboxes now match their visible controls exactly; informational
+- ESP32-D0WD-V3 footer hitboxes now match their visible controls exactly; informational
   header, artwork, and queue areas no longer trigger playback actions.
 - The hardened user service permits the read-only netlink access required for
   Zeroconf to inspect interfaces and publish the IPv4 mDNS service.
@@ -35,7 +36,8 @@ versioning.
 
 ### Changed
 
-- The Focus board's physical RGB status LED now flows through a fluid rainbow;
+- The ESP32-D0WD-V3 board's physical RGB status LED now flows through a fluid
+  rainbow;
   the display itself uses a softer sea-glass, lavender, and moonlit palette.
 
 ## [0.1.0] - 2026-08-21
@@ -50,7 +52,7 @@ versioning.
   player listing, and reconnect support.
 - SSRF-aware host artwork pipeline with bounded decoding, 320×320 high-quality JPEG
   normalization, content-addressed atomic cache, and cache eviction.
-- ESP32-S3 firmware with centralized safe GPIO/profile configuration, temporary
+- ESP32-D0WD-V3 firmware with centralized GPIO/profile configuration, temporary
   AP Wi-Fi provisioning, NVS schema/migration, mDNS host discovery, token
   pairing, authenticated WebSocket recovery, and bounded LittleFS artwork cache.
 - Dedicated debounced input task, remappable control mapping, explicit

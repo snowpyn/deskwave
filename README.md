@@ -1,6 +1,6 @@
 # DeskWave
 
-DeskWave is a dedicated ESP32-S3 desktop music controller for Linux. A small
+DeskWave is a dedicated ESP32-D0WD-V3 desktop music controller for Linux. A small
 user-level host service reads real media state through MPRIS/D-Bus, prepares
 album artwork, and streams authenticated updates to the controller over the
 local network.
@@ -39,7 +39,7 @@ the automated checks.
 MPRIS player -> session D-Bus -> DeskWave Host -> HTTP/WebSocket over LAN
                                                         |
                                                         v
-                                  ESP32-S3 -> ILI9341 display + controls
+                                  ESP32-D0WD-V3 -> ILI9341 display + touch controls
 ```
 
 The host and device communicate only on the LAN. The service does not require
@@ -71,11 +71,10 @@ appearance and display orientation remain part of the physical smoke test.
 
 ## Reference hardware
 
-- ESP32-S3-DevKitC-1-N8 (8 MB flash, no PSRAM required)
+- ESP32-D0WD-V3 Revision 3.1 board (classic ESP32 module)
 - 240×320 SPI ILI9341 display used in 320×240 landscape orientation
-- EC11-style quadrature rotary encoder with push switch
-- Three normally-open momentary buttons
-- Optional status LED with a suitable series resistor
+- XPT2046-compatible resistive touch overlay
+- Common-anode RGB status LED with suitable current limiting
 - Stable 3.3 V logic, appropriate display power, and a shared ground
 
 All board-specific assumptions are centralized in
@@ -83,17 +82,17 @@ All board-specific assumptions are centralized in
 The exact reference pinout and electrical cautions are in
 [Wiring](docs/WIRING.md). Confirm the wiring before applying power.
 
-### ESP32 Focus-board compatibility
+### ESP32-D0WD-V3 board
 
-The locally verified ESP32-D0WD-V3 board used by the `esp32-focus` project is
-supported by the `esp32-focus` PlatformIO environment. It uses the known-good
-ILI9341/XPT2046 wiring from that project and replaces the reference encoder and
-buttons with touch controls: tap the footer controls, swipe vertically to turn
-the encoder, and swipe horizontally for previous/next. Build and flash it with:
+The published firmware target is `esp32-d0wd-v3`, backed by PlatformIO's
+`esp32dev` definition for the locally verified ESP32-D0WD-V3 Revision 3.1 board.
+It uses the known-good ILI9341/XPT2046 wiring and touch controls: tap the footer
+controls, swipe vertically to turn the encoder, and swipe horizontally for
+previous/next. Build and flash it with:
 
 ```bash
-.tools/bin/pio run -e esp32-focus
-.tools/bin/pio run -e esp32-focus -t upload --upload-port /dev/ttyUSB1
+.tools/bin/pio run -e esp32-d0wd-v3
+.tools/bin/pio run -e esp32-d0wd-v3 -t upload --upload-port /dev/ttyUSB1
 ```
 
 On Now Playing, tap the Shuffle or Repeat chip directly. Tap the top-right
@@ -137,19 +136,20 @@ The service listens on TCP port `8765` and advertises
 access to TCP 8765 and mDNS UDP 5353. Do not expose the service to the public
 internet.
 
-### 3. Build and flash the firmware
+### 3. Build and flash the ESP32-D0WD-V3 firmware
 
 ```bash
 python3 -m venv .tools
 .tools/bin/python -m pip install platformio==6.1.19
-.tools/bin/pio run -e esp32-s3-devkitc-1
+.tools/bin/pio run -e esp32-d0wd-v3
 .tools/bin/pio device list
-.tools/bin/pio run -e esp32-s3-devkitc-1 -t upload --upload-port /dev/ttyACM0
+.tools/bin/pio run -e esp32-d0wd-v3 -t upload --upload-port /dev/ttyUSB1
 ```
 
-Replace `/dev/ttyACM0` with the port reported for the board (often
-`/dev/ttyUSB0` on USB-to-UART boards). The initial release deliberately uses a
-recoverable wired update path; unsigned OTA updates are not implemented.
+Use the port reported for the connected ESP32-D0WD-V3 board; the Revision 3.1
+board is expected on `/dev/ttyUSB1` in the verified workstation setup. The
+initial release deliberately uses a recoverable wired update path; unsigned OTA
+updates are not implemented.
 
 ### 4. Provision Wi-Fi
 
@@ -184,28 +184,26 @@ Launch an MPRIS-compatible application and start playback. DeskWave selects an
 actively playing application deterministically. On the Device screen, turn the
 encoder and press it to choose another detected player manually.
 
-## Physical controls
+## Touch controls
 
-| Control | Short / rotate | Long press |
+| Touch gesture | Action |
 | --- | --- | --- |
-| Encoder turn | Volume ± configured step | — |
-| Encoder push | Play/pause | Mute/unmute |
-| Left | Previous track | Seek backward; repeats while held |
-| Right | Next track | Seek forward; repeats while held |
-| Menu | Next primary screen | Open/close Actions |
+| Tap Shuffle | Toggle shuffle | — |
+| Tap Previous / Next | Previous / next track | Hold to seek backward / forward |
+| Tap center Play | Play/pause | Hold to mute/unmute |
+| Tap More | Open/close Actions | — |
+| Vertical swipe | Volume ± configured step | — |
+| Horizontal swipe | Previous / next track | — |
 
-On the Actions screen, Left toggles shuffle and Right cycles repeat. Unsupported
+On the Actions screen, tap Shuffle or Repeat to change them. Unsupported
 MPRIS capabilities are shown as unavailable and are never fabricated.
 
 On the Settings screen:
 
-- Turn the encoder to select a row.
-- Use Left/Right to change brightness, idle dim timeout, volume step, or default
-  startup screen.
-- Select Factory reset, then hold the encoder to confirm.
-- As a recovery path from any screen, hold Left + Right + Menu together for five
-  seconds. The countdown must complete before Wi-Fi, pairing, and user settings
-  are erased.
+- Swipe vertically to select a row.
+- Tap a row to change brightness, idle dim timeout, volume step, or default startup
+  screen.
+- Select Factory reset, then hold the center Play area to confirm.
 
 ## Host CLI
 
@@ -258,8 +256,8 @@ Smart Shuffle unavailable while normal shuffle and repeat remain live controls.
 Firmware:
 
 ```bash
-.tools/bin/pio run -e esp32-s3-devkitc-1 -t clean
-.tools/bin/pio run -e esp32-s3-devkitc-1
+.tools/bin/pio run -e esp32-d0wd-v3 -t clean
+.tools/bin/pio run -e esp32-d0wd-v3
 .tools/bin/pio test -e native
 ```
 
@@ -309,10 +307,9 @@ TLS, so network confidentiality depends on the trusted LAN. See
   can be added behind the existing backend abstraction.
 - Queue display depends on the active player's standard MPRIS TrackList support;
   players without it show an explicit unavailable state.
-- The reference firmware targets the ILI9341/ESP32-S3 wiring profile, with a
-  compatibility profile for the locally verified ILI9341/XPT2046 classic ESP32
-  Focus board; other displays require a hardware adapter in the centralized
-  config layer.
+- The published firmware targets the locally verified ILI9341/XPT2046
+  ESP32-D0WD-V3 Revision 3.1 wiring profile; other boards and displays require a
+  hardware adapter in the centralized config layer.
 - Firmware updates are wired through PlatformIO. Safe signed OTA is reserved for
   a later release.
 - Automated software verification does not prove display orientation, electrical

@@ -1,9 +1,11 @@
-# Reference wiring
+# ESP32-D0WD-V3 Revision 3.1 wiring
 
-The default profile targets an **ESP32-S3-DevKitC-1-N8** and a 2.8-inch-class
-SPI **ILI9341** panel. The controller uses 3.3 V logic. Check the exact display
-breakout's regulator, backlight resistor/driver, and pin labels before wiring;
-bare panels and 5 V-tolerant breakout boards are not electrically equivalent.
+The published `esp32-d0wd-v3` profile targets the locally verified
+**ESP32-D0WD-V3 Revision 3.1** board and a 2.8-inch-class SPI **ILI9341** panel
+with an XPT2046-compatible resistive touch overlay. The controller uses 3.3 V
+logic. Check the exact display breakout's regulator, backlight resistor/driver,
+touch-controller labels, and pin labels before wiring; bare panels and
+5 V-tolerant breakout boards are not electrically equivalent.
 
 Disconnect USB and external power while changing wiring. All modules must share
 ground. Never power the ESP32 simultaneously from unrelated supplies unless the
@@ -11,28 +13,29 @@ power design explicitly supports it.
 
 ## Display
 
-| ILI9341 signal | ESP32-S3 GPIO | Firmware symbol | Notes |
+| ILI9341 signal | ESP32 GPIO | Firmware symbol | Notes |
 | --- | ---: | --- | --- |
-| SCLK / CLK | 12 | `kDisplaySclk` | SPI clock, 40 MHz write target |
-| MOSI / SDI | 11 | `kDisplayMosi` | ESP32 to display data |
-| MISO / SDO | 13 | `kDisplayMiso` | Display to ESP32; retain for readable/shared panels |
-| CS | 10 | `kDisplayCs` | Active-low chip select |
-| DC / RS | 9 | `kDisplayDc` | Data/command select |
-| RST / RESET | 8 | `kDisplayReset` | Active-low panel reset |
-| LED / BL | 14 | `kBacklight` | PWM control input, not an unbounded LED power feed |
+| SCLK / CLK | 14 | `kDisplaySclk` | SPI clock, 26 MHz write target |
+| MOSI / SDI | 13 | `kDisplayMosi` | ESP32 to display data |
+| MISO / SDO | 12 | `kDisplayMiso` | Display to ESP32; retain for readable/shared panels |
+| CS | 15 | `kDisplayCs` | Active-low chip select |
+| DC / RS | 2 | `kDisplayDc` | Data/command select |
+| RST / RESET | Not connected (`-1`) | `kDisplayReset` | Panel reset is not wired |
+| LED / BL | 21 | `kBacklight` | PWM control input, not an unbounded LED power feed |
 | GND | GND | — | Required common ground |
 | VCC | Per breakout | — | Use the voltage specified by the module vendor |
 
-The physical panel is 240×320 and firmware rotates it to 320×240 landscape.
+The physical panel is 240×320 and firmware rotates it 180 degrees into the
+correct 320×240 landscape orientation for the Revision 3.1 loom. The touch
+coordinates apply the matching swapped-axis and 180-degree inverse transform.
 If colors are swapped, orientation is wrong, or the module inverts brightness,
 change only the panel flags/rotation in
 `firmware/include/config/hardware_config.h` and the display adapter—not UI
 coordinates or application logic.
 
-## Classic ESP32 Focus profile
+## Touch controller
 
-The `esp32-focus` PlatformIO environment targets the locally verified
-ESP32-D0WD-V3 board and its known-good Focus panel loom:
+The touch panel replaces the encoder and button loom:
 
 | Signal | ESP32 GPIO |
 | --- | ---: |
@@ -52,84 +55,53 @@ ESP32-D0WD-V3 board and its known-good Focus panel loom:
 | RGB LED green (active-low) | 16 |
 | RGB LED blue (active-low) | 17 |
 
-This profile has no encoder/button loom. The five footer bands activate
+The five footer bands activate
 shuffle, previous, play/pause, next, and More; vertical swipes act as encoder
-turns, and horizontal swipes act as previous/next. The touch calibration is the
-same 200–3900 endpoint mapping used by the verified Focus firmware. A tap is
+turns, and horizontal swipes act as previous/next. The touch calibration uses
+200–3900 ADC endpoints. A tap is
 classified only after three spatially stable samples, preventing the noisy
 first ADC sample from collapsing every target into the center play/pause area.
 
-The Focus board's common-anode RGB LED is independent of the TFT backlight on
+The board's common-anode RGB LED is independent of the TFT backlight on
 GPIO 21. DeskWave drives its three active-low channels with a slow ambient
 rainbow; the TFT backlight remains a steady single-color brightness channel.
 
 The footer's visible boundaries and touch hitboxes are identical: Shuffle
 0–63, Previous 64–117, Play/Pause 118–201, Next 202–255, and More 256–319.
 The now-playing header and queue card are informational except for the
-upper-right status target, which opens the Actions screen on the touch-only
-profile. `MORE` also opens or closes Actions; the physical Menu button still
-advances through the primary screens on the reference button-equipped profile.
+upper-right status target, which opens the Actions screen. `MORE` also opens or
+closes Actions.
 
 ### Backlight caution
 
-GPIO 14 is configured as a 20 kHz PWM signal. It must drive a breakout's logic
+GPIO 21 is configured as a 20 kHz PWM signal. It must drive a breakout's logic
 backlight input or a suitable transistor/MOSFET stage. Do not connect a bare
 backlight string directly to the GPIO; ESP32 pins are not LED power supplies.
 Set `kBacklightInverted` when the external driver is active-low.
 
-## Rotary encoder
-
-| Encoder signal | ESP32-S3 GPIO | Firmware symbol |
-| --- | ---: | --- |
-| A / CLK | 4 | `kEncoderA` |
-| B / DT | 5 | `kEncoderB` |
-| Push switch | 6 | `kEncoderSwitch` |
-| Common | GND | — |
-
-The inputs use internal pull-ups, so each contact closes to ground. If physical
-rotation is reversed, swap A and B in the wiring or exchange the two constants
-in the hardware profile; do not invert volume semantics in application code.
-
-## Buttons
-
-| Control | ESP32-S3 GPIO | Firmware symbol | Other terminal |
-| --- | ---: | --- | --- |
-| Left | 7 | `kLeftButton` | GND |
-| Right | 15 | `kRightButton` | GND |
-| Menu | 16 | `kMenuButton` | GND |
-
-Buttons are active-low with internal pull-ups. External debounce components are
-not required for the reference build because firmware applies stable-state
-debounce, but long/noisy cable runs may benefit from hardware conditioning.
-
 ## Status LED
 
-| Signal | ESP32-S3 GPIO | Firmware symbol |
+| Signal | ESP32 GPIO | Firmware symbol |
 | --- | ---: | --- |
-| Status LED output | 17 | `kStatusLed` |
+| Red (active-low) | 4 | `kStatusLedRed` |
+| Green (active-low) | 16 | `kStatusLedGreen` |
+| Blue (active-low) | 17 | `kStatusLedBlue` |
 
-Connect GPIO 17 through an appropriate current-limiting resistor to an LED and
-then ground (active-high reference). Connected is steady; reconnecting is a
-slow pulse; a fatal state flashes rapidly. If no LED is fitted, leave the pin
-unconnected.
+Connect each channel through suitable current limiting. The RGB LED is optional;
+if it is not fitted, leave the channels unconnected.
 
 ## Optional hardware
 
-Touch, buzzer, and haptic output are disabled with pin `-1` in the reference
-profile. Adding them requires a dedicated adapter and pin assignment. Do not
-reuse an assigned GPIO.
+The encoder, buttons, buzzer, and haptic output are disabled with pin `-1` in
+the published profile. Adding them requires a dedicated adapter and pin
+assignment. Do not reuse an assigned GPIO.
 
 ## Compile-time safety checks
 
 The profile constructs one list of assigned pins and fails compilation when a
-pin is duplicated. The reference ESP32-S3 profile also rejects:
-
-- GPIO 0 and 3 (strap-sensitive defaults);
-- GPIO 26–37 (integrated flash/PSRAM-sensitive range on common modules);
-- GPIO 45 and 46 (strap/input limitations).
-
-These conservative checks protect the reference board; a different module may
-have additional restrictions. Consult its schematic and Espressif datasheet.
+pin is duplicated. GPIO 36 and 39 are used by the touch controller on this
+board; do not repurpose them. Consult the board schematic and Espressif
+datasheet before changing any assigned pin.
 
 ## Bring-up order
 
@@ -138,8 +110,8 @@ have additional restrictions. Consult its schematic and Espressif datasheet.
 3. Connect USB only; verify the ESP32 enumerates and does not heat unexpectedly.
 4. Flash firmware with the display disconnected if board identity is uncertain.
 5. Connect the display and verify splash orientation/backlight.
-6. Add encoder, then buttons, checking each through the smoke test.
-7. Add the optional LED last.
+6. Verify touch corners and each touch target, checking the 180-degree mapping.
+7. Add the optional RGB LED last.
 
 Record the board revision, display module marking, supply voltage, and any
 profile changes in the [hardware smoke-test record](HARDWARE_SMOKE_TEST.md).

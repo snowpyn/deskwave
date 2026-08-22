@@ -102,7 +102,10 @@ class _MPRISPlayer:
             )
             if not isinstance(track_properties, dict):
                 return (), False
-            track_ids = _value(track_properties, "TrackList", [])
+            # MPRIS names this property Tracks; TrackList is the interface
+            # name, not the property name. Using the interface name here
+            # makes every compliant player look like it has an empty queue.
+            track_ids = _value(track_properties, "Tracks", [])
             if not isinstance(track_ids, (list, tuple)):
                 return (), True
             bounded_ids = [

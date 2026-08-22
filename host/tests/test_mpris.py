@@ -21,7 +21,7 @@ class PlayerNameBus:
 class QueueProperties:
     async def call_get_all(self, interface: str) -> dict[str, object]:
         assert interface == mpris_module.TRACKLIST_INTERFACE
-        return {"TrackList": ["/track/current", "/track/next", "/track/following"]}
+        return {"Tracks": ["/track/current", "/track/next", "/track/following"]}
 
 
 class QueueTrackList:

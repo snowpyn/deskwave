@@ -24,7 +24,7 @@ constexpr std::uint32_t kHealthLogMs = 60'000;
 constexpr std::uint32_t kPlayerRefreshMs = 5'000;
 constexpr std::int32_t kSeekStepMs = 10'000;
 
-#if defined(DESKWAVE_FOCUS_CLASSIC)
+#if defined(DESKWAVE_ESP32_D0WD_V3)
 void writeRgbStatusLed(const std::uint8_t red, const std::uint8_t green,
                        const std::uint8_t blue) {
     // The CYD RGB LED is common-anode, so PWM values are inverted.
@@ -84,7 +84,7 @@ bool Application::begin() {
     if (begun_) {
         return true;
     }
-#if defined(DESKWAVE_FOCUS_CLASSIC)
+#if defined(DESKWAVE_ESP32_D0WD_V3)
     pinMode(hardware::kStatusLedRed, OUTPUT);
     pinMode(hardware::kStatusLedGreen, OUTPUT);
     pinMode(hardware::kStatusLedBlue, OUTPUT);
@@ -577,7 +577,7 @@ bool Application::handleFactoryResetChord(const std::uint32_t nowMs) {
 
 void Application::performFactoryReset() {
     ui_.showResetting();
-#if defined(DESKWAVE_FOCUS_CLASSIC)
+#if defined(DESKWAVE_ESP32_D0WD_V3)
     writeRgbStatusLed(150, 150, 150);
 #else
     digitalWrite(hardware::kStatusLed, HIGH);
@@ -645,7 +645,7 @@ void Application::updateHealth(const std::uint32_t nowMs) {
 }
 
 void Application::updateStatusLed(const std::uint32_t nowMs) {
-#if defined(DESKWAVE_FOCUS_CLASSIC)
+#if defined(DESKWAVE_ESP32_D0WD_V3)
     if (static_cast<std::uint32_t>(nowMs - lastStatusLedUpdateMs_) < 32U) {
         return;
     }

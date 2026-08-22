@@ -18,10 +18,11 @@ diagnostic only; DeskWave does not require it in normal operation.
 ## Display stays dark
 
 1. Disconnect power and verify VCC/GND against the display module datasheet.
-2. Confirm CS 10, DC 9, RESET 8, SCLK 12, MOSI 11, and backlight 14.
+2. Confirm TFT CS 15, DC 2, no-connected reset, SCLK 14, MOSI 13, and
+   backlight 21.
 3. Determine whether the breakout's backlight input is active-low and set
    `kBacklightInverted` accordingly.
-4. Confirm the build target is `esp32-s3-devkitc-1` and the panel really uses an
+4. Confirm the build target is `esp32-d0wd-v3` and the panel really uses an
    ILI9341 controller.
 5. Check serial for `Display initialization failed`.
 

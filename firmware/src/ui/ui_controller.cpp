@@ -36,7 +36,6 @@ constexpr std::uint16_t kLine = rgb565(55, 62, 105);
 constexpr std::int32_t kArtworkX = 8;
 constexpr std::int32_t kArtworkY = 38;
 constexpr std::int32_t kArtworkSize = 132;
-constexpr std::int32_t kArtworkSourceSize = 320;
 constexpr std::int32_t kMetadataX = 150;
 constexpr std::int32_t kMetadataY = 38;
 constexpr std::int32_t kMetadataWidth = 162;
@@ -765,11 +764,9 @@ void UiController::renderArtwork() {
     bool rendered = false;
     if (playback_.artworkId[0] != '\0' && std::strcmp(playback_.artworkId, artworkId_) == 0 &&
         artworkPath_[0] != '\0' && LittleFS.exists(artworkPath_)) {
-        rendered = display_.drawJpgFile(
-            LittleFS, artworkPath_, kArtworkX, kArtworkY, kArtworkSize, kArtworkSize, 0, 0,
-            static_cast<float>(kArtworkSize) / static_cast<float>(kArtworkSourceSize),
-            static_cast<float>(kArtworkSize) / static_cast<float>(kArtworkSourceSize),
-            lgfx::textdatum_t::top_left);
+        rendered =
+            display_.drawJpgFile(LittleFS, artworkPath_, kArtworkX, kArtworkY, kArtworkSize,
+                                 kArtworkSize, 0, 0, -1.0F, -1.0F, lgfx::textdatum_t::top_left);
     }
     if (!rendered) {
         display_.fillRoundRect(kArtworkX, kArtworkY, kArtworkSize, kArtworkSize, 8, kPanelRaised);

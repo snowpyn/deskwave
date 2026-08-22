@@ -25,7 +25,7 @@ class InputManager {
     void publish(core::PhysicalControl control, core::Gesture gesture);
     void processButton(core::ButtonTracker& tracker, bool pressed, core::PhysicalControl control,
                        std::uint32_t nowMs);
-#if defined(DESKWAVE_FOCUS_CLASSIC)
+#if defined(DESKWAVE_ESP32_D0WD_V3)
     void initializeTouch();
     [[nodiscard]] bool readTouch(std::int16_t& x, std::int16_t& y);
     [[nodiscard]] std::uint16_t touchReadAdc(std::uint8_t command);
@@ -42,7 +42,7 @@ class InputManager {
     TaskHandle_t task_{nullptr};
     std::uint32_t lastQueueWarningMs_{0};
     volatile bool factoryResetChordActive_{false};
-#if defined(DESKWAVE_FOCUS_CLASSIC)
+#if defined(DESKWAVE_ESP32_D0WD_V3)
     core::PhysicalControl touchControl_{core::PhysicalControl::EncoderButton};
     std::uint32_t lastTouchPollMs_{0};
     std::uint32_t touchStartedAtMs_{0};

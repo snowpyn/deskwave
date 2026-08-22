@@ -36,7 +36,7 @@ bool InputManager::begin() {
     if (task_ != nullptr) {
         return true;
     }
-#if defined(DESKWAVE_FOCUS_CLASSIC)
+#if defined(DESKWAVE_ESP32_D0WD_V3)
     initializeTouch();
 #else
     pinMode(hardware::kEncoderA, INPUT_PULLUP);
@@ -84,7 +84,7 @@ void InputManager::processButton(core::ButtonTracker& tracker, const bool presse
 }
 
 void InputManager::poll(const std::uint32_t nowMs, const std::uint32_t nowUs) {
-#if defined(DESKWAVE_FOCUS_CLASSIC)
+#if defined(DESKWAVE_ESP32_D0WD_V3)
     (void)nowUs;
     pollTouch(nowMs);
 #else
@@ -111,14 +111,14 @@ void InputManager::poll(const std::uint32_t nowMs, const std::uint32_t nowUs) {
 bool InputManager::factoryResetChordActive() const noexcept { return factoryResetChordActive_; }
 
 void InputManager::setControlContext(const core::ControlContext context) noexcept {
-#if defined(DESKWAVE_FOCUS_CLASSIC)
+#if defined(DESKWAVE_ESP32_D0WD_V3)
     controlContext_ = context;
 #else
     (void)context;
 #endif
 }
 
-#if defined(DESKWAVE_FOCUS_CLASSIC)
+#if defined(DESKWAVE_ESP32_D0WD_V3)
 
 void InputManager::initializeTouch() {
     pinMode(hardware::kTouchCs, OUTPUT);
@@ -162,14 +162,14 @@ bool InputManager::readTouch(std::int16_t& x, std::int16_t& y) {
     if (rawY <= 100 || rawY >= 4'080 || rawX <= 100 || rawX >= 4'000) {
         return false;
     }
-    // Rotation 1 swaps the portrait touch axes into the display's landscape
-    // coordinate space. These endpoints match the verified Focus firmware for
-    // this exact panel loom.
+    // The ESP32-D0WD-V3 panel is mounted 180 degrees opposite the touch overlay. The
+    // panel rotation is therefore a swapped-axis transform with both axes
+    // reversed, using the calibrated endpoints for this exact loom.
     x = static_cast<std::int16_t>(constrain(
-        map(constrain(rawY, std::uint16_t(200), std::uint16_t(3'900)), 200, 3'900, 0, 320), 0,
+        map(constrain(rawY, std::uint16_t(200), std::uint16_t(3'900)), 200, 3'900, 319, 0), 0,
         319));
     y = static_cast<std::int16_t>(constrain(
-        map(constrain(rawX, std::uint16_t(200), std::uint16_t(3'900)), 200, 3'900, 0, 240), 0,
+        map(constrain(rawX, std::uint16_t(200), std::uint16_t(3'900)), 200, 3'900, 239, 0), 0,
         239));
     return true;
 }
@@ -178,7 +178,7 @@ core::PhysicalControl InputManager::touchControlAt(const std::int16_t x,
                                                    const std::int16_t y) const {
     // Keep the upper-right status target actionable even though the rest of the
     // header is informational. It is the only persistent navigation affordance
-    // on the touch-only Focus profile.
+    // on the touch-only ESP32-D0WD-V3 profile.
     if (x >= 238 && y < 36) {
         return controlContext_ == core::ControlContext::Playback
                    ? core::PhysicalControl::MoreButton

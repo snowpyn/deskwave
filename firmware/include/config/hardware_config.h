@@ -8,22 +8,29 @@
 namespace deskwave::hardware {
 
 // Change this file, not application logic, when adapting a board or wiring loom.
-#if defined(DESKWAVE_FOCUS_CLASSIC)
-// Locally verified ESP32-D0WD-V3 Focus board with the 320x240 ILI9341/XPT2046
-// panel. The touch panel replaces the reference encoder and button loom.
-inline constexpr char kBoardName[] = "ESP32 Dev Module / ESP32-D0WD-V3 (Focus)";
+#if defined(DESKWAVE_ESP32_D0WD_V3)
+// Locally verified ESP32-D0WD-V3 Revision 3.1 board with the 320x240
+// ILI9341/XPT2046 panel. The touch panel replaces the encoder and button loom.
+inline constexpr char kBoardName[] = "ESP32 Dev Module / ESP32-D0WD-V3";
 #else
-// Reference target: ESP32-S3-DevKitC-1-N8 with a 2.8-inch SPI ILI9341 panel.
-inline constexpr char kBoardName[] = "ESP32-S3-DevKitC-1-N8";
+// Legacy fallback for callers that compile the hardware adapter without the
+// published ESP32-D0WD-V3 PlatformIO environment.
+inline constexpr char kBoardName[] = "Unsupported hardware (use esp32-d0wd-v3)";
 #endif
 inline constexpr char kDisplayDriver[] = "ILI9341";
 inline constexpr std::uint16_t kPanelWidth = 240;
 inline constexpr std::uint16_t kPanelHeight = 320;
 inline constexpr std::uint16_t kDisplayWidth = 320;
 inline constexpr std::uint16_t kDisplayHeight = 240;
+#if defined(DESKWAVE_ESP32_D0WD_V3)
+// The ESP32-D0WD-V3 panel loom is mounted 180 degrees opposite the touch overlay.
+// The unsupported legacy fallback keeps its established landscape orientation.
+inline constexpr std::uint8_t kDisplayRotation = 3;
+#else
 inline constexpr std::uint8_t kDisplayRotation = 1;
+#endif
 
-#if defined(DESKWAVE_FOCUS_CLASSIC)
+#if defined(DESKWAVE_ESP32_D0WD_V3)
 inline constexpr int kDisplaySclk = 14;
 inline constexpr int kDisplayMosi = 13;
 inline constexpr int kDisplayMiso = 12;
@@ -98,9 +105,9 @@ inline constexpr std::array kAssignedPins{
 #endif
 
 static_assert(core::pinsUnique(kAssignedPins), "DeskWave GPIO assignments must be unique");
-#if !defined(DESKWAVE_FOCUS_CLASSIC)
+#if !defined(DESKWAVE_ESP32_D0WD_V3)
 static_assert(core::pinsAvoidUnsafeEsp32S3Defaults(kAssignedPins),
-              "Reference wiring uses an ESP32-S3 strapping or flash GPIO");
+              "Legacy fallback wiring uses an unsafe ESP32 strapping or flash GPIO");
 #endif
 
 }  // namespace deskwave::hardware

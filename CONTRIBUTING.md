@@ -9,8 +9,8 @@ UI rendering.
 
 - Read [Architecture](docs/ARCHITECTURE.md), [Protocol](docs/PROTOCOL.md), and
   [Wiring](docs/WIRING.md) for the boundary being changed.
-- Do not change the reference GPIO map without checking uniqueness, ESP32-S3
-  strap/flash restrictions, documentation, and physical-test impact.
+- Do not change the ESP32-D0WD-V3 GPIO map without checking uniqueness,
+  documentation, and physical-test impact.
 - Treat protocol 1 as a compatibility boundary. Additive optional fields are
   acceptable; changed meaning/units/required fields need a new protocol version.
 - Never add fake production metadata, silent command success, unbounded network
@@ -40,7 +40,7 @@ Review automatic fixes before committing.
 
 ```bash
 .venv/bin/python scripts/check_version.py
-.venv/bin/pio run -e esp32-s3-devkitc-1
+.venv/bin/pio run -e esp32-d0wd-v3
 .venv/bin/pio test -e native
 .venv/bin/ruff format --check host scripts
 .venv/bin/ruff check host scripts
