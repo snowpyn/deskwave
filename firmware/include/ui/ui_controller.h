@@ -95,6 +95,7 @@ class UiController {
                            std::uint16_t color, std::uint8_t pulse = 0);
     [[nodiscard]] bool connectionScreenActive() const noexcept;
     [[nodiscard]] bool trackChanged(const app::PlaybackSnapshot& snapshot) const noexcept;
+    [[nodiscard]] bool queueChanged(const app::PlaybackSnapshot& snapshot) const noexcept;
     [[nodiscard]] static const char* screenName(Screen screen) noexcept;
 
     display::DisplayDriver& display_;
@@ -122,6 +123,9 @@ class UiController {
     std::uint32_t lastTitleFrameMs_{0};
     std::int16_t volumeOverlayPercent_{-1};
     std::int16_t titleTextWidth_{0};
+    std::int32_t renderedProgressWidth_{0};
+    char renderedPosition_[16]{};
+    char renderedDuration_[16]{};
     std::uint8_t resetSecondsRemaining_{0};
     bool hasPlayback_{false};
     bool hasPendingPlayback_{false};
@@ -132,6 +136,7 @@ class UiController {
     bool bootRendered_{false};
     bool dimmed_{false};
     bool titleScrollActive_{false};
+    bool progressPainted_{false};
     bool dirty_{true};
 };
 

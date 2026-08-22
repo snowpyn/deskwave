@@ -21,6 +21,23 @@ class RepeatMode(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class QueueEntry:
+    """One upcoming track exposed by a media backend."""
+
+    title: str = ""
+    artist: str = ""
+    track_id: str | None = None
+
+    def normalized(self) -> QueueEntry:
+        return replace(
+            self,
+            title=self.title.replace("\x00", "").strip()[:256],
+            artist=self.artist.replace("\x00", "").strip()[:160],
+            track_id=None if self.track_id is None else self.track_id[:512],
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class PlaybackState:
     """Backend-neutral snapshot. Durations and positions use milliseconds."""
 
@@ -43,6 +60,8 @@ class PlaybackState:
     can_next: bool = False
     can_previous: bool = False
     can_control: bool = False
+    queue: tuple[QueueEntry, ...] = ()
+    queue_available: bool = False
     captured_at_ms: int = field(default_factory=lambda: int(time() * 1000))
 
     def normalized(self) -> PlaybackState:
@@ -53,7 +72,15 @@ class PlaybackState:
         volume = self.volume
         if volume is not None:
             volume = min(1.0, max(0.0, volume))
-        return replace(self, duration_ms=duration, position_ms=position, volume=volume)
+        queue = tuple(entry.normalized() for entry in self.queue[:4])
+        return replace(
+            self,
+            duration_ms=duration,
+            position_ms=position,
+            volume=volume,
+            queue=queue,
+            queue_available=bool(self.queue_available),
+        )
 
     def content_key(self) -> tuple[Any, ...]:
         """Fields that should trigger an immediate state broadcast when changed."""
@@ -77,6 +104,8 @@ class PlaybackState:
             self.can_next,
             self.can_previous,
             self.can_control,
+            self.queue,
+            self.queue_available,
         )
 
     def with_artwork(self, artwork_id: str | None) -> PlaybackState:
@@ -103,8 +132,12 @@ class PlaybackState:
                 "next": self.can_next,
                 "previous": self.can_previous,
                 "control": self.can_control,
-                "queue": False,
+                "queue": self.queue_available,
             },
+            "queue": [
+                {"title": entry.title, "artist": entry.artist, "track_id": entry.track_id}
+                for entry in self.queue
+            ],
             "captured_at_ms": self.captured_at_ms,
         }
 

@@ -22,7 +22,8 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from deskwave_host.config import HostConfig
 
 LOGGER = logging.getLogger("artwork")
-ARTWORK_SIZE = (240, 240)
+ARTWORK_SIZE = (320, 320)
+ARTWORK_FORMAT_VERSION = "320x320-jpeg-q92-444"
 MAX_IMAGE_PIXELS = 20_000_000
 HTTP_CACHE_SECONDS = 24 * 60 * 60
 MAX_REDIRECTS = 3
@@ -124,9 +125,9 @@ class ArtworkCache:
             stat = await asyncio.to_thread(path.stat)
             if not path.is_file() or stat.st_size > self._config.artwork_max_bytes:
                 raise ArtworkError("local artwork is not a bounded regular file")
-            return f"{url}\0{stat.st_mtime_ns}\0{stat.st_size}"
+            return f"{ARTWORK_FORMAT_VERSION}\0{url}\0{stat.st_mtime_ns}\0{stat.st_size}"
         if parsed.scheme in {"http", "https"}:
-            return url
+            return f"{ARTWORK_FORMAT_VERSION}\0{url}"
         raise ArtworkError("only file, http, and https artwork URLs are supported")
 
     def _read_mapping(self, path: Path, url: str) -> str | None:
@@ -244,7 +245,14 @@ class ArtworkCache:
                 image = ImageOps.exif_transpose(source).convert("RGB")
                 image = ImageOps.fit(image, ARTWORK_SIZE, method=Image.Resampling.LANCZOS)
                 output = BytesIO()
-                image.save(output, format="JPEG", quality=82, optimize=True, progressive=False)
+                image.save(
+                    output,
+                    format="JPEG",
+                    quality=92,
+                    subsampling=0,
+                    optimize=True,
+                    progressive=False,
+                )
                 return output.getvalue()
         except (UnidentifiedImageError, Image.DecompressionBombError, OSError, ValueError) as error:
             raise ArtworkError("artwork is malformed or unsupported") from error

@@ -36,6 +36,7 @@ constexpr std::uint16_t kLine = rgb565(55, 62, 105);
 constexpr std::int32_t kArtworkX = 8;
 constexpr std::int32_t kArtworkY = 38;
 constexpr std::int32_t kArtworkSize = 132;
+constexpr std::int32_t kArtworkSourceSize = 320;
 constexpr std::int32_t kMetadataX = 150;
 constexpr std::int32_t kMetadataY = 38;
 constexpr std::int32_t kMetadataWidth = 162;
@@ -48,9 +49,8 @@ constexpr std::uint32_t kTrackTransitionMs = 220;
 constexpr std::uint32_t kOverlayDurationMs = 1'600;
 constexpr std::uint32_t kToastDurationMs = 2'200;
 constexpr std::uint32_t kProgressFrameMs = 500;
-constexpr std::uint32_t kTitleFrameMs = 45;
-constexpr std::uint32_t kTitleEdgeHoldMs = 700;
-constexpr std::uint32_t kTitlePixelsPerSecond = 32;
+constexpr std::uint32_t kTitleFrameMs = 33;
+constexpr std::uint32_t kTitlePixelsPerSecond = 34;
 
 std::uint16_t blend565(const std::uint16_t foreground, const std::uint16_t background,
                        const std::uint8_t amount) {
@@ -226,6 +226,23 @@ bool UiController::trackChanged(const app::PlaybackSnapshot& snapshot) const noe
            std::strcmp(playback_.album, snapshot.album) != 0;
 }
 
+bool UiController::queueChanged(const app::PlaybackSnapshot& snapshot) const noexcept {
+    if (!hasPlayback_ || playback_.queueAvailable != snapshot.queueAvailable ||
+        playback_.queueCount != snapshot.queueCount) {
+        return true;
+    }
+    for (std::uint8_t index = 0; index < snapshot.queueCount; ++index) {
+        const auto& current = playback_.queue[index];
+        const auto& next = snapshot.queue[index];
+        if (std::strcmp(current.title, next.title) != 0 ||
+            std::strcmp(current.artist, next.artist) != 0 ||
+            std::strcmp(current.trackId, next.trackId) != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void UiController::setPlayback(const app::PlaybackSnapshot& snapshot, const std::uint32_t nowMs) {
     if (trackChanged(snapshot) && screen_ == Screen::NowPlaying && !connectionScreenActive()) {
         pendingPlayback_ = snapshot;
@@ -239,7 +256,8 @@ void UiController::setPlayback(const app::PlaybackSnapshot& snapshot, const std:
                                std::strcmp(playback_.playerName, snapshot.playerName) != 0;
     const bool metadataChanged = !hasPlayback_ ||
                                  std::strcmp(playback_.title, snapshot.title) != 0 ||
-                                 std::strcmp(playback_.artist, snapshot.artist) != 0;
+                                 std::strcmp(playback_.artist, snapshot.artist) != 0 ||
+                                 queueChanged(snapshot);
     const bool footerChanged = !hasPlayback_ || playback_.status != snapshot.status ||
                                playback_.shuffleKnown != snapshot.shuffleKnown ||
                                playback_.shuffle != snapshot.shuffle ||
@@ -275,6 +293,17 @@ void UiController::setPlayback(const app::PlaybackSnapshot& snapshot, const std:
 
 void UiController::setArtwork(const app::ArtworkResult& result, const std::uint32_t nowMs) {
     (void)nowMs;
+    const bool belongsToCurrentPlayback =
+        hasPlayback_ && result.artworkId[0] != '\0' &&
+        std::strcmp(playback_.artworkId, result.artworkId) == 0;
+    const bool belongsToPendingPlayback =
+        hasPendingPlayback_ && result.artworkId[0] != '\0' &&
+        std::strcmp(pendingPlayback_.artworkId, result.artworkId) == 0;
+    if (!belongsToCurrentPlayback && !belongsToPendingPlayback) {
+        // A download can finish after the user skips again. Do not let that
+        // late result replace the cover associated with the visible track.
+        return;
+    }
     if (!result.success) {
         if (result.error[0] != '\0') {
             showToast(result.error, millis(), true);
@@ -534,6 +563,7 @@ void UiController::tickTrackTransition(const std::uint32_t nowMs) {
 }
 
 void UiController::render(const std::uint32_t nowMs) {
+    progressPainted_ = false;
     renderAtmosphere();
     renderHeader(nowMs);
     switch (screen_) {
@@ -635,8 +665,8 @@ void UiController::renderHeader(const std::uint32_t nowMs) {
     }
 
     const auto connectionColor = status_.hostConnected ? kSpotify : kWarning;
-    display_.fillCircle(272, 15, 3, connectionColor);
-    drawFitted(status_.hostConnected ? "LINKED" : "RETRY", 312, 10, 34, &fonts::Font0,
+    display_.fillCircle(248, 15, 3, connectionColor);
+    drawFitted(status_.hostConnected ? "LINKED" : "RETRY", 312, 10, 56, &fonts::Font0,
                connectionColor, lgfx::textdatum_t::top_right);
 }
 
@@ -737,7 +767,8 @@ void UiController::renderArtwork() {
         artworkPath_[0] != '\0' && LittleFS.exists(artworkPath_)) {
         rendered = display_.drawJpgFile(
             LittleFS, artworkPath_, kArtworkX, kArtworkY, kArtworkSize, kArtworkSize, 0, 0,
-            static_cast<float>(kArtworkSize) / 240.0F, static_cast<float>(kArtworkSize) / 240.0F,
+            static_cast<float>(kArtworkSize) / static_cast<float>(kArtworkSourceSize),
+            static_cast<float>(kArtworkSize) / static_cast<float>(kArtworkSourceSize),
             lgfx::textdatum_t::top_left);
     }
     if (!rendered) {
@@ -777,29 +808,11 @@ void UiController::renderTitle(const std::uint32_t nowMs, const std::uint16_t co
 
     std::int32_t scrollOffset = 0;
     if (titleScrollActive_ && xOffset == 0) {
-        const auto travel = static_cast<std::uint32_t>(titleTextWidth_ - kTitleWidth);
-        const auto moveDuration = std::clamp<std::uint32_t>(
-            travel * 1'000U / kTitlePixelsPerSecond, 1'200U, 8'000U);
-        const auto cycleDuration = 2U * (kTitleEdgeHoldMs + moveDuration);
-        const auto phase = static_cast<std::uint32_t>(nowMs - titleScrollStartedAtMs_) %
-                           cycleDuration;
-
-        if (phase >= kTitleEdgeHoldMs && phase < kTitleEdgeHoldMs + moveDuration) {
-            const auto elapsed = phase - kTitleEdgeHoldMs;
-            const auto normalized = static_cast<std::uint32_t>(elapsed * 1'024ULL / moveDuration);
-            const auto eased = static_cast<std::uint32_t>(
-                normalized * normalized * (3'072ULL - 2ULL * normalized) / (1'024ULL * 1'024ULL));
-            scrollOffset = -static_cast<std::int32_t>(travel * eased / 1'024U);
-        } else if (phase < 2U * kTitleEdgeHoldMs + moveDuration) {
-            scrollOffset = -static_cast<std::int32_t>(travel);
-        } else {
-            const auto elapsed = phase - (2U * kTitleEdgeHoldMs + moveDuration);
-            const auto normalized = static_cast<std::uint32_t>(elapsed * 1'024ULL / moveDuration);
-            const auto eased = static_cast<std::uint32_t>(
-                normalized * normalized * (3'072ULL - 2ULL * normalized) / (1'024ULL * 1'024ULL));
-            scrollOffset = -static_cast<std::int32_t>(travel) +
-                           static_cast<std::int32_t>(travel * eased / 1'024U);
-        }
+        const auto cycle = static_cast<std::uint32_t>(std::max<std::int16_t>(titleTextWidth_, 1));
+        const auto phase = static_cast<std::uint32_t>(
+            (static_cast<std::uint64_t>(nowMs - titleScrollStartedAtMs_) *
+             kTitlePixelsPerSecond / 1'000U) % cycle);
+        scrollOffset = phase - titleTextWidth_;
     }
 
     const auto metadataBackground = blend565(kPanel, kBackground, 235);
@@ -808,7 +821,11 @@ void UiController::renderTitle(const std::uint32_t nowMs, const std::uint16_t co
     display_.setFont(&fonts::Font4);
     display_.setTextColor(color);
     display_.setTextDatum(lgfx::textdatum_t::top_left);
-    display_.drawString(title, kTitleX + xOffset + scrollOffset, kTitleY + 1);
+    const auto titleX = kTitleX + xOffset + scrollOffset;
+    display_.drawString(title, titleX, kTitleY + 1);
+    if (titleScrollActive_ && xOffset == 0) {
+        display_.drawString(title, titleX + titleTextWidth_, kTitleY + 1);
+    }
     display_.drawFastHLine(kTitleX, kTitleY + kTitleHeight - 1, kTitleWidth,
                           blend565(kLine, metadataBackground, 150));
     display_.clearClipRect();
@@ -835,10 +852,27 @@ void UiController::renderMetadata(const std::uint32_t nowMs, const std::uint16_t
     display_.fillRoundRect(157, 117, 148, 40, 7, blend565(kPanelRaised, metadataBackground, 155));
     display_.drawRoundRect(157, 117, 148, 40, 7,
                            blend565(kLine, metadataBackground, 175));
-    drawFitted("UP NEXT", 164 + xOffset, 122, 70, &fonts::Font0,
+    drawFitted("UP NEXT", 164 + xOffset, 120, 140, &fonts::Font0,
                color == kText ? kViolet : blend565(kViolet, kBackground, 100));
-    display_.drawCircle(167 + xOffset, 143, 3, fadedArtist);
-    drawFitted("QUEUE NOT SHARED", 176 + xOffset, 138, 120, &fonts::Font0, fadedArtist);
+    if (!playback_.queueAvailable) {
+        drawFitted("QUEUE UNAVAILABLE", 164 + xOffset, 138, 136, &fonts::Font0, fadedArtist);
+    } else if (playback_.queueCount == 0) {
+        drawFitted("QUEUE EMPTY", 164 + xOffset, 138, 136, &fonts::Font0, fadedArtist);
+    } else {
+        for (std::uint8_t index = 0; index < std::min<std::uint8_t>(2, playback_.queueCount);
+             ++index) {
+            const auto& entry = playback_.queue[index];
+            char label[290];
+            if (entry.artist[0] == '\0') {
+                std::snprintf(label, sizeof(label), "%u  %s", static_cast<unsigned>(index + 1),
+                              entry.title[0] == '\0' ? "Untitled" : entry.title);
+            } else {
+                std::snprintf(label, sizeof(label), "%u  %s - %s", static_cast<unsigned>(index + 1),
+                              entry.title[0] == '\0' ? "Untitled" : entry.title, entry.artist);
+            }
+            drawFitted(label, 164 + xOffset, 132 + index * 11, 136, &fonts::Font0, fadedArtist);
+        }
+    }
 }
 
 void UiController::drawTransportIcon(const std::int32_t centerX, const std::int32_t centerY,
@@ -859,6 +893,7 @@ void UiController::drawTransportIcon(const std::int32_t centerX, const std::int3
 void UiController::renderFooter(const std::uint32_t nowMs) {
     const auto controlsBackground = blend565(kPanel, kBackground, 225);
     const auto playBackground = blend565(kPanelRaised, kBackground, 240);
+    progressPainted_ = false;
     display_.fillRect(0, 174, 320, 21, blend565(kPanel, kBackground, 105));
     display_.fillRect(0, 195, 320, 45, controlsBackground);
     display_.fillRect(118, 195, 84, 45, playBackground);
@@ -910,21 +945,48 @@ void UiController::renderFooter(const std::uint32_t nowMs) {
 
 void UiController::renderProgress(const std::uint32_t nowMs) {
     const auto footerBackground = blend565(kPanel, kBackground, 105);
-    display_.fillRect(0, 174, 320, 21, footerBackground);
-    display_.fillRoundRect(8, 178, 304, 3, 1, kLine);
-    const auto progressWidth = static_cast<std::int32_t>(progress_.fraction(nowMs) * 304.0F);
-    if (progressWidth > 0) {
-        display_.fillRoundRect(8, 178, progressWidth, 3, 1, kAccent);
-        display_.fillCircle(8 + progressWidth, 179, 3, kText);
-    }
     char position[16];
     char duration[16];
     formatDuration(progress_.position(nowMs), position);
     formatDuration(progress_.duration(), duration);
-    drawFitted(position, 8, 184, 60, &fonts::Font0, kTextMuted);
-    drawFitted(playback_.hasDuration ? duration : "--:--", 312, 184, 60, &fonts::Font0,
-               kTextMuted,
-               lgfx::textdatum_t::top_right);
+    if (!playback_.hasDuration) {
+        app::copyText(duration, "--:--");
+    }
+
+    const auto progressWidth = static_cast<std::int32_t>(progress_.fraction(nowMs) * 304.0F);
+    const bool positionChanged = !progressPainted_ || std::strcmp(renderedPosition_, position) != 0;
+    const bool durationChanged = !progressPainted_ || std::strcmp(renderedDuration_, duration) != 0;
+    if (!progressPainted_) {
+        display_.fillRect(0, 174, 320, 21, footerBackground);
+        display_.fillRoundRect(8, 178, 304, 3, 1, kLine);
+        if (progressWidth > 0) {
+            display_.fillRoundRect(8, 178, progressWidth, 3, 1, kAccent);
+            display_.fillCircle(8 + progressWidth, 179, 3, kText);
+        }
+    } else if (progressWidth != renderedProgressWidth_) {
+        const auto start = std::max(8, std::min(renderedProgressWidth_, progressWidth) - 4);
+        const auto end = std::max(start + 1,
+                                  std::min(312, std::max(renderedProgressWidth_, progressWidth) + 4));
+        display_.fillRect(start, 175, end - start, 9, footerBackground);
+        display_.fillRoundRect(start, 178, end - start, 3, 1, kLine);
+        if (progressWidth > 0) {
+            display_.fillRoundRect(8, 178, progressWidth, 3, 1, kAccent);
+            display_.fillCircle(8 + progressWidth, 179, 3, kText);
+        }
+    }
+    if (positionChanged) {
+        display_.fillRect(0, 184, 70, 11, footerBackground);
+        drawFitted(position, 8, 184, 60, &fonts::Font0, kTextMuted);
+    }
+    if (durationChanged) {
+        display_.fillRect(246, 184, 74, 11, footerBackground);
+        drawFitted(duration, 312, 184, 60, &fonts::Font0, kTextMuted,
+                   lgfx::textdatum_t::top_right);
+    }
+    renderedProgressWidth_ = progressWidth;
+    app::copyText(renderedPosition_, position);
+    app::copyText(renderedDuration_, duration);
+    progressPainted_ = true;
 }
 
 void UiController::renderDevice() {

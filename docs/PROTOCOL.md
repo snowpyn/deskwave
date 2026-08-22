@@ -157,14 +157,30 @@ Sent first after authentication:
     "next": true,
     "previous": true,
     "control": true,
-    "queue": false
+    "queue": true
   },
+  "queue": [
+    {
+      "title": "Next track",
+      "artist": "Artist two",
+      "track_id": "/org/mpris/MediaPlayer2/Track/124"
+    },
+    {
+      "title": "Following track",
+      "artist": "Artist three",
+      "track_id": "/org/mpris/MediaPlayer2/Track/125"
+    }
+  ],
   "captured_at_ms": 1770000000000
 }
 ```
 
-Optional MPRIS properties use JSON `null`, never invented values. Firmware
-renders a capability as unavailable when it is null/false. `status` is one of
+Optional MPRIS properties use JSON `null`, never invented values. The `queue`
+array contains at most four upcoming tracks when the active player exposes the
+standard MPRIS TrackList interface; `capabilities.queue` is false when that
+interface is unavailable and the array is empty when the queue is currently
+empty. Firmware renders a capability as unavailable when it is null/false.
+`status` is one of
 `playing`, `paused`, or `stopped`; `repeat` is `off`, `track`, `playlist`, or
 null. Volume is normalized to 0.0–1.0. Duration and position are milliseconds.
 
@@ -272,7 +288,8 @@ not need to emit periodic application pings.
 ## Artwork contract
 
 The host accepts source artwork only through its bounded processor. It resizes
-and center-crops to 240×240 RGB, writes non-progressive JPEG at quality 82, and
+and center-crops to 320×320 RGB, writes a high-quality non-progressive JPEG with
+4:4:4 chroma, and
 names the object by SHA-256 of the rendered bytes. Firmware accepts only:
 
 - lowercase 64-character hexadecimal IDs;

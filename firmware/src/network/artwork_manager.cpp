@@ -33,6 +33,28 @@ bool validRequest(const app::ArtworkRequest& request) {
            std::strstr(request.path, "..") == nullptr;
 }
 
+bool validCachedArtwork(const char* path) {
+    File file = LittleFS.open(path, FILE_READ);
+    if (!file || file.isDirectory()) {
+        file.close();
+        return false;
+    }
+    const auto size = file.size();
+    if (size <= 4 || size > config::kMaximumArtworkBytes) {
+        file.close();
+        return false;
+    }
+
+    std::uint8_t first[2]{};
+    std::uint8_t last[2]{};
+    const bool readFirst = file.read(first, sizeof(first)) == sizeof(first);
+    const bool positionedAtEnd = file.seek(size - sizeof(last));
+    const bool readLast = positionedAtEnd && file.read(last, sizeof(last)) == sizeof(last);
+    file.close();
+    return readFirst && readLast && first[0] == 0xFF && first[1] == 0xD8 && last[0] == 0xFF &&
+           last[1] == 0xD9;
+}
+
 }  // namespace
 
 ArtworkManager::ArtworkManager(const QueueHandle_t requestQueue, const QueueHandle_t resultQueue)
@@ -82,11 +104,12 @@ app::ArtworkResult ArtworkManager::download(const app::ArtworkRequest& request) 
     }
     char finalPath[96];
     std::snprintf(finalPath, sizeof(finalPath), "/art/%s.jpg", request.artworkId);
-    if (LittleFS.exists(finalPath)) {
+    if (LittleFS.exists(finalPath) && validCachedArtwork(finalPath)) {
         result.success = true;
         app::copyText(result.localPath, finalPath);
         return result;
     }
+    LittleFS.remove(finalPath);
     if (WiFi.status() != WL_CONNECTED) {
         app::copyText(result.error, "Wi-Fi is offline");
         return result;

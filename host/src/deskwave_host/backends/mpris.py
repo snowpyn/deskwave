@@ -19,6 +19,7 @@ from deskwave_host.models import (
     PlaybackState,
     PlaybackStatus,
     PlayerSummary,
+    QueueEntry,
     RepeatMode,
     select_active_player,
 )
@@ -28,11 +29,14 @@ MPRIS_PREFIX = "org.mpris.MediaPlayer2."
 MPRIS_PATH = "/org/mpris/MediaPlayer2"
 PLAYER_INTERFACE = "org.mpris.MediaPlayer2.Player"
 ROOT_INTERFACE = "org.mpris.MediaPlayer2"
+TRACKLIST_INTERFACE = "org.mpris.MediaPlayer2.TrackList"
 PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 POLL_SECONDS = 0.4
 PLAYER_SCAN_SECONDS = 2.0
 POSITION_SYNC_SECONDS = 2.0
 MAX_SNAPSHOT_FAILURES = 3
+MAX_TRACKLIST_ITEMS = 64
+MAX_QUEUE_ENTRIES = 4
 
 
 def _value(properties: dict[str, Any], key: str, default: Any = None) -> Any:
@@ -68,16 +72,77 @@ class _MPRISPlayer:
     player_id: str
     player: Any
     properties: Any
+    tracklist: Any | None
 
     @classmethod
     async def connect(cls, bus: MessageBus, player_id: str) -> _MPRISPlayer:
         introspection = await asyncio.wait_for(bus.introspect(player_id, MPRIS_PATH), timeout=1.5)
         proxy = bus.get_proxy_object(player_id, MPRIS_PATH, introspection)
+        try:
+            tracklist = proxy.get_interface(TRACKLIST_INTERFACE)
+        except InterfaceNotFoundError:
+            tracklist = None
         return cls(
             player_id=player_id,
             player=proxy.get_interface(PLAYER_INTERFACE),
             properties=proxy.get_interface(PROPERTIES_INTERFACE),
+            tracklist=tracklist,
         )
+
+    async def queue_snapshot(
+        self, current_track_id: str | None
+    ) -> tuple[tuple[QueueEntry, ...], bool]:
+        """Return bounded upcoming TrackList entries when the player exposes TrackList."""
+
+        if self.tracklist is None:
+            return (), False
+        try:
+            track_properties = await asyncio.wait_for(
+                self.properties.call_get_all(TRACKLIST_INTERFACE), timeout=1.0
+            )
+            if not isinstance(track_properties, dict):
+                return (), False
+            track_ids = _value(track_properties, "TrackList", [])
+            if not isinstance(track_ids, (list, tuple)):
+                return (), True
+            bounded_ids = [
+                track_id
+                for track_id in track_ids[:MAX_TRACKLIST_ITEMS]
+                if isinstance(track_id, str)
+            ]
+            if not bounded_ids:
+                return (), True
+            metadata = await asyncio.wait_for(
+                self.tracklist.call_get_tracks_metadata(bounded_ids), timeout=1.0
+            )
+        except (DBusError, OSError, RuntimeError, TimeoutError, TypeError, ValueError) as error:
+            LOGGER.debug("Could not refresh MPRIS queue for %s: %s", self.player_id, error)
+            return (), False
+
+        if not isinstance(metadata, (list, tuple)):
+            return (), False
+        entries: list[QueueEntry] = []
+        current_index: int | None = None
+        for track_id, values in zip(bounded_ids, metadata, strict=False):
+            if not isinstance(values, dict):
+                continue
+            entry_track_id = _safe_text(_value(values, "mpris:trackid", track_id), 512) or track_id
+            if current_track_id is not None and entry_track_id == current_track_id:
+                current_index = len(entries)
+            artists_value = _value(values, "xesam:artist", [])
+            if isinstance(artists_value, (list, tuple)):
+                artist = ", ".join(_safe_text(artist, 160) for artist in artists_value[:3])
+            else:
+                artist = _safe_text(artists_value, 160)
+            entries.append(
+                QueueEntry(
+                    title=_safe_text(_value(values, "xesam:title"), 256),
+                    artist=artist,
+                    track_id=entry_track_id,
+                ).normalized()
+            )
+        start = 0 if current_index is None else current_index + 1
+        return tuple(entries[start : start + MAX_QUEUE_ENTRIES]), True
 
     async def snapshot(self) -> PlaybackState:
         player_properties, root_properties = await asyncio.wait_for(
@@ -104,6 +169,7 @@ class _MPRISPlayer:
         volume = float(volume_value) if isinstance(volume_value, (int, float)) else None
         artwork = _safe_text(_value(metadata, "mpris:artUrl"), 2048) or None
         track_id = _safe_text(_value(metadata, "mpris:trackid"), 512) or None
+        queue, queue_available = await self.queue_snapshot(track_id)
         return PlaybackState(
             title=_safe_text(_value(metadata, "xesam:title"), 256),
             artists=artists,
@@ -128,6 +194,8 @@ class _MPRISPlayer:
             can_next=bool(_value(player_properties, "CanGoNext", False)),
             can_previous=bool(_value(player_properties, "CanGoPrevious", False)),
             can_control=bool(_value(player_properties, "CanControl", False)),
+            queue=queue,
+            queue_available=queue_available,
             captured_at_ms=int(time() * 1000),
         ).normalized()
 

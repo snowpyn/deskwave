@@ -141,8 +141,8 @@ Artwork is read from MPRIS `mpris:artUrl`. Local `file://` paths and public
 HTTP(S) sources are supported. Before decoding, the host enforces byte, redirect,
 DNS, address, and pixel limits. Private/special-purpose HTTP destinations are
 blocked by default to prevent an untrusted media application from turning the
-host into a LAN probe. Images are normalized to non-progressive 240×240 JPEG,
-content-addressed, and evicted to the configured cache budget.
+host into a LAN probe. Images are normalized to high-quality non-progressive
+320×320 JPEG, content-addressed, and evicted to the configured cache budget.
 
 Set `allow_private_artwork_hosts = true` only if a trusted player genuinely
 serves artwork from a private address and the SSRF tradeoff is understood.

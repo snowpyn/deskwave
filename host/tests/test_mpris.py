@@ -18,6 +18,47 @@ class PlayerNameBus:
         return ["org.mpris.MediaPlayer2.incomplete"]
 
 
+class QueueProperties:
+    async def call_get_all(self, interface: str) -> dict[str, object]:
+        assert interface == mpris_module.TRACKLIST_INTERFACE
+        return {"TrackList": ["/track/current", "/track/next", "/track/following"]}
+
+
+class QueueTrackList:
+    async def call_get_tracks_metadata(self, track_ids: list[str]) -> list[dict[str, object]]:
+        assert track_ids == ["/track/current", "/track/next", "/track/following"]
+        return [
+            {"mpris:trackid": "/track/current", "xesam:title": "Current"},
+            {
+                "mpris:trackid": "/track/next",
+                "xesam:title": "Next",
+                "xesam:artist": ["Artist two"],
+            },
+            {
+                "mpris:trackid": "/track/following",
+                "xesam:title": "Following",
+                "xesam:artist": ["Artist three"],
+            },
+        ]
+
+
+async def test_tracklist_returns_entries_after_current_track() -> None:
+    player = mpris_module._MPRISPlayer(
+        player_id="org.mpris.MediaPlayer2.test",
+        player=object(),
+        properties=QueueProperties(),
+        tracklist=QueueTrackList(),
+    )
+
+    queue, available = await player.queue_snapshot("/track/current")
+
+    assert available is True
+    assert [(entry.title, entry.artist) for entry in queue] == [
+        ("Next", "Artist two"),
+        ("Following", "Artist three"),
+    ]
+
+
 async def test_player_missing_mpris_interface_is_skipped(monkeypatch: pytest.MonkeyPatch) -> None:
     backend = MPRISBackend()
     backend._bus = object()  # type: ignore[assignment]

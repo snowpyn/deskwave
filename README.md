@@ -28,8 +28,8 @@ the automated checks.
 - Recovers from Wi-Fi loss, host restart, desktop suspend/wake, player exit,
   malformed messages, and artwork failures without blocking physical input.
 - Provides Now Playing, Device, Settings, Actions, About, idle, provisioning,
-  pairing, reconnecting, and error screens. Queue UI is intentionally hidden
-  because MPRIS does not expose a portable queue.
+  pairing, reconnecting, and error screens. Now Playing shows the next two
+  tracks when the active MPRIS player exposes its standard TrackList.
 - Acts only as a remote control and display. Audio continues playing on the
   selected PC or phone; DeskWave never receives or outputs the audio stream.
 
@@ -307,7 +307,8 @@ TLS, so network confidentiality depends on the trusted LAN. See
 
 - Linux/MPRIS is the only production host backend in `0.1.0`; Windows and macOS
   can be added behind the existing backend abstraction.
-- Portable MPRIS has no queue API, so DeskWave does not show a Queue/Next screen.
+- Queue display depends on the active player's standard MPRIS TrackList support;
+  players without it show an explicit unavailable state.
 - The reference firmware targets the ILI9341/ESP32-S3 wiring profile, with a
   compatibility profile for the locally verified ILI9341/XPT2046 classic ESP32
   Focus board; other displays require a hardware adapter in the centralized
@@ -325,8 +326,9 @@ The first release intentionally keeps risky or provider-specific expansion out
 of the production path. Candidate follow-up work includes signed and
 rollback-safe OTA, additional centralized hardware profiles, native Windows and
 macOS host backends, optional provider plugins, and measured UI/control
-performance data from qualified hardware. Queue UI will be considered only for
-a backend that exposes real queue data.
+performance data from qualified hardware. Future queue work can expand the
+compact Now Playing view for backends that expose richer queue data; the current
+MPRIS TrackList path already provides the first two entries when available.
 
 ## Repository layout
 

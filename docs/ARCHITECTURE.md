@@ -12,7 +12,7 @@ flowchart LR
     Service --> API["Authenticated HTTP and WebSocket API"]
     Service --> Art["Bounded artwork processor and cache"]
     API -->|"mDNS + trusted LAN"| Net["ESP32 network task"]
-    Art -->|"240 x 240 JPEG"| Artwork["ESP32 artwork task"]
+    Art -->|"320 x 320 JPEG"| Artwork["ESP32 artwork task"]
     Net --> Queues["Fixed-size FreeRTOS queues"]
     Artwork --> Queues
     Input["Dedicated input task"] --> Queues
@@ -49,7 +49,7 @@ DeskWave Host is one asyncio process in the desktop user's session.
    queue of size one, so a slow device receives the newest state instead of an
    unbounded history. Artwork IDs are retained across position-only resyncs.
 3. `ArtworkCache` resolves artwork outside the event loop when decoding is
-   CPU-bound, emits content-addressed 240×240 JPEG, and atomically commits cache
+   CPU-bound, emits content-addressed 320×320 JPEG, and atomically commits cache
    files.
 4. aiohttp serves health, pairing, artwork, player-list, and WebSocket routes.
    Pairing routes are the only unauthenticated device operations and are
@@ -152,8 +152,10 @@ snapshots and local actions from the application coordinator.
 - Idle dimming changes PWM brightness without changing the saved value. Any
   physical input wakes the panel and is still processed.
 
-No queue is displayed because the backend capability is false. The Device
-screen requests a bounded player list only while visible.
+The Now Playing screen displays the first two upcoming entries from the
+bounded MPRIS TrackList snapshot when the backend exposes queue data. The
+unavailable state remains explicit for players without TrackList support. The
+Device screen requests a bounded player list only while visible.
 
 ## Persistence
 

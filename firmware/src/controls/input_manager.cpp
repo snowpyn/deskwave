@@ -176,6 +176,14 @@ bool InputManager::readTouch(std::int16_t& x, std::int16_t& y) {
 
 core::PhysicalControl InputManager::touchControlAt(const std::int16_t x,
                                                    const std::int16_t y) const {
+    // Keep the upper-right status target actionable even though the rest of the
+    // header is informational. It is the only persistent navigation affordance
+    // on the touch-only Focus profile.
+    if (x >= 238 && y < 36) {
+        return controlContext_ == core::ControlContext::Playback
+                   ? core::PhysicalControl::MoreButton
+                   : core::PhysicalControl::MenuButton;
+    }
     if (controlContext_ == core::ControlContext::Actions) {
         if (y >= 82 && y <= 179) {
             if (x >= 12 && x <= 153) {
@@ -191,7 +199,7 @@ core::PhysicalControl InputManager::touchControlAt(const std::int16_t x,
         return core::PhysicalControl::NoControl;
     }
     // Match the five full-height footer targets drawn by the now-playing UI.
-    if (controlContext_ == core::ControlContext::Playback && y >= 195) {
+    if (controlContext_ == core::ControlContext::Playback && y >= 190) {
         if (x < 64) {
             return core::PhysicalControl::ShuffleButton;
         }
@@ -205,6 +213,12 @@ core::PhysicalControl InputManager::touchControlAt(const std::int16_t x,
             return core::PhysicalControl::RightButton;
         }
         return core::PhysicalControl::MoreButton;
+    }
+    if (controlContext_ == core::ControlContext::Device && y >= 136 && y <= 205) {
+        return core::PhysicalControl::EncoderButton;
+    }
+    if (controlContext_ == core::ControlContext::Settings && y >= 34 && y <= 211) {
+        return core::PhysicalControl::EncoderButton;
     }
     return core::PhysicalControl::NoControl;
 }

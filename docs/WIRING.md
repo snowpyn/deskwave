@@ -65,9 +65,10 @@ rainbow; the TFT backlight remains a steady single-color brightness channel.
 
 The footer's visible boundaries and touch hitboxes are identical: Shuffle
 0–63, Previous 64–117, Play/Pause 118–201, Next 202–255, and More 256–319.
-The now-playing header and queue-status card are informational. `MORE` opens or
-closes the Actions screen; the physical Menu button still advances through the
-primary screens on the reference button-equipped profile.
+The now-playing header and queue card are informational except for the
+upper-right status target, which opens the Actions screen on the touch-only
+profile. `MORE` also opens or closes Actions; the physical Menu button still
+advances through the primary screens on the reference button-equipped profile.
 
 ### Backlight caution
 

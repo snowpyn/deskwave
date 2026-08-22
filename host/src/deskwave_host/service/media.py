@@ -11,7 +11,10 @@ from deskwave_host.backends.base import MediaBackend
 from deskwave_host.models import CommandResult, PlaybackState, PlayerSummary
 
 LOGGER = logging.getLogger("service")
-ARTWORK_RETRY_SECONDS = 60.0
+ARTWORK_RETRY_SECONDS = 5.0
+
+
+ArtworkContext = tuple[str, str]
 
 
 class MediaService:
@@ -21,7 +24,7 @@ class MediaService:
         self._state = PlaybackState()
         self._subscribers: set[asyncio.Queue[PlaybackState]] = set()
         self._artwork_task: asyncio.Task[None] | None = None
-        self._artwork_source: str | None = None
+        self._artwork_context: ArtworkContext | None = None
         self._last_artwork_attempt = 0.0
         self._started = False
 
@@ -68,7 +71,8 @@ class MediaService:
             return CommandResult(False, "host command timeout")
 
     async def _on_backend_state(self, state: PlaybackState) -> None:
-        same_artwork = state.artwork_url == self._state.artwork_url
+        artwork_context = self._context_for(state)
+        same_artwork = artwork_context == self._artwork_context
         retained_artwork = self._state.artwork_id if same_artwork else None
         self._state = state.with_artwork(retained_artwork)
         self._broadcast(self._state)
@@ -76,7 +80,10 @@ class MediaService:
             if self._artwork_task is not None:
                 self._artwork_task.cancel()
             self._artwork_task = None
-            self._artwork_source = None
+            self._artwork_context = None
+            self._last_artwork_attempt = 0.0
+            return
+        if artwork_context is None:
             return
         task_running = self._artwork_task is not None and not self._artwork_task.done()
         now = monotonic()
@@ -88,25 +95,42 @@ class MediaService:
             return
         if self._artwork_task is not None:
             self._artwork_task.cancel()
-        self._artwork_source = state.artwork_url
+        self._artwork_context = artwork_context
         self._last_artwork_attempt = now
         self._artwork_task = asyncio.create_task(
-            self._resolve_artwork(state.artwork_url), name="artwork-resolve"
+            self._resolve_artwork(state.artwork_url, artwork_context), name="artwork-resolve"
         )
 
-    async def _resolve_artwork(self, artwork_url: str) -> None:
+    async def _resolve_artwork(self, artwork_url: str, artwork_context: ArtworkContext) -> None:
         try:
             artwork_id = await self._artwork.resolve(artwork_url)
         except asyncio.CancelledError:
             raise
         else:
-            if self._state.artwork_url != artwork_url:
+            if self._context_for(self._state) != artwork_context:
                 return
             self._state = self._state.with_artwork(artwork_id)
             self._broadcast(self._state)
         finally:
             if self._artwork_task is asyncio.current_task():
                 self._artwork_task = None
+
+    @staticmethod
+    def _context_for(state: PlaybackState) -> ArtworkContext | None:
+        """Identify the artwork request's track, not just its source URL.
+
+        Several MPRIS players reuse a single local file URL while replacing its
+        contents for each track.  A URL-only key would retain the previous
+        album cover forever after a skip.  Track IDs are the strongest identity;
+        the normalized metadata fallback covers players that omit them.
+        """
+
+        if not state.artwork_url:
+            return None
+        track_key = state.track_id
+        if not track_key:
+            track_key = "\x1f".join((state.title, *state.artists, state.album))
+        return state.artwork_url, track_key
 
     def _broadcast(self, state: PlaybackState) -> None:
         for queue in tuple(self._subscribers):

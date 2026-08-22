@@ -2,6 +2,7 @@ from deskwave_host.models import (
     PlaybackState,
     PlaybackStatus,
     PlayerSummary,
+    QueueEntry,
     select_active_player,
 )
 
@@ -28,3 +29,19 @@ def test_state_normalization_clamps_untrusted_numeric_fields() -> None:
     state = PlaybackState(duration_ms=1000, position_ms=2000, volume=2.0).normalized()
     assert state.position_ms == 1000
     assert state.volume == 1.0
+
+
+def test_state_payload_contains_bounded_upcoming_queue() -> None:
+    state = PlaybackState(
+        queue=tuple(QueueEntry(title=f"Track {index}") for index in range(6)),
+        queue_available=True,
+    ).normalized()
+
+    payload = state.to_payload()
+    assert payload["capabilities"]["queue"] is True
+    assert [entry["title"] for entry in payload["queue"]] == [
+        "Track 0",
+        "Track 1",
+        "Track 2",
+        "Track 3",
+    ]

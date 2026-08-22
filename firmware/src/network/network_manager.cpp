@@ -537,6 +537,21 @@ void NetworkManager::handlePlaybackState(const JsonObjectConst payload) {
     snapshot.canNext = capabilities["next"] | false;
     snapshot.canPrevious = capabilities["previous"] | false;
     snapshot.canControl = capabilities["control"] | false;
+    snapshot.queueAvailable = capabilities["queue"] | false;
+    if (payload["queue"].is<JsonArrayConst>()) {
+        const JsonArrayConst queue = payload["queue"].as<JsonArrayConst>();
+        for (const JsonObjectConst entry : queue) {
+            if (snapshot.queueCount >= app::kMaximumQueueItems ||
+                !entry["title"].is<const char*>() || !entry["artist"].is<const char*>()) {
+                continue;
+            }
+            auto& destination = snapshot.queue[snapshot.queueCount];
+            app::copyText(destination.title, entry["title"].as<const char*>());
+            app::copyText(destination.artist, entry["artist"].as<const char*>());
+            app::copyText(destination.trackId, entry["track_id"] | "");
+            ++snapshot.queueCount;
+        }
+    }
 
     const char* artworkId = payload["artwork_id"] | "";
     const char* artworkPath = payload["artwork_path"] | "";

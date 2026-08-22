@@ -48,7 +48,7 @@ versioning.
 - Versioned authenticated HTTP/WebSocket protocol with explicit pairing,
   per-device revocation, strict validation, command results/idempotency, health,
   player listing, and reconnect support.
-- SSRF-aware host artwork pipeline with bounded decoding, 240×240 JPEG
+- SSRF-aware host artwork pipeline with bounded decoding, 320×320 high-quality JPEG
   normalization, content-addressed atomic cache, and cache eviction.
 - ESP32-S3 firmware with centralized safe GPIO/profile configuration, temporary
   AP Wi-Fi provisioning, NVS schema/migration, mDNS host discovery, token
@@ -74,8 +74,8 @@ versioning.
 
 - Physical ESP32/display/control qualification is pending a completed hardware
   smoke-test record.
-- Linux MPRIS is the sole production backend; portable queue information is not
-  available.
+- Linux MPRIS is the sole production backend; queue display depends on the
+  active player's standard TrackList support.
 - Firmware updates use the wired PlatformIO path; signed OTA and hardware trust
   features are not enabled in the reference build.
 

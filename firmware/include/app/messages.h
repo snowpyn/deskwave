@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -23,6 +24,14 @@ void copyText(char (&destination)[Size], const char* source) noexcept {
 
 enum class PlaybackStatus : std::uint8_t { Stopped, Playing, Paused };
 enum class RepeatMode : std::uint8_t { Unknown, Off, Track, Playlist };
+
+inline constexpr std::size_t kMaximumQueueItems = 4;
+
+struct QueueEntry {
+    char title[129]{};
+    char artist[129]{};
+    char trackId[129]{};
+};
 
 struct PlaybackSnapshot {
     char title[129]{};
@@ -48,6 +57,9 @@ struct PlaybackSnapshot {
     bool canNext{false};
     bool canPrevious{false};
     bool canControl{false};
+    std::array<QueueEntry, kMaximumQueueItems> queue{};
+    std::uint8_t queueCount{0};
+    bool queueAvailable{false};
 };
 
 enum class SystemNoticeType : std::uint8_t {

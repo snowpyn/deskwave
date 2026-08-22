@@ -29,7 +29,7 @@ async def test_local_artwork_is_resized_cached_and_served(
     rendered = cache.path_for(artwork_id)
     assert rendered is not None
     with Image.open(rendered) as image:
-        assert image.size == (240, 240)
+        assert image.size == (320, 320)
         assert image.format == "JPEG"
 
 
