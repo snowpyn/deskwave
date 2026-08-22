@@ -50,6 +50,7 @@ constexpr std::uint32_t kToastDurationMs = 2'200;
 constexpr std::uint32_t kProgressFrameMs = 500;
 constexpr std::uint32_t kTitleFrameMs = 33;
 constexpr std::uint32_t kTitlePixelsPerSecond = 34;
+constexpr std::int32_t kTitleRepeatGap = 16;
 
 std::uint16_t blend565(const std::uint16_t foreground, const std::uint16_t background,
                        const std::uint8_t amount) {
@@ -805,11 +806,12 @@ void UiController::renderTitle(const std::uint32_t nowMs, const std::uint16_t co
 
     std::int32_t scrollOffset = 0;
     if (titleScrollActive_ && xOffset == 0) {
-        const auto cycle = static_cast<std::uint32_t>(std::max<std::int16_t>(titleTextWidth_, 1));
+        const auto cycle = static_cast<std::uint32_t>(
+            std::max<std::int16_t>(titleTextWidth_, 1) + kTitleRepeatGap);
         const auto phase = static_cast<std::uint32_t>(
             (static_cast<std::uint64_t>(nowMs - titleScrollStartedAtMs_) *
              kTitlePixelsPerSecond / 1'000U) % cycle);
-        scrollOffset = phase - titleTextWidth_;
+        scrollOffset = -static_cast<std::int32_t>(phase);
     }
 
     const auto metadataBackground = blend565(kPanel, kBackground, 235);
@@ -821,7 +823,7 @@ void UiController::renderTitle(const std::uint32_t nowMs, const std::uint16_t co
     const auto titleX = kTitleX + xOffset + scrollOffset;
     display_.drawString(title, titleX, kTitleY + 1);
     if (titleScrollActive_ && xOffset == 0) {
-        display_.drawString(title, titleX + titleTextWidth_, kTitleY + 1);
+        display_.drawString(title, titleX + titleTextWidth_ + kTitleRepeatGap, kTitleY + 1);
     }
     display_.drawFastHLine(kTitleX, kTitleY + kTitleHeight - 1, kTitleWidth,
                           blend565(kLine, metadataBackground, 150));
