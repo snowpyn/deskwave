@@ -48,6 +48,7 @@ class EncoderTracker {
 
 enum class ControlContext : std::uint8_t { Playback, Actions, Device, Settings };
 enum class PhysicalControl : std::uint8_t {
+    NoControl,
     EncoderClockwise,
     EncoderCounterClockwise,
     EncoderButton,
@@ -56,6 +57,7 @@ enum class PhysicalControl : std::uint8_t {
     MenuButton,
     ShuffleButton,
     RepeatButton,
+    MoreButton,
 };
 enum class Gesture : std::uint8_t { Rotate, ShortPress, LongPress, Repeat };
 enum class ControlCommand : std::uint8_t {
@@ -92,7 +94,7 @@ struct ControlBinding {
 
 class ControlMapper {
    public:
-    static constexpr std::size_t kMaxBindings = 36;
+    static constexpr std::size_t kMaxBindings = 40;
 
     ControlMapper();
     [[nodiscard]] ControlCommand map(ControlContext context, PhysicalControl control,

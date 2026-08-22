@@ -84,6 +84,15 @@ void test_control_mapper_changes_with_context() {
         ControlCommand::CycleRepeat,
         mapper.map(ControlContext::Playback, PhysicalControl::RepeatButton, Gesture::ShortPress));
     TEST_ASSERT_EQUAL(
+        ControlCommand::OpenActions,
+        mapper.map(ControlContext::Playback, PhysicalControl::MoreButton, Gesture::ShortPress));
+    TEST_ASSERT_EQUAL(
+        ControlCommand::OpenActions,
+        mapper.map(ControlContext::Actions, PhysicalControl::MoreButton, Gesture::ShortPress));
+    TEST_ASSERT_EQUAL(
+        ControlCommand::None,
+        mapper.map(ControlContext::Playback, PhysicalControl::NoControl, Gesture::ShortPress));
+    TEST_ASSERT_EQUAL(
         ControlCommand::BrightnessDown,
         mapper.map(ControlContext::Settings, PhysicalControl::LeftButton, Gesture::ShortPress));
     TEST_ASSERT_EQUAL(

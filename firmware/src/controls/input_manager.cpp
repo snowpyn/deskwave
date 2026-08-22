@@ -162,6 +162,9 @@ bool InputManager::readTouch(std::int16_t& x, std::int16_t& y) {
     if (rawY <= 100 || rawY >= 4'080 || rawX <= 100 || rawX >= 4'000) {
         return false;
     }
+    // Rotation 1 swaps the portrait touch axes into the display's landscape
+    // coordinate space. These endpoints match the verified Focus firmware for
+    // this exact panel loom.
     x = static_cast<std::int16_t>(constrain(
         map(constrain(rawY, std::uint16_t(200), std::uint16_t(3'900)), 200, 3'900, 0, 320), 0,
         319));
@@ -173,35 +176,37 @@ bool InputManager::readTouch(std::int16_t& x, std::int16_t& y) {
 
 core::PhysicalControl InputManager::touchControlAt(const std::int16_t x,
                                                    const std::int16_t y) const {
-    if (controlContext_ == core::ControlContext::Actions && y >= 72 && y <= 188) {
-        return x < 160 ? core::PhysicalControl::ShuffleButton : core::PhysicalControl::RepeatButton;
-    }
-    if (y >= 134 && y <= 178) {
-        if (x >= 235) {
-            return core::PhysicalControl::RepeatButton;
+    if (controlContext_ == core::ControlContext::Actions) {
+        if (y >= 82 && y <= 179) {
+            if (x >= 12 && x <= 153) {
+                return core::PhysicalControl::ShuffleButton;
+            }
+            if (x >= 166 && x <= 307) {
+                return core::PhysicalControl::RepeatButton;
+            }
         }
-        if (x >= 154) {
+        if (y >= 195 && x >= 256) {
+            return core::PhysicalControl::MoreButton;
+        }
+        return core::PhysicalControl::NoControl;
+    }
+    // Match the five full-height footer targets drawn by the now-playing UI.
+    if (controlContext_ == core::ControlContext::Playback && y >= 195) {
+        if (x < 64) {
             return core::PhysicalControl::ShuffleButton;
         }
-    }
-    // The Focus panel's footer is the primary touch control strip. It mirrors
-    // the reference physical controls without changing the core command map.
-    if (y >= 195) {
-        if (x < 105) {
+        if (x < 118) {
             return core::PhysicalControl::LeftButton;
         }
-        if (x >= 280) {
-            return core::PhysicalControl::MenuButton;
+        if (x < 202) {
+            return core::PhysicalControl::EncoderButton;
         }
-        if (x >= 215) {
+        if (x < 256) {
             return core::PhysicalControl::RightButton;
         }
-        return core::PhysicalControl::EncoderButton;
+        return core::PhysicalControl::MoreButton;
     }
-    if (x >= 276 && y < 36) {
-        return core::PhysicalControl::MenuButton;
-    }
-    return core::PhysicalControl::EncoderButton;
+    return core::PhysicalControl::NoControl;
 }
 
 void InputManager::pollTouch(const std::uint32_t nowMs) {
@@ -284,10 +289,8 @@ void InputManager::pollTouch(const std::uint32_t nowMs) {
                 core::Gesture::ShortPress);
         }
     } else if (!touchLongEmitted_) {
-        auto gesture = duration >= 700 ? core::Gesture::LongPress : core::Gesture::ShortPress;
-        if (touchStartX_ >= 276 && touchStartY_ < 36 && gesture == core::Gesture::ShortPress) {
-            gesture = core::Gesture::LongPress;
-        }
+        const auto gesture = duration >= 700 ? core::Gesture::LongPress
+                                             : core::Gesture::ShortPress;
         publish(touchControl_, gesture);
     }
     touchActive_ = false;

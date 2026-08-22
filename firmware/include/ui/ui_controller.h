@@ -75,7 +75,9 @@ class UiController {
     void renderNowPlaying(std::uint32_t nowMs);
     void renderIdle();
     void renderArtwork();
-    void renderMetadata(std::uint16_t color, std::int16_t xOffset = 0);
+    void renderMetadata(std::uint32_t nowMs, std::uint16_t color, std::int16_t xOffset = 0);
+    void renderTitle(std::uint32_t nowMs, std::uint16_t color, std::int16_t xOffset = 0);
+    void resetTitleScroll(std::uint32_t nowMs);
     void renderFooter(std::uint32_t nowMs);
     void renderProgress(std::uint32_t nowMs);
     void renderDevice();
@@ -91,7 +93,6 @@ class UiController {
                     lgfx::textdatum_t datum = lgfx::textdatum_t::top_left);
     void drawTransportIcon(std::int32_t centerX, std::int32_t centerY, app::PlaybackStatus status,
                            std::uint16_t color, std::uint8_t pulse = 0);
-    void drawConnectionGlyph(std::int32_t x, std::int32_t y, std::uint32_t nowMs);
     [[nodiscard]] bool connectionScreenActive() const noexcept;
     [[nodiscard]] bool trackChanged(const app::PlaybackSnapshot& snapshot) const noexcept;
     [[nodiscard]] static const char* screenName(Screen screen) noexcept;
@@ -117,7 +118,10 @@ class UiController {
     std::uint32_t toastUntilMs_{0};
     std::uint32_t lastAnimationFrameMs_{0};
     std::uint32_t lastProgressFrameMs_{0};
+    std::uint32_t titleScrollStartedAtMs_{0};
+    std::uint32_t lastTitleFrameMs_{0};
     std::int16_t volumeOverlayPercent_{-1};
+    std::int16_t titleTextWidth_{0};
     std::uint8_t resetSecondsRemaining_{0};
     bool hasPlayback_{false};
     bool hasPendingPlayback_{false};
@@ -127,6 +131,7 @@ class UiController {
     bool factoryResetChordVisible_{false};
     bool bootRendered_{false};
     bool dimmed_{false};
+    bool titleScrollActive_{false};
     bool dirty_{true};
 };
 

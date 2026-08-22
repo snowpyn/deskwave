@@ -52,8 +52,8 @@ ESP32-D0WD-V3 board and its known-good Focus panel loom:
 | RGB LED green (active-low) | 16 |
 | RGB LED blue (active-low) | 17 |
 
-This profile has no encoder/button loom. Touching the footer activates the
-previous, play/pause, next, and menu controls; vertical swipes act as encoder
+This profile has no encoder/button loom. The five footer bands activate
+shuffle, previous, play/pause, next, and More; vertical swipes act as encoder
 turns, and horizontal swipes act as previous/next. The touch calibration is the
 same 200–3900 endpoint mapping used by the verified Focus firmware. A tap is
 classified only after three spatially stable samples, preventing the noisy
@@ -63,9 +63,11 @@ The Focus board's common-anode RGB LED is independent of the TFT backlight on
 GPIO 21. DeskWave drives its three active-low channels with a slow ambient
 rainbow; the TFT backlight remains a steady single-color brightness channel.
 
-The on-screen Shuffle and Repeat chips are direct touch targets. The top-right
-status target opens or closes the Actions screen; the footer `MORE` target still
-advances through the primary screens.
+The footer's visible boundaries and touch hitboxes are identical: Shuffle
+0–63, Previous 64–117, Play/Pause 118–201, Next 202–255, and More 256–319.
+The now-playing header and queue-status card are informational. `MORE` opens or
+closes the Actions screen; the physical Menu button still advances through the
+primary screens on the reference button-equipped profile.
 
 ### Backlight caution
 

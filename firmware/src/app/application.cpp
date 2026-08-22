@@ -646,7 +646,7 @@ void Application::updateHealth(const std::uint32_t nowMs) {
 
 void Application::updateStatusLed(const std::uint32_t nowMs) {
 #if defined(DESKWAVE_FOCUS_CLASSIC)
-    if (static_cast<std::uint32_t>(nowMs - lastStatusLedUpdateMs_) < 40U) {
+    if (static_cast<std::uint32_t>(nowMs - lastStatusLedUpdateMs_) < 32U) {
         return;
     }
     lastStatusLedUpdateMs_ = nowMs;
@@ -657,8 +657,8 @@ void Application::updateStatusLed(const std::uint32_t nowMs) {
     std::uint8_t red = 0;
     std::uint8_t green = 0;
     std::uint8_t blue = 0;
-    // One complete, gentle hue cycle every 12.8 seconds.
-    rainbowStatusColor(static_cast<std::uint8_t>((nowMs / 50U) & 0xFFU), red, green, blue);
+    // One complete, fluid hue cycle every 9.7 seconds.
+    rainbowStatusColor(static_cast<std::uint8_t>((nowMs / 38U) & 0xFFU), red, green, blue);
     writeRgbStatusLed(red, green, blue);
 #else
     bool enabled = false;

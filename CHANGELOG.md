@@ -8,11 +8,12 @@ versioning.
 ### Added
 
 - Classic ESP32 Focus-board profile with the verified ILI9341/XPT2046 wiring,
-  direct touch transport, shuffle/repeat targets, and private first-boot Wi-Fi
+  direct touch transport, shuffle/More targets, and private first-boot Wi-Fi
   bootstrap support.
-- Immersive aurora-style 320x240 Now Playing interface with framed album art,
-  title/artist/album, elapsed and total time, transport, mode chips, player
-  identity, and cached-state presentation during host rediscovery.
+- Immersive 320x240 Now Playing interface with framed album art, a fully readable
+  side-to-side title, artist, honest queue availability, elapsed and total time,
+  five-band transport controls, player identity, and cached-state presentation
+  during host rediscovery.
 
 ### Fixed
 
@@ -24,6 +25,8 @@ versioning.
 - Repeated cached artwork results no longer decode and repaint an unchanged
   album cover, and Focus touch targets wait for stable coordinates before a tap
   is classified.
+- Focus footer hitboxes now match their visible controls exactly; informational
+  header, artwork, and queue areas no longer trigger playback actions.
 - The hardened user service permits the read-only netlink access required for
   Zeroconf to inspect interfaces and publish the IPv4 mDNS service.
 - Ubuntu Snap players such as Spotify can now expose MPRIS metadata and controls
@@ -32,7 +35,7 @@ versioning.
 
 ### Changed
 
-- The Focus board's physical RGB status LED now flows through a calm rainbow;
+- The Focus board's physical RGB status LED now flows through a fluid rainbow;
   the display itself uses a softer sea-glass, lavender, and moonlit palette.
 
 ## [0.1.0] - 2026-08-21
