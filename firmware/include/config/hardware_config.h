@@ -55,9 +55,12 @@ inline constexpr int kTouchDin = 32;
 inline constexpr int kTouchMiso = 39;
 inline constexpr int kTouchClk = 25;
 inline constexpr bool kHasRgbStatusLed = true;
-inline constexpr int kStatusLedRed = 4;
+// The locally verified Revision 3.1 unit has the RGB package's red/blue dies
+// reversed relative to the commonly published CYD mapping. Live channel testing
+// confirms that GPIO 17 is red, GPIO 16 is green, and GPIO 4 is blue.
+inline constexpr int kStatusLedRed = 17;
 inline constexpr int kStatusLedGreen = 16;
-inline constexpr int kStatusLedBlue = 17;
+inline constexpr int kStatusLedBlue = 4;
 // Per-channel white balance for the on-board common-anode RGB LED. The green
 // and blue dies are brighter than red at the same PWM duty on this board.
 inline constexpr std::uint8_t kStatusLedRedCalibration = 255;

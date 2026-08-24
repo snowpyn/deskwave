@@ -25,7 +25,8 @@ constexpr std::uint32_t kPlayerRefreshMs = 5'000;
 constexpr std::int32_t kSeekStepMs = 10'000;
 
 #if defined(DESKWAVE_ESP32_D0WD_V3)
-constexpr std::uint8_t kRgbLightMaximum = 150;
+constexpr std::uint8_t kRgbLightFullScale = 255;
+constexpr std::uint8_t kRgbLightDimScale = 51;
 
 void writeRgbStatusLed(const std::uint8_t red, const std::uint8_t green, const std::uint8_t blue) {
     // The CYD RGB LED is common-anode, so PWM values are inverted.
@@ -668,11 +669,10 @@ void Application::updateStatusLed(const std::uint32_t nowMs) {
         writeRgbStatusLed((nowMs / 150U) % 2U == 0 ? 180 : 0, 0, 0);
         return;
     }
-    auto scale = static_cast<std::uint8_t>(
-        (static_cast<std::uint16_t>(settings_.brightness) * kRgbLightMaximum + 127U) / 255U);
-    if (dimmed_) {
-        scale = static_cast<std::uint8_t>(std::max<unsigned>(4U, scale / 5U));
-    }
+    // Active song lighting uses the complete calibrated PWM range. The TFT's saved
+    // backlight setting controls only the panel; it must not silently attenuate the
+    // separate RGB light. Idle dimming remains an explicit one-fifth-scale state.
+    const auto scale = dimmed_ ? kRgbLightDimScale : kRgbLightFullScale;
     const core::Rgb888 calibration{hardware::kStatusLedRedCalibration,
                                    hardware::kStatusLedGreenCalibration,
                                    hardware::kStatusLedBlueCalibration};

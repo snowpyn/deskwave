@@ -163,6 +163,12 @@ responses. Do not expose the fixture outside the trusted test LAN.
 - [ ] Red-, green-, blue-, and neutral-dominant covers exercise all three RGB
       channels; dark canvas colors remain visibly distinct instead of collapsing
       to blue-only output.
+- [ ] On the verified Revision 3.1 unit, a red-dominant canvas drives GPIO 17 and
+      appears physically red; GPIO 4 is the physical blue die. The generic CYD
+      red-on-GPIO-4 mapping is not used for this profile.
+- [ ] While active, song lighting uses the complete calibrated PWM range and
+      remains at full intensity when the independent TFT brightness setting is
+      changed. Idle dimming alone reduces the RGB intensity to one fifth.
 - [ ] Play tracks with Japanese-only and mixed Japanese/Latin titles, artists,
       and queue entries (for example `夜に駆ける` / `YOASOBI`). Japanese glyphs
       render instead of boxes or mojibake, fitted rows end with a clean ellipsis,

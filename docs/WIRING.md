@@ -52,9 +52,9 @@ The touch panel replaces the encoder and button loom:
 | Touch DIN | 32 |
 | Touch MISO | 39 |
 | Touch CLK | 25 |
-| RGB LED red (active-low) | 4 |
+| RGB LED red (active-low) | 17 |
 | RGB LED green (active-low) | 16 |
-| RGB LED blue (active-low) | 17 |
+| RGB LED blue (active-low) | 4 |
 
 The five footer bands activate
 shuffle, previous, play/pause, next, and More; vertical swipes act as encoder
@@ -66,14 +66,19 @@ first ADC sample from collapsing every target into the center play/pause area.
 The board's common-anode RGB LED is independent of the TFT backlight on
 GPIO 21. DeskWave drives its three active-low channels from the same eased
 final artwork-derived canvas background used by the Now Playing screen.
+The locally verified Revision 3.1 RGB package is red/blue-reversed relative to
+the commonly published CYD order: red is GPIO 17, green is GPIO 16, and blue is
+GPIO 4. Driving the published GPIO 4 red mapping on this unit produces physical
+blue and must not be reintroduced.
 Firmware normalizes the dark canvas color while preserving its channel ratios,
 converts it to linear PWM, and applies the channel-balance constants in
 `hardware_config.h` for the verified board. This keeps red and green above the
 LED's useful PWM range instead of allowing the most efficient blue die to
-dominate. The RGB output is brightness-capped, scales down when the display
-idles, and may flash red for a semantic Error state. The TFT backlight remains a
-steady single-color brightness channel; "RGB sync" refers to the separate rear
-RGB LED.
+dominate. Active song lighting uses the complete calibrated PWM range and is
+independent of the TFT's saved brightness; idle dimming deliberately reduces it
+to one fifth. The RGB light may flash red for a semantic Error state. The TFT
+backlight remains a steady single-color brightness channel; "RGB sync" refers to
+the separate rear RGB LED.
 
 The footer's visible boundaries and touch hitboxes are identical: Shuffle
 0–63, Previous 64–117, Play/Pause 118–201, Next 202–255, and More 256–319.
@@ -92,9 +97,9 @@ Set `kBacklightInverted` when the external driver is active-low.
 
 | Signal | ESP32 GPIO | Firmware symbol |
 | --- | ---: | --- |
-| Red (active-low) | 4 | `kStatusLedRed` |
+| Red (active-low) | 17 | `kStatusLedRed` |
 | Green (active-low) | 16 | `kStatusLedGreen` |
-| Blue (active-low) | 17 | `kStatusLedBlue` |
+| Blue (active-low) | 4 | `kStatusLedBlue` |
 
 Connect each channel through suitable current limiting. The RGB LED is optional;
 if it is not fitted, leave the channels unconnected.

@@ -188,9 +188,10 @@ snapshots and local actions from the application coordinator.
   support color, and the CYD physical RGB light samples that final rendered
   canvas color at runtime. Firmware normalizes its channel ratios so the dark
   canvas remains visible across all three LED dies, then converts the result to
-  linear LED PWM and applies per-die balance before capped brightness scaling.
-  Display dimming scales light intensity; Error retains its red semantic
-  override.
+  linear LED PWM and applies per-die balance across the complete calibrated PWM
+  range. The panel's saved brightness does not attenuate this separate RGB
+  output. Display idle dimming explicitly reduces light intensity to one fifth;
+  Error retains its red semantic override.
 - UTF-8 metadata containing non-ASCII characters selects LovyanGFX's complete
   proportional Japanese font. The title renderer measures and scrolls with that
   font, while fitted labels remove whole UTF-8 code points before adding an
