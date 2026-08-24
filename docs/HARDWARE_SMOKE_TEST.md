@@ -134,18 +134,89 @@ For each player listed in the record:
 - [ ] Duration and progress are correct where provided.
 - [ ] Progress moves smoothly only while playing and clamps at duration.
 - [ ] A seek updates immediately, then reconciles to confirmed player position.
-- [ ] Track transition does not leave stale title/artwork combinations.
+- [ ] Track transition does not leave stale title/artwork/theme combinations.
 
-## Artwork
+## Artwork and reactive theme
 
-- [ ] Local-file artwork is resized by the host, downloaded once, decoded, and shown.
-- [ ] Public HTTP(S) artwork works when available.
-- [ ] Repeated position resyncs retain artwork without flicker/re-download.
-- [ ] Track change replaces old artwork cleanly.
-- [ ] Missing artwork shows the branded placeholder.
-- [ ] Malformed/non-JPEG/oversize/truncated artwork does not crash or block input.
-- [ ] Host artwork timeout leaves metadata/control usable.
-- [ ] ESP32 reboot repairs/uses the cache without a boot loop.
+Retain host DEBUG logs, firmware logs, and video for these cases. Use a player or
+controlled MPRIS fixture that can publish delayed/changed `mpris:artUrl` values,
+and a test HTTP server that can return fixed, temporary-failure, and truncated
+responses. Do not expose the fixture outside the trusted test LAN.
+
+### Normal sources and visual roles
+
+- [ ] Absolute local `file://` artwork is validated, normalized, downloaded
+      once, decoded, and shown.
+- [ ] Public HTTP and HTTPS artwork both work; redirects remain within the
+      documented limits.
+- [ ] The host-derived primary, secondary, background, and readable foreground
+      colors visibly correspond to the same displayed cover.
+- [ ] Now Playing has no full-width top bar, Spotify mark, player-name banner,
+      or `NOW PLAYING` label; only the tiny top-right `LINK`/`RETRY` indicator
+      remains, and the 166 px cover is not clipped.
+- [ ] The complete exposed canvas is a deep, readable artwork-derived tone rather
+      than the fixed neutral gray fallback.
+- [ ] The rear RGB light visibly matches the current display primary through a
+      track transition, scales down with idle dimming, and does not continue an
+      unrelated rainbow cycle. Triggering Error still produces its red override.
+- [ ] Play tracks with Japanese-only and mixed Japanese/Latin titles, artists,
+      and queue entries (for example `夜に駆ける` / `YOASOBI`). Japanese glyphs
+      render instead of boxes or mojibake, fitted rows end with a clean ellipsis,
+      and a long Japanese title scrolls continuously without clipped UTF-8.
+- [ ] Artwork has no hard frame; its restrained edge glow uses the active
+      primary accent without obscuring the cover.
+- [ ] Play/pause, previous, next, shuffle, repeat, mute, and progress roles use
+      the active theme and remain legible in light, dark, muted, and highly
+      saturated artwork cases.
+- [ ] A track change interpolates glow, icons, progress, and other themed regions
+      smoothly for about 750 ms, with no white/black flash or abrupt color snap.
+- [ ] The old valid cover remains visible while its replacement is downloading;
+      it is replaced only after the new JPEG and matching theme are ready.
+- [ ] Repeated position resyncs retain the same cover/theme without flicker,
+      download, JPEG decode, or palette extraction.
+
+### Ordering, delayed metadata, and fallback
+
+- [ ] Rapidly skip through at least ten distinct covers while requests are in
+      flight; only the final track's generation can install artwork and theme.
+- [ ] Delay the new track's `mpris:artUrl` beyond its first metadata snapshot;
+      the prior valid cover remains through the 1.0-second grace interval, then
+      the delayed cover and its own palette arrive together.
+- [ ] Publish a brief empty metadata snapshot and restore the same track; cover,
+      palette, and generation remain stable.
+- [ ] Pause for at least 30 seconds: the same palette remains, saturation/glow
+      soften gradually, and no artwork request is started merely because of
+      pause.
+- [ ] Resume: the same palette returns smoothly to full intensity without an
+      artwork reload or snap.
+- [ ] Publish a track that genuinely has no `mpris:artUrl`: after the bounded
+      grace, DeskWave deliberately selects the branded placeholder and fallback
+      theme rather than showing a broken or blank region.
+
+### Fetch, validation, reconnect, and cache failures
+
+- [ ] Return temporary HTTP 429/5xx or connection failures, then a valid image;
+      logs show no more than three total attempts, with approximately 250 ms
+      then 750 ms backoff, and the eventual cover.
+- [ ] Keep a URL unavailable through all retries: metadata and controls stay
+      usable, the previous valid cover remains until a deliberate fallback
+      decision, and no retry storm occurs.
+- [ ] Serve empty, non-image, oversize, corrupt, truncated, wrong-length, and
+      wrong-SHA data; no incomplete object is displayed or atomically committed.
+- [ ] Complete an older request after a newer track is active; logs show a stale
+      generation rejection and the visible cover/theme do not change.
+- [ ] Stop the host service or interrupt Wi-Fi briefly while a valid cover is
+      visible; the cover and softened/current theme survive reconnection, then
+      confirmed state resumes without a placeholder flash.
+- [ ] Restart the host with a warm cache, block a previously cached HTTP/HTTPS
+      source, and replay the same track before cache expiry; the cached JPEG and
+      palette bundle are reused together without a source fetch, conversion, or
+      palette extraction. Test disappeared `file://` sources separately: their
+      source stat is part of the cache key, so disappearance must fail safely.
+- [ ] Corrupt one host cache bundle and replay it; validation rejects the bundle
+      and controlled rebuild/fallback occurs without mismatched colors.
+- [ ] ESP32 reboot repairs or reuses its disposable cover cache without a boot
+      loop, and SHA mismatch never replaces the last valid local file.
 
 ## Playback controls
 
@@ -173,7 +244,8 @@ For each step, retain serial and host logs.
 ### Host and desktop
 
 - [ ] Stop `deskwave-host`: device shows Host offline and controls fail visibly.
-- [ ] Restart service: device reconnects automatically.
+- [ ] Restart service: device reconnects automatically without clearing a valid
+      cover/theme during the short outage.
 - [ ] Suspend desktop for at least two minutes: device remains stable.
 - [ ] Wake desktop: D-Bus, service, discovery, and device recover automatically.
 - [ ] Reboot desktop: device recovers without manual action.
@@ -207,9 +279,18 @@ or copy target numbers into the result column.
 | Physical input → application action | <150 ms typical LAN |  |  |
 | Physical input → visible feedback | <50 ms perceived where practical |  |  |
 | Player track change → device state | <500 ms typical |  |  |
+| Artwork/theme transition duration | 500–1,000 ms; nominal 750 ms |  |  |
+| Input latency during artwork/theme transition | no material regression from normal |  |  |
+| Warm host artwork/palette cache reuse | no source fetch or reprocessing |  |  |
 | Host restart → recovered state | automatic; no manual reset |  |  |
 | Peak free heap during artwork/control load | record only |  |  |
 | Largest free block after 8-hour soak | no sustained decline |  |  |
+
+During the measured transition, verify from logs/video that JPEG decode occurs
+only when a replacement cover commits, not on animation frames, and that redraws
+remain bounded to the artwork glow and other dirty themed regions. Record any
+input lag, full-screen flash, tearing, watchdog event, or heap discontinuity as
+a qualification defect.
 
 ## Qualification decision
 

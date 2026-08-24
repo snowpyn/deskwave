@@ -10,13 +10,23 @@ versioning.
 - ESP32-D0WD-V3 Revision 3.1 profile with the verified ILI9341/XPT2046 wiring,
   direct touch transport, shuffle/More targets, and private first-boot Wi-Fi
   bootstrap support.
-- Immersive 320x240 Now Playing interface with framed album art, a fully readable
-  side-to-side title, artist, honest queue availability, elapsed and total time,
-  five-band transport controls, player identity, and cached-state presentation
-  during host rediscovery.
+- Immersive 320x240 Now Playing interface with borderless album art, a subtle
+  artwork-derived edge glow, dynamically tinted controls, a fully readable
+  side-to-side title, honest queue availability, elapsed/total time, player
+  state, and cached-state presentation during host rediscovery.
+- Host-side four-color palette extraction and content-addressed artwork/palette
+  bundles, exposed through additive protocol-1 `theme` and
+  `artwork_generation` playback fields.
 
 ### Fixed
 
+- Japanese titles, artists, and queue entries now render with a complete
+  proportional Japanese font instead of missing-glyph boxes. UTF-8 truncation
+  also preserves character boundaries, and long Japanese titles marquee at the
+  same visual scale as Latin titles.
+- The physical RGB light now converts the screen's sRGB artwork accent to
+  linear PWM and applies board-specific channel balance, correcting the
+  washed-out hue produced by sending display color values directly to LED duty.
 - Host discovery retries no longer produce a repeating offline toast.
 - In-place WebSocket recovery now restores the connected state, so playback,
   skip, shuffle, and repeat controls remain available after a brief host outage.
@@ -26,8 +36,16 @@ versioning.
   album cover, and ESP32-D0WD-V3 touch targets wait for stable coordinates before
   a tap
   is classified.
-- ESP32-D0WD-V3 footer hitboxes now match their visible controls exactly; informational
-  header, artwork, and queue areas no longer trigger playback actions.
+- Artwork no longer disappears during a replacement fetch, pause, temporary
+  missing MPRIS `artUrl`, or a short reconnect. Bounded retries handle temporary
+  source failures, while validated generation checks prevent late rapid-skip
+  requests from overwriting the active cover or pairing it with a stale palette.
+- Incomplete, corrupt, wrong-hash, and obsolete-generation artwork transfers are
+  rejected before atomic display-cache commit; confirmed no-artwork tracks use
+  an intentional branded fallback instead of a blank state.
+- ESP32-D0WD-V3 footer hitboxes now match their visible controls exactly; artwork and queue
+  areas no longer trigger playback actions, while the compact top-right link target remains
+  the only non-footer Now Playing action.
 - The hardened user service permits the read-only netlink access required for
   Zeroconf to inspect interfaces and publish the IPv4 mDNS service.
 - Ubuntu Snap players such as Spotify can now expose MPRIS metadata and controls
@@ -36,9 +54,18 @@ versioning.
 
 ### Changed
 
-- The ESP32-D0WD-V3 board's physical RGB status LED now flows through a fluid
-  rainbow;
-  the display itself uses a softer sea-glass, lavender, and moonlit palette.
+- The wired-only reference firmware uses Espressif's standard no-OTA partition
+  layout, providing a 2 MiB application partition for multilingual fonts while
+  retaining a 1.875 MiB LittleFS artwork cache.
+- The ESP32-D0WD-V3 board's physical RGB light now follows the same sampled,
+  eased artwork color as the display, with a conservative brightness cap,
+  idle-dim scaling, and a semantic error override instead of an unrelated rainbow.
+- Now Playing is headerless: the former Spotify/player banner is removed, the
+  cover grows to 166 x 166, metadata uses the reclaimed height, and link state is
+  reduced to a tiny corner indicator.
+- Track palette/glow/control accents transition over 750 ms. Paused and idle
+  states carry the current palette at reduced intensity and restore it smoothly
+  on resume, using bounded dirty regions without JPEG decode on animation frames.
 
 ## [0.1.0] - 2026-08-21
 

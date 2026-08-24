@@ -39,6 +39,43 @@ std::uint64_t boundedMilliseconds(const JsonVariantConst value, const std::uint6
     return std::min(value.as<std::uint64_t>(), maximum);
 }
 
+bool parsePackedColor(const JsonVariantConst value, core::Rgb888& destination) {
+    if (!value.is<std::uint32_t>()) {
+        return false;
+    }
+    const auto packed = value.as<std::uint32_t>();
+    if (packed > 0xFFFFFFU) {
+        return false;
+    }
+    destination = core::unpackRgb(packed);
+    return true;
+}
+
+bool parseTheme(const JsonVariantConst value, core::ThemePalette& destination) {
+    if (!value.is<JsonObjectConst>()) {
+        return false;
+    }
+    const auto theme = value.as<JsonObjectConst>();
+    core::ThemePalette parsed;
+    if (!parsePackedColor(theme["primary"], parsed.primary) ||
+        !parsePackedColor(theme["secondary"], parsed.secondary) ||
+        !parsePackedColor(theme["background"], parsed.background) ||
+        !parsePackedColor(theme["foreground"], parsed.foreground)) {
+        return false;
+    }
+    destination = parsed;
+    return true;
+}
+
+bool validArtworkPath(const char* path, const char* artworkId) {
+    if (path == nullptr || !isHexIdentifier(artworkId)) {
+        return false;
+    }
+    char expectedPath[96];
+    std::snprintf(expectedPath, sizeof(expectedPath), "/v1/artwork/%s.jpg", artworkId);
+    return std::strcmp(path, expectedPath) == 0;
+}
+
 }  // namespace
 
 NetworkManager::NetworkManager(storage::SettingsStore& settingsStore,
@@ -493,6 +530,10 @@ void NetworkManager::handlePlaybackState(const JsonObjectConst payload) {
     app::copyText(snapshot.playerName, payload["player_name"] | "");
     app::copyText(snapshot.playerId, payload["player_id"] | "");
     app::copyText(snapshot.trackId, payload["track_id"] | "");
+    snapshot.hasTheme = parseTheme(payload["theme"], snapshot.theme);
+    if (payload["artwork_generation"].is<std::uint32_t>()) {
+        snapshot.artworkGeneration = payload["artwork_generation"].as<std::uint32_t>();
+    }
     snapshot.hasDuration = payload["duration_ms"].is<std::uint64_t>();
     snapshot.durationMs = boundedMilliseconds(payload["duration_ms"], 7ULL * 24 * 60 * 60 * 1000);
     snapshot.positionMs = boundedMilliseconds(
@@ -553,21 +594,50 @@ void NetworkManager::handlePlaybackState(const JsonObjectConst payload) {
         }
     }
 
-    const char* artworkId = payload["artwork_id"] | "";
-    const char* artworkPath = payload["artwork_path"] | "";
-    if (isHexIdentifier(artworkId) && std::strncmp(artworkPath, "/v1/artwork/", 12) == 0 &&
-        std::strstr(artworkPath, "..") == nullptr) {
+    app::ArtworkRequest artworkRequest;
+    bool hasArtworkRequest = false;
+    const JsonVariantConst artworkIdValue = payload["artwork_id"];
+    const JsonVariantConst artworkPathValue = payload["artwork_path"];
+    const bool hasArtworkIdField = !artworkIdValue.isUnbound();
+    const bool hasArtworkPathField = !artworkPathValue.isUnbound();
+    const bool artworkIdIsString = artworkIdValue.is<const char*>();
+    const bool artworkPathIsString = artworkPathValue.is<const char*>();
+    const char* artworkId = artworkIdIsString ? artworkIdValue.as<const char*>() : "";
+    const char* artworkPath = artworkPathIsString ? artworkPathValue.as<const char*>() : "";
+    const bool explicitNullArtwork = hasArtworkIdField && hasArtworkPathField &&
+                                     artworkIdValue.isNull() && artworkPathValue.isNull();
+    const bool validArtworkReference =
+        artworkIdIsString && artworkPathIsString && validArtworkPath(artworkPath, artworkId);
+    if (validArtworkReference && (snapshot.artworkGeneration == 0 || snapshot.hasTheme)) {
         app::copyText(snapshot.artworkId, artworkId);
         app::copyText(snapshot.artworkPath, artworkPath);
-        app::ArtworkRequest request;
-        app::copyText(request.host, host_.c_str());
-        request.port = hostPort_;
-        app::copyText(request.path, artworkPath);
-        app::copyText(request.artworkId, artworkId);
-        app::copyText(request.token, activeToken_.c_str());
-        xQueueOverwrite(artworkQueue_, &request);
+        app::copyText(artworkRequest.host, host_.c_str());
+        artworkRequest.port = hostPort_;
+        app::copyText(artworkRequest.path, artworkPath);
+        app::copyText(artworkRequest.artworkId, artworkId);
+        app::copyText(artworkRequest.token, activeToken_.c_str());
+        artworkRequest.theme = snapshot.theme;
+        artworkRequest.artworkGeneration = snapshot.artworkGeneration;
+        artworkRequest.hasTheme = snapshot.hasTheme;
+        hasArtworkRequest = true;
+    } else if (explicitNullArtwork && snapshot.artworkGeneration != 0 && snapshot.hasTheme) {
+        // A non-zero generation with a complete theme and no artwork is the
+        // host's authoritative fallback bundle. Generation zero remains
+        // backward-compatible and cannot evict a validated cover.
+    } else if (!explicitNullArtwork || snapshot.artworkGeneration != 0) {
+        // Missing, mixed, malformed, or incomplete visual fields are not an
+        // authoritative fallback. Strip their visual tuple so the UI retains
+        // its last acknowledged cover and palette.
+        snapshot.artworkGeneration = 0;
+        snapshot.hasTheme = false;
+        DW_LOG_WARN("protocol", "Ignored malformed artwork/theme bundle");
     }
+    // Publish playback intent before enabling even a warm-cache artwork result
+    // so the main loop can stage or commit the exact matching bundle.
     xQueueOverwrite(playbackQueue_, &snapshot);
+    if (hasArtworkRequest) {
+        xQueueOverwrite(artworkQueue_, &artworkRequest);
+    }
 }
 
 void NetworkManager::handleCommandResult(const JsonObjectConst payload) {

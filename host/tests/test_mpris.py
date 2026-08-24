@@ -87,3 +87,31 @@ async def test_persistently_unresponsive_player_state_expires() -> None:
 
     assert player_id not in backend._snapshots
     assert backend._current.player_id is None
+
+
+async def test_short_mpris_reconnect_retains_last_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    backend = MPRISBackend()
+    retained = PlaybackState(player_id="org.mpris.MediaPlayer2.test", track_id="track-1")
+    backend._current = retained
+    published: list[PlaybackState] = []
+
+    async def capture(state: PlaybackState) -> None:
+        published.append(state)
+
+    backend._callback = capture
+    now = 100.0
+    monkeypatch.setattr(mpris_module, "monotonic", lambda: now)
+
+    await backend._hold_state_during_reconnect()
+
+    assert backend._current == retained
+    assert published == []
+
+    now += mpris_module.MPRIS_RECONNECT_STATE_GRACE_SECONDS + 0.1
+    await backend._hold_state_during_reconnect()
+
+    assert backend._current.player_id is None
+    assert len(published) == 1
+    assert published[0].player_id is None

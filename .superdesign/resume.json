@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "/now-playing": {
+      "targetKind": "existing-ui",
+      "projectId": "3a924890-89a1-45fc-a11b-d87d8193389d",
+      "baselineDraftId": "d9d79005-836a-4075-ae23-798633bc98de",
+      "activeDraftId": "d9d79005-836a-4075-ae23-798633bc98de",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "firmware/include/ui/ui_controller.h",
+        "firmware/include/app/messages.h",
+        "firmware/lib/deskwave_core/src/deskwave/core/theme.h",
+        "firmware/src/ui/ui_controller.cpp:1:250",
+        "firmware/src/ui/ui_controller.cpp:690:845",
+        "firmware/src/ui/ui_controller.cpp:850:1430",
+        "firmware/src/app/application.cpp:1:50",
+        "firmware/src/app/application.cpp:640:689"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "4b919eeeea56506d4c4ac07a0de7da5a03b1d5617035559999af944a02fc27e4",
+        ".superdesign/init/theme.md": "d61516bcdd1d94b4016c7cf19098ff6abc2ec41199a21692491231cf6684f0b5",
+        "firmware/include/ui/ui_controller.h": "5a43d041b49ba2b87033c81fcd39b3b71b222210d3d070a1bc65652a4aeb3be1",
+        "firmware/include/app/messages.h": "07eec1e4e415c284e7afafd4d85471b8bdcbd28f10a5e3ad19425cd352100c84",
+        "firmware/lib/deskwave_core/src/deskwave/core/theme.h": "8fdfc5d1c5ec929a5323cee887f35ca94edda1714035b7b3cf87adbcd46c013e",
+        "firmware/src/ui/ui_controller.cpp": "37bfc6f7516072fd9e9a7edc1b717a0e7a4ebcbbc3212365e33005b001f98b9f",
+        "firmware/src/app/application.cpp": "4cdfffcff50a554800c321a2f9426fcb93f287b8e0e7c01b2e97dbb608d790fa"
+      },
+      "components": [
+        {
+          "name": "HeaderBar",
+          "id": "76db2fb3-c1c1-47ac-8092-1f678b162558",
+          "sourcePath": "firmware/src/ui/ui_controller.cpp"
+        },
+        {
+          "name": "TransportFooter",
+          "id": "2d2f9139-c3db-489b-8ffd-e3fad4d919c1",
+          "sourcePath": "firmware/src/ui/ui_controller.cpp"
+        }
+      ],
+      "drafts": {
+        "d9d79005-836a-4075-ae23-798633bc98de": {
+          "title": "DeskWave Immersive Reactive Now Playing",
+          "visualDirection": "headerless artwork-derived full-canvas backdrop with compact link status and RGB light sync",
+          "currentVersion": 4
+        }
+      },
+      "updatedAt": "2026-08-24T18:12:29Z"
+    }
+  }
+}

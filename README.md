@@ -16,6 +16,9 @@ the automated checks.
 
 - Shows actual title, artist, album, artwork, player, volume, playback state,
   and smoothly extrapolated progress.
+- Derives a restrained accent palette from each validated cover on the Linux
+  host, then uses it for a borderless artwork glow, control tints, and progress
+  accents on the ESP32.
 - Controls play/pause, previous/next, volume, mute, seeking, shuffle, repeat,
   and manual MPRIS player selection where the active application supports it.
 - Works with Spotify, VLC, browsers, and other Linux applications that expose
@@ -27,6 +30,10 @@ the automated checks.
   bearer token.
 - Recovers from Wi-Fi loss, host restart, desktop suspend/wake, player exit,
   malformed messages, and artwork failures without blocking physical input.
+- Keeps the last valid cover and its matching palette through artwork loading,
+  brief MPRIS metadata gaps, pause, and short reconnects. A deliberate branded
+  fallback replaces them only when the active track is confirmed to have no
+  usable artwork.
 - Provides Now Playing, Device, Settings, Actions, About, idle, provisioning,
   pairing, reconnecting, and error screens. Now Playing shows the next two
   tracks when the active MPRIS player exposes its standard TrackList.
@@ -95,8 +102,8 @@ previous/next. Build and flash it with:
 .tools/bin/pio run -e esp32-d0wd-v3 -t upload --upload-port /dev/ttyUSB1
 ```
 
-On Now Playing, tap the Shuffle or Repeat chip directly. Tap the top-right
-connection target to open the full action palette. A phone is controllable when
+On the headerless Now Playing screen, tap the footer controls directly. Tap the
+tiny top-right `LINK`/`RETRY` target to open the full action palette. A phone is controllable when
 it is exposed to the Linux desktop as an MPRIS player, such as through KDE
 Connect; otherwise the host has no phone media session to command.
 
@@ -222,7 +229,7 @@ Runtime locations follow the Linux XDG conventions:
 | Purpose | Default path |
 | --- | --- |
 | Configuration | `~/.config/deskwave/config.toml` |
-| Artwork cache | `~/.cache/deskwave/artwork/` |
+| Processed artwork and palette cache | `~/.cache/deskwave/artwork/` |
 | Pairing state | `~/.local/state/deskwave/devices.sqlite3` |
 
 See [`host/config.example.toml`](host/config.example.toml) and
@@ -235,6 +242,16 @@ documented starter file without overwriting an existing one. Bind address,
 port, log level, preferred player, artwork size limits, and private-artwork-host
 policy can be changed there. Environment overrides are listed in
 [`host/config.example.toml`](host/config.example.toml).
+
+Artwork downloading, validation, SHA-256 hashing, 320x320 normalization, palette
+extraction, and content-addressed caching happen on the Linux host. The device
+receives only the normalized JPEG and four packed theme colors; it never
+extracts a palette or decodes JPEG data on animation frames.
+
+Playback metadata remains UTF-8 end to end. The firmware automatically selects
+its bundled proportional Japanese font for non-ASCII titles, artists, and queue
+entries; long strings are shortened only at UTF-8 character boundaries, and
+long titles use the normal continuous marquee.
 
 Device settings are changed on the Settings screen and stored in versioned NVS.
 They include brightness, idle dim timeout, default screen, and volume step. A

@@ -26,24 +26,33 @@ constexpr std::uint16_t kText = rgb565(241, 244, 242);
 constexpr std::uint16_t kTextMuted = rgb565(169, 181, 190);
 constexpr std::uint16_t kAccent = rgb565(111, 218, 194);
 constexpr std::uint16_t kAccentDim = rgb565(34, 91, 86);
-constexpr std::uint16_t kSpotify = rgb565(29, 185, 84);
 constexpr std::uint16_t kViolet = rgb565(168, 145, 222);
 constexpr std::uint16_t kMagenta = rgb565(224, 152, 178);
 constexpr std::uint16_t kWarning = rgb565(232, 192, 119);
 constexpr std::uint16_t kError = rgb565(246, 105, 105);
 constexpr std::uint16_t kLine = rgb565(55, 62, 105);
 
-constexpr std::int32_t kArtworkX = 8;
-constexpr std::int32_t kArtworkY = 38;
-constexpr std::int32_t kArtworkSize = 132;
-constexpr std::int32_t kMetadataX = 150;
-constexpr std::int32_t kMetadataY = 38;
-constexpr std::int32_t kMetadataWidth = 162;
-constexpr std::int32_t kMetadataHeight = 132;
-constexpr std::int32_t kTitleX = 159;
-constexpr std::int32_t kTitleY = 56;
-constexpr std::int32_t kTitleWidth = 144;
+constexpr std::int32_t kArtworkX = 6;
+constexpr std::int32_t kArtworkY = 7;
+constexpr std::int32_t kArtworkSize = 166;
+constexpr std::int32_t kMetadataX = 180;
+constexpr std::int32_t kMetadataY = 7;
+constexpr std::int32_t kMetadataWidth = 134;
+constexpr std::int32_t kMetadataHeight = 166;
+constexpr std::int32_t kTitleX = 188;
+constexpr std::int32_t kTitleY = 24;
+constexpr std::int32_t kTitleWidth = 118;
 constexpr std::int32_t kTitleHeight = 25;
+constexpr std::int32_t kTrackLabelY = 12;
+constexpr std::int32_t kArtistY = 57;
+constexpr std::int32_t kQueueY = 88;
+constexpr std::int32_t kQueueHeight = 76;
+constexpr std::int32_t kMainBottomY = 178;
+constexpr std::int32_t kProgressY = 184;
+constexpr std::int32_t kProgressHeight = 21;
+constexpr std::int32_t kControlsY = 205;
+constexpr std::int32_t kControlsHeight = 35;
+constexpr std::int32_t kTransportCenterY = 222;
 constexpr std::uint32_t kTrackTransitionMs = 220;
 constexpr std::uint32_t kOverlayDurationMs = 1'600;
 constexpr std::uint32_t kToastDurationMs = 2'200;
@@ -51,6 +60,45 @@ constexpr std::uint32_t kProgressFrameMs = 500;
 constexpr std::uint32_t kTitleFrameMs = 33;
 constexpr std::uint32_t kTitlePixelsPerSecond = 34;
 constexpr std::int32_t kTitleRepeatGap = 16;
+constexpr std::uint32_t kThemeTransitionMs = 750;
+constexpr std::uint32_t kRestTransitionMs = 600;
+constexpr std::uint32_t kThemeFrameMs = 50;
+constexpr std::uint8_t kArtworkGlowStrength = 112;
+constexpr std::uint8_t kRestGlowScale = 128;
+constexpr std::uint8_t kRestDesaturation = 58;
+constexpr std::uint8_t kRestBackgroundBlend = 42;
+
+constexpr core::ThemePalette kFallbackTheme{
+    {111, 218, 194},
+    {168, 145, 222},
+    {7, 10, 18},
+    {241, 244, 242},
+};
+
+bool needsJapaneseFont(const char* text) noexcept {
+    if (text == nullptr) {
+        return false;
+    }
+    while (*text != '\0') {
+        if ((static_cast<unsigned char>(*text) & 0x80U) != 0) {
+            return true;
+        }
+        ++text;
+    }
+    return false;
+}
+
+const lgfx::IFont* fontForText(const char* text, const lgfx::IFont* latinFont) noexcept {
+    return needsJapaneseFont(text) ? &fonts::lgfxJapanGothicP_12 : latinFont;
+}
+
+constexpr std::uint16_t rgb565(const core::Rgb888 color) {
+    return rgb565(color.red, color.green, color.blue);
+}
+
+std::uint8_t scaledAmount(const std::uint8_t amount, const std::uint8_t scale) {
+    return static_cast<std::uint8_t>((static_cast<std::uint16_t>(amount) * scale + 127U) / 255U);
+}
 
 std::uint16_t blend565(const std::uint16_t foreground, const std::uint16_t background,
                        const std::uint8_t amount) {
@@ -119,7 +167,101 @@ void formatDuration(const std::uint64_t milliseconds, char (&buffer)[16]) {
 
 }  // namespace
 
-UiController::UiController(display::DisplayDriver& display) : display_(display) {}
+UiController::UiController(display::DisplayDriver& display)
+    : display_(display), themeFrom_(kFallbackTheme), themeTarget_(kFallbackTheme) {}
+
+core::ThemePalette UiController::sampledTheme(const std::uint32_t nowMs) const noexcept {
+    if (core::themesEqual(themeFrom_, themeTarget_)) {
+        return themeTarget_;
+    }
+    const auto amount = core::easedProgress(
+        static_cast<std::uint32_t>(nowMs - themeTransitionStartedAtMs_), kThemeTransitionMs);
+    return core::interpolateTheme(themeFrom_, themeTarget_, amount);
+}
+
+std::uint8_t UiController::sampledRestAmount(const std::uint32_t nowMs) const noexcept {
+    if (restFrom_ == restTarget_) {
+        return restTarget_;
+    }
+    const auto amount = core::easedProgress(
+        static_cast<std::uint32_t>(nowMs - restTransitionStartedAtMs_), kRestTransitionMs);
+    return static_cast<std::uint8_t>((static_cast<std::uint16_t>(restFrom_) * (255U - amount) +
+                                      static_cast<std::uint16_t>(restTarget_) * amount + 127U) /
+                                     255U);
+}
+
+UiController::RenderTheme UiController::renderTheme(const std::uint32_t nowMs) const noexcept {
+    const auto palette = sampledTheme(nowMs);
+    const auto rest = sampledRestAmount(nowMs);
+    const auto desaturation = scaledAmount(kRestDesaturation, rest);
+    const auto backgroundBlend = scaledAmount(kRestBackgroundBlend, rest);
+    const auto primary =
+        core::softenColor(palette.primary, palette.background, desaturation, backgroundBlend);
+    const auto secondary =
+        core::softenColor(palette.secondary, palette.background, desaturation, backgroundBlend);
+    const auto glowScale = static_cast<std::uint8_t>(
+        255U - (static_cast<std::uint16_t>(rest) * (255U - kRestGlowScale) + 127U) / 255U);
+    return {rgb565(primary), rgb565(secondary), rgb565(palette.background),
+            rgb565(palette.foreground), glowScale};
+}
+
+core::Rgb888 UiController::lightColor(const std::uint32_t nowMs) const noexcept {
+    if (!hasPlayback_) {
+        return kFallbackTheme.primary;
+    }
+    const auto palette = sampledTheme(nowMs);
+    const auto rest = sampledRestAmount(nowMs);
+    return core::softenColor(palette.primary, palette.background,
+                             scaledAmount(kRestDesaturation, rest),
+                             scaledAmount(kRestBackgroundBlend, rest));
+}
+
+std::uint16_t UiController::canvasBackground(const RenderTheme& theme) const noexcept {
+    // The host's dark-support role may be near-neutral for a cover dominated by black.
+    // Seed it with a restrained primary tint so a black/red cover reads as oxblood rather
+    // than generic gray, then cap luminance for this small always-on display.
+    const auto artworkTint = blend565(theme.primary, theme.background, 96);
+    return blend565(artworkTint, kBackground, 220);
+}
+
+std::uint16_t UiController::panelBackground(const RenderTheme& theme) const noexcept {
+    return blend565(kPanel, canvasBackground(theme), 42);
+}
+
+std::uint16_t UiController::raisedPanelBackground(const RenderTheme& theme) const noexcept {
+    return blend565(kPanelRaised, canvasBackground(theme), 58);
+}
+
+bool UiController::themeAnimating(const std::uint32_t nowMs) const noexcept {
+    const bool paletteActive = !core::themesEqual(themeFrom_, themeTarget_) &&
+                               static_cast<std::uint32_t>(nowMs - themeTransitionStartedAtMs_) <
+                                   kThemeTransitionMs + kThemeFrameMs;
+    const bool restActive =
+        restFrom_ != restTarget_ && static_cast<std::uint32_t>(nowMs - restTransitionStartedAtMs_) <
+                                        kRestTransitionMs + kThemeFrameMs;
+    return paletteActive || restActive;
+}
+
+void UiController::transitionTheme(const core::ThemePalette& theme, const std::uint32_t nowMs) {
+    if (core::themesEqual(themeTarget_, theme)) {
+        return;
+    }
+    themeFrom_ = sampledTheme(nowMs);
+    themeTarget_ = theme;
+    themeTransitionStartedAtMs_ = nowMs;
+    lastThemeFrameMs_ = nowMs - kThemeFrameMs;
+}
+
+void UiController::setThemeResting(const bool resting, const std::uint32_t nowMs) {
+    const std::uint8_t target = resting ? 255 : 0;
+    if (restTarget_ == target) {
+        return;
+    }
+    restFrom_ = sampledRestAmount(nowMs);
+    restTarget_ = target;
+    restTransitionStartedAtMs_ = nowMs;
+    lastThemeFrameMs_ = nowMs - kThemeFrameMs;
+}
 
 bool UiController::begin(const std::uint8_t brightness, const std::uint8_t defaultScreen,
                          const std::uint32_t nowMs) {
@@ -137,6 +279,12 @@ bool UiController::begin(const std::uint8_t brightness, const std::uint8_t defau
 }
 
 Screen UiController::screen() const noexcept { return screen_; }
+
+const char* UiController::activeArtworkId() const noexcept { return artworkId_; }
+
+const char* UiController::stagedArtworkId() const noexcept {
+    return hasStagedArtwork_ ? stagedArtwork_.artworkId : "";
+}
 
 core::ControlContext UiController::controlContext() const noexcept {
     switch (screen_) {
@@ -214,16 +362,30 @@ void UiController::setDimmed(const bool dimmed, const std::uint8_t normalBrightn
     display_.setBrightness(dimmed ? dimBrightness : normalBrightness);
 }
 
+bool UiController::sameTrack(const app::PlaybackSnapshot& left,
+                             const app::PlaybackSnapshot& right) noexcept {
+    if (left.trackId[0] != '\0' && right.trackId[0] != '\0') {
+        return std::strcmp(left.trackId, right.trackId) == 0;
+    }
+    return std::strcmp(left.title, right.title) == 0 &&
+           std::strcmp(left.artist, right.artist) == 0 && std::strcmp(left.album, right.album) == 0;
+}
+
+bool UiController::idlePlayback(const app::PlaybackSnapshot& snapshot) noexcept {
+    return snapshot.title[0] == '\0' &&
+           (snapshot.playerId[0] == '\0' || snapshot.status == app::PlaybackStatus::Stopped);
+}
+
 bool UiController::trackChanged(const app::PlaybackSnapshot& snapshot) const noexcept {
-    if (!hasPlayback_) {
-        return false;
-    }
-    if (playback_.trackId[0] != '\0' && snapshot.trackId[0] != '\0') {
-        return std::strcmp(playback_.trackId, snapshot.trackId) != 0;
-    }
-    return std::strcmp(playback_.title, snapshot.title) != 0 ||
-           std::strcmp(playback_.artist, snapshot.artist) != 0 ||
-           std::strcmp(playback_.album, snapshot.album) != 0;
+    return hasPlayback_ && !sameTrack(playback_, snapshot);
+}
+
+bool UiController::artworkMatches(const app::PlaybackSnapshot& snapshot,
+                                  const app::ArtworkResult& result) noexcept {
+    return app::artworkIdentityMatches(snapshot.artworkId, snapshot.artworkGeneration,
+                                       result.artworkId, result.artworkGeneration) &&
+           snapshot.hasTheme == result.hasTheme &&
+           (!snapshot.hasTheme || core::themesEqual(snapshot.theme, result.theme));
 }
 
 bool UiController::queueChanged(const app::PlaybackSnapshot& snapshot) const noexcept {
@@ -244,20 +406,45 @@ bool UiController::queueChanged(const app::PlaybackSnapshot& snapshot) const noe
 }
 
 void UiController::setPlayback(const app::PlaybackSnapshot& snapshot, const std::uint32_t nowMs) {
+    if (hasPendingPlayback_ && sameTrack(pendingPlayback_, snapshot)) {
+        pendingPlayback_ = snapshot;
+        if (hasStagedArtwork_ && !artworkMatches(pendingPlayback_, stagedArtwork_)) {
+            hasStagedArtwork_ = false;
+        }
+        if (transitionSwapped_) {
+            const bool fallbackChanged =
+                snapshot.artworkGeneration != 0 && snapshot.hasTheme &&
+                snapshot.artworkId[0] == '\0' &&
+                (artworkId_[0] != '\0' || artworkGeneration_ != snapshot.artworkGeneration ||
+                 !core::themesEqual(themeTarget_, snapshot.theme));
+            applyPlayback(snapshot, nowMs);
+            bool coverChanged = false;
+            if (hasStagedArtwork_ && artworkMatches(playback_, stagedArtwork_)) {
+                coverChanged = commitArtwork(stagedArtwork_, nowMs);
+                hasStagedArtwork_ = false;
+            }
+            if ((fallbackChanged || coverChanged) && screen_ == Screen::NowPlaying &&
+                !connectionScreenActive() && volumeOverlayUntilMs_ == 0 && toastUntilMs_ == 0 &&
+                !factoryResetChordVisible_ && !bootRendered_) {
+                renderArtwork(nowMs);
+            }
+            if (screen_ == Screen::NowPlaying && volumeOverlayUntilMs_ == 0 && toastUntilMs_ == 0) {
+                renderFooter(nowMs);
+            }
+        }
+        return;
+    }
     if (trackChanged(snapshot) && screen_ == Screen::NowPlaying && !connectionScreenActive()) {
         pendingPlayback_ = snapshot;
         hasPendingPlayback_ = true;
+        hasStagedArtwork_ = false;
         transitionSwapped_ = false;
         transitionStartedAtMs_ = nowMs;
         return;
     }
-    const bool titleChanged = !hasPlayback_ || std::strcmp(playback_.title, snapshot.title) != 0;
-    const bool headerChanged = !hasPlayback_ ||
-                               std::strcmp(playback_.playerName, snapshot.playerName) != 0;
-    const bool metadataChanged = !hasPlayback_ ||
-                                 std::strcmp(playback_.title, snapshot.title) != 0 ||
-                                 std::strcmp(playback_.artist, snapshot.artist) != 0 ||
-                                 queueChanged(snapshot);
+    const bool metadataChanged =
+        !hasPlayback_ || std::strcmp(playback_.title, snapshot.title) != 0 ||
+        std::strcmp(playback_.artist, snapshot.artist) != 0 || queueChanged(snapshot);
     const bool footerChanged = !hasPlayback_ || playback_.status != snapshot.status ||
                                playback_.shuffleKnown != snapshot.shuffleKnown ||
                                playback_.shuffle != snapshot.shuffle ||
@@ -266,17 +453,16 @@ void UiController::setPlayback(const app::PlaybackSnapshot& snapshot, const std:
     const bool actionsChanged = !hasPlayback_ || playback_.shuffleKnown != snapshot.shuffleKnown ||
                                 playback_.shuffle != snapshot.shuffle ||
                                 playback_.repeat != snapshot.repeat;
-    playback_ = snapshot;
-    hasPlayback_ = true;
-    if (titleChanged) {
-        resetTitleScroll(nowMs);
-    }
-    progress_.synchronize(snapshot.positionMs, snapshot.hasDuration ? snapshot.durationMs : 0,
-                          snapshot.status == app::PlaybackStatus::Playing, nowMs);
+    const bool fallbackChanged =
+        snapshot.artworkGeneration != 0 && snapshot.hasTheme && snapshot.artworkId[0] == '\0' &&
+        (artworkId_[0] != '\0' || artworkGeneration_ != snapshot.artworkGeneration ||
+         !core::themesEqual(themeTarget_, snapshot.theme));
+    applyPlayback(snapshot, nowMs);
     if (screen_ == Screen::NowPlaying && !connectionScreenActive() && volumeOverlayUntilMs_ == 0 &&
-        toastUntilMs_ == 0 && !bootRendered_) {
-        if (headerChanged) {
-            renderHeader(nowMs);
+        toastUntilMs_ == 0 && !factoryResetChordVisible_ && !bootRendered_ &&
+        !hasPendingPlayback_) {
+        if (fallbackChanged) {
+            renderArtwork(nowMs);
         }
         if (metadataChanged) {
             renderMetadata(nowMs, kText);
@@ -286,39 +472,105 @@ void UiController::setPlayback(const app::PlaybackSnapshot& snapshot, const std:
         } else {
             renderProgress(nowMs);
         }
-    } else if (bootRendered_ || (screen_ == Screen::Actions && actionsChanged)) {
+    } else if (bootRendered_ || fallbackChanged || (screen_ == Screen::Actions && actionsChanged)) {
         dirty_ = true;
     }
 }
 
+void UiController::applyPlayback(const app::PlaybackSnapshot& snapshot, const std::uint32_t nowMs) {
+    const bool titleChanged = !hasPlayback_ || std::strcmp(playback_.title, snapshot.title) != 0;
+    playback_ = snapshot;
+    hasPlayback_ = true;
+    if (titleChanged) {
+        resetTitleScroll(nowMs);
+    }
+    progress_.synchronize(snapshot.positionMs, snapshot.hasDuration ? snapshot.durationMs : 0,
+                          snapshot.status == app::PlaybackStatus::Playing, nowMs);
+    setThemeResting(snapshot.status != app::PlaybackStatus::Playing, nowMs);
+    if (snapshot.artworkGeneration != 0 && snapshot.hasTheme && snapshot.artworkId[0] == '\0') {
+        commitFallback(snapshot, nowMs);
+    }
+}
+
+void UiController::commitFallback(const app::PlaybackSnapshot& snapshot,
+                                  const std::uint32_t nowMs) {
+    if (snapshot.artworkGeneration == 0 || !snapshot.hasTheme || snapshot.artworkId[0] != '\0') {
+        return;
+    }
+    const bool changed = artworkId_[0] != '\0' || artworkPath_[0] != '\0' ||
+                         artworkGeneration_ != snapshot.artworkGeneration ||
+                         !core::themesEqual(themeTarget_, snapshot.theme);
+    if (!changed) {
+        return;
+    }
+    artworkId_[0] = '\0';
+    artworkPath_[0] = '\0';
+    artworkGeneration_ = snapshot.artworkGeneration;
+    transitionTheme(snapshot.theme, nowMs);
+    DW_LOG_INFO("ui", "Committed fallback artwork generation %lu",
+                static_cast<unsigned long>(artworkGeneration_));
+}
+
+bool UiController::commitArtwork(const app::ArtworkResult& result, const std::uint32_t nowMs) {
+    if (!result.success || result.artworkId[0] == '\0' || result.localPath[0] == '\0') {
+        return false;
+    }
+    if (result.artworkGeneration != 0 && !result.hasTheme) {
+        DW_LOG_WARN("ui", "Rejected generation %lu artwork without a complete theme",
+                    static_cast<unsigned long>(result.artworkGeneration));
+        return false;
+    }
+    const auto& committedTheme = result.hasTheme ? result.theme : kFallbackTheme;
+    const bool coverChanged = std::strcmp(artworkId_, result.artworkId) != 0 ||
+                              std::strcmp(artworkPath_, result.localPath) != 0;
+    const bool bundleChanged = coverChanged || artworkGeneration_ != result.artworkGeneration ||
+                               !core::themesEqual(themeTarget_, committedTheme);
+    if (!bundleChanged) {
+        return false;
+    }
+    app::copyText(artworkId_, result.artworkId);
+    app::copyText(artworkPath_, result.localPath);
+    artworkGeneration_ = result.artworkGeneration;
+    transitionTheme(committedTheme, nowMs);
+    DW_LOG_INFO("ui", "Committed artwork %.12s generation %lu", artworkId_,
+                static_cast<unsigned long>(artworkGeneration_));
+    return coverChanged;
+}
+
 void UiController::setArtwork(const app::ArtworkResult& result, const std::uint32_t nowMs) {
-    (void)nowMs;
-    const bool belongsToCurrentPlayback =
-        hasPlayback_ && result.artworkId[0] != '\0' &&
-        std::strcmp(playback_.artworkId, result.artworkId) == 0;
+    const bool belongsToCurrentPlayback = hasPlayback_ && artworkMatches(playback_, result);
     const bool belongsToPendingPlayback =
-        hasPendingPlayback_ && result.artworkId[0] != '\0' &&
-        std::strcmp(pendingPlayback_.artworkId, result.artworkId) == 0;
+        hasPendingPlayback_ && artworkMatches(pendingPlayback_, result);
     if (!belongsToCurrentPlayback && !belongsToPendingPlayback) {
-        // A download can finish after the user skips again. Do not let that
-        // late result replace the cover associated with the visible track.
+        DW_LOG_DEBUG("ui", "Ignored stale artwork %.12s generation %lu", result.artworkId,
+                     static_cast<unsigned long>(result.artworkGeneration));
         return;
     }
     if (!result.success) {
         if (result.error[0] != '\0') {
-            showToast(result.error, millis(), true);
+            showToast(result.error, nowMs, true);
         }
         return;
     }
-    if (std::strcmp(artworkId_, result.artworkId) == 0 &&
-        std::strcmp(artworkPath_, result.localPath) == 0) {
+    if (result.artworkGeneration != 0 && !result.hasTheme) {
+        DW_LOG_WARN("ui", "Ignored incomplete artwork bundle generation %lu",
+                    static_cast<unsigned long>(result.artworkGeneration));
         return;
     }
-    app::copyText(artworkId_, result.artworkId);
-    app::copyText(artworkPath_, result.localPath);
-    if (screen_ == Screen::NowPlaying && !connectionScreenActive() &&
-        std::strcmp(playback_.artworkId, artworkId_) == 0 && !hasPendingPlayback_) {
-        renderArtwork();
+    if (belongsToPendingPlayback && !belongsToCurrentPlayback) {
+        stagedArtwork_ = result;
+        hasStagedArtwork_ = true;
+        DW_LOG_DEBUG("ui", "Staged artwork %.12s generation %lu", result.artworkId,
+                     static_cast<unsigned long>(result.artworkGeneration));
+        return;
+    }
+    const bool coverChanged = commitArtwork(result, nowMs);
+    if (coverChanged && screen_ == Screen::NowPlaying && !connectionScreenActive() &&
+        volumeOverlayUntilMs_ == 0 && toastUntilMs_ == 0 && !factoryResetChordVisible_ &&
+        !bootRendered_) {
+        renderArtwork(nowMs);
+    } else if (screen_ == Screen::Actions) {
+        dirty_ = true;
     }
 }
 
@@ -388,6 +640,7 @@ void UiController::showTransport(const app::PlaybackStatus status, const std::ui
     playback_.status = status;
     progress_.synchronize(current, progress_.duration(), status == app::PlaybackStatus::Playing,
                           nowMs);
+    setThemeResting(status != app::PlaybackStatus::Playing, nowMs);
     transportPulseUntilMs_ = nowMs + 360;
     if (screen_ == Screen::NowPlaying && volumeOverlayUntilMs_ == 0) {
         renderFooter(nowMs);
@@ -476,6 +729,7 @@ void UiController::tick(const std::uint32_t nowMs) {
         render(nowMs);
         dirty_ = false;
         lastAnimationFrameMs_ = nowMs;
+        lastThemeFrameMs_ = nowMs;
         lastProgressFrameMs_ = nowMs;
         return;
     }
@@ -489,40 +743,50 @@ void UiController::tick(const std::uint32_t nowMs) {
         lastAnimationFrameMs_ = nowMs;
         return;
     }
-    bool animatedNowPlaying = false;
+    bool animatedUi = false;
+    if ((screen_ == Screen::NowPlaying || screen_ == Screen::Actions) &&
+        !connectionScreenActive() && volumeOverlayUntilMs_ == 0 && toastUntilMs_ == 0 &&
+        !factoryResetChordVisible_) {
+        if (themeAnimating(nowMs) &&
+            static_cast<std::uint32_t>(nowMs - lastThemeFrameMs_) >= kThemeFrameMs) {
+            renderThemeAccents(nowMs);
+            lastThemeFrameMs_ = nowMs;
+            animatedUi = true;
+        }
+    }
     if (screen_ == Screen::NowPlaying && !connectionScreenActive() && !hasPendingPlayback_ &&
         volumeOverlayUntilMs_ == 0 && toastUntilMs_ == 0 && !factoryResetChordVisible_) {
-        if (titleScrollActive_ &&
+        if (!idlePlayback(playback_) && titleScrollActive_ &&
             static_cast<std::uint32_t>(nowMs - lastTitleFrameMs_) >= kTitleFrameMs) {
             renderTitle(nowMs, kText);
             lastTitleFrameMs_ = nowMs;
-            animatedNowPlaying = true;
+            animatedUi = true;
         }
-        if (static_cast<std::uint32_t>(nowMs - lastProgressFrameMs_) >= kProgressFrameMs) {
+        if (!idlePlayback(playback_) &&
+            static_cast<std::uint32_t>(nowMs - lastProgressFrameMs_) >= kProgressFrameMs) {
             renderProgress(nowMs);
             lastProgressFrameMs_ = nowMs;
-            animatedNowPlaying = true;
+            animatedUi = true;
         }
     }
-    if (animatedNowPlaying) {
+    if (animatedUi) {
         return;
     }
     if (connectionScreenActive() &&
         static_cast<std::uint32_t>(nowMs - lastAnimationFrameMs_) >= 250) {
-        renderHeader(nowMs);
+        renderConnection(nowMs);
         lastAnimationFrameMs_ = nowMs;
     }
 }
 
 void UiController::tickTrackTransition(const std::uint32_t nowMs) {
     if (screen_ != Screen::NowPlaying || connectionScreenActive()) {
-        playback_ = pendingPlayback_;
-        hasPlayback_ = true;
+        applyPlayback(pendingPlayback_, nowMs);
+        if (hasStagedArtwork_ && artworkMatches(playback_, stagedArtwork_)) {
+            (void)commitArtwork(stagedArtwork_, nowMs);
+        }
+        hasStagedArtwork_ = false;
         hasPendingPlayback_ = false;
-        resetTitleScroll(nowMs);
-        progress_.synchronize(playback_.positionMs,
-                              playback_.hasDuration ? playback_.durationMs : 0,
-                              playback_.status == app::PlaybackStatus::Playing, nowMs);
         dirty_ = true;
         return;
     }
@@ -538,15 +802,19 @@ void UiController::tickTrackTransition(const std::uint32_t nowMs) {
                        -static_cast<std::int16_t>(elapsed * 6U / half));
     } else {
         if (!transitionSwapped_) {
-            playback_ = pendingPlayback_;
-            hasPlayback_ = true;
+            applyPlayback(pendingPlayback_, nowMs);
+            if (hasStagedArtwork_ && artworkMatches(playback_, stagedArtwork_)) {
+                (void)commitArtwork(stagedArtwork_, nowMs);
+            }
+            hasStagedArtwork_ = false;
             transitionSwapped_ = true;
-            resetTitleScroll(nowMs);
-            progress_.synchronize(playback_.positionMs,
-                                  playback_.hasDuration ? playback_.durationMs : 0,
-                                  playback_.status == app::PlaybackStatus::Playing, nowMs);
-            renderHeader(nowMs);
-            renderArtwork();
+            if (idlePlayback(playback_)) {
+                hasPendingPlayback_ = false;
+                transitionSwapped_ = false;
+                dirty_ = true;
+                return;
+            }
+            renderArtwork(nowMs);
             renderFooter(nowMs);
         }
         const auto secondElapsed = std::min<std::uint32_t>(elapsed - half, half);
@@ -556,16 +824,33 @@ void UiController::tickTrackTransition(const std::uint32_t nowMs) {
     }
     lastAnimationFrameMs_ = nowMs;
     if (elapsed >= kTrackTransitionMs) {
+        const bool fallbackChanged =
+            pendingPlayback_.artworkGeneration != 0 && pendingPlayback_.hasTheme &&
+            pendingPlayback_.artworkId[0] == '\0' &&
+            (artworkId_[0] != '\0' || artworkGeneration_ != pendingPlayback_.artworkGeneration ||
+             !core::themesEqual(themeTarget_, pendingPlayback_.theme));
+        applyPlayback(pendingPlayback_, nowMs);
+        bool coverChanged = false;
+        if (hasStagedArtwork_ && artworkMatches(playback_, stagedArtwork_)) {
+            coverChanged = commitArtwork(stagedArtwork_, nowMs);
+        }
+        if (fallbackChanged || coverChanged) {
+            renderArtwork(nowMs);
+        }
         hasPendingPlayback_ = false;
         transitionSwapped_ = false;
+        hasStagedArtwork_ = false;
         renderMetadata(nowMs, kText);
+        renderFooter(nowMs);
     }
 }
 
 void UiController::render(const std::uint32_t nowMs) {
     progressPainted_ = false;
     renderAtmosphere();
-    renderHeader(nowMs);
+    if (screen_ != Screen::NowPlaying) {
+        renderHeader(nowMs);
+    }
     switch (screen_) {
         case Screen::NowPlaying:
             if (connectionScreenActive()) {
@@ -584,7 +869,7 @@ void UiController::render(const std::uint32_t nowMs) {
             renderAbout();
             break;
         case Screen::Actions:
-            renderActions();
+            renderActions(nowMs);
             break;
     }
     if (factoryResetChordVisible_) {
@@ -597,14 +882,30 @@ void UiController::render(const std::uint32_t nowMs) {
 }
 
 void UiController::renderAtmosphere() {
-    display_.fillScreen(kBackground);
+    const bool themed = screen_ == Screen::NowPlaying && hasPlayback_ && !idlePlayback(playback_) &&
+                        !connectionScreenActive();
+    const auto theme = renderTheme(millis());
+    const auto canvas = themed ? canvasBackground(theme) : kBackground;
+    const auto lift = themed ? blend565(theme.secondary, canvas, 28) : kBackgroundLift;
+    display_.fillScreen(canvas);
+    if (themed) {
+        // The artwork-derived canvas is intentionally broad and calm, like Spotify's
+        // lyrics backdrop. Keep it opaque and RGB565-friendly rather than sprinkling
+        // the reclaimed header space with the generic star field.
+        display_.fillRect(0, 0, 320, kProgressY, blend565(lift, canvas, 54));
+        display_.fillRect(kMetadataX - 4, 0, 320 - (kMetadataX - 4), kProgressY,
+                          blend565(theme.secondary, canvas, 22));
+        return;
+    }
     for (std::int32_t y = 0; y < 240; y += 8) {
         const auto amount = static_cast<std::uint8_t>(28U + (y * 70U / 239U));
-        display_.fillRect(0, y, 320, 8, blend565(kBackgroundLift, kBackground, amount));
+        display_.fillRect(0, y, 320, 8, blend565(lift, canvas, amount));
     }
-    display_.fillCircle(301, 42, 72, blend565(kViolet, kBackground, 26));
-    display_.fillCircle(18, 222, 68, blend565(kAccent, kBackground, 18));
-    display_.fillCircle(265, 236, 48, blend565(kMagenta, kBackground, 15));
+    const auto primary = themed ? theme.primary : kAccent;
+    const auto secondary = themed ? theme.secondary : kViolet;
+    display_.fillCircle(301, 42, 72, blend565(secondary, canvas, 26));
+    display_.fillCircle(18, 222, 68, blend565(primary, canvas, 18));
+    display_.fillCircle(265, 236, 48, blend565(themed ? theme.background : kMagenta, canvas, 15));
     constexpr std::array<std::array<std::int16_t, 2>, 10> stars{{
         {{23, 47}},
         {{51, 29}},
@@ -619,7 +920,7 @@ void UiController::renderAtmosphere() {
     }};
     for (std::size_t index = 0; index < stars.size(); ++index) {
         display_.fillCircle(stars[index][0], stars[index][1], index % 3 == 0 ? 1 : 0,
-                            blend565(index % 2 == 0 ? kAccent : kViolet, kBackground, 105));
+                            blend565(index % 2 == 0 ? primary : secondary, canvas, 105));
     }
 }
 
@@ -645,37 +946,24 @@ void UiController::renderHeader(const std::uint32_t nowMs) {
     const auto headerBackground = blend565(kPanel, kBackground, 175);
     display_.fillRect(0, 0, display_.width(), 32, headerBackground);
     display_.fillRect(0, 31, display_.width(), 1, blend565(kViolet, kBackground, 80));
+    display_.fillCircle(15, 15, 6, kAccentDim);
+    display_.fillCircle(15, 15, 2, kAccent);
+    drawFitted("DESKWAVE", 28, 9, 78, &fonts::Font0, kText);
+    drawFitted(screenName(screen_), 176, 9, 130, &fonts::Font0, kTextMuted,
+               lgfx::textdatum_t::top_center);
 
-    if (screen_ == Screen::NowPlaying && hasPlayback_) {
-        // A small, unmistakable Spotify/player mark replaces the ambiguous
-        // top-right affordance. The entire header is informational only.
-        display_.fillCircle(15, 15, 9, kSpotify);
-        display_.drawBezier(9, 12, 13, 10, 19, 10, 22, 12, kBackground);
-        display_.drawBezier(10, 15, 14, 13, 19, 14, 21, 15, kBackground);
-        display_.drawBezier(11, 18, 14, 16, 18, 17, 20, 18, kBackground);
-        drawFitted("NOW PLAYING", 30, 3, 118, &fonts::Font2, kText);
-        drawFitted(playback_.playerName[0] == '\0' ? "Media player" : playback_.playerName, 30,
-                   18, 206, &fonts::Font0, kTextMuted);
-    } else {
-        display_.fillCircle(15, 15, 6, kAccentDim);
-        display_.fillCircle(15, 15, 2, kAccent);
-        drawFitted("DESKWAVE", 28, 9, 78, &fonts::Font0, kText);
-        drawFitted(screenName(screen_), 176, 9, 130, &fonts::Font0, kTextMuted,
-                   lgfx::textdatum_t::top_center);
-    }
-
-    const auto connectionColor = status_.hostConnected ? kSpotify : kWarning;
+    const auto connectionColor = status_.hostConnected ? kAccent : kWarning;
     display_.fillCircle(248, 15, 3, connectionColor);
     drawFitted(status_.hostConnected ? "LINKED" : "RETRY", 312, 10, 56, &fonts::Font0,
                connectionColor, lgfx::textdatum_t::top_right);
 }
 
 void UiController::renderConnection(const std::uint32_t nowMs) {
-    (void)nowMs;
-    display_.fillRoundRect(20, 43, 280, 174, 16, blend565(kPanel, kBackground, 230));
-    display_.drawRoundRect(20, 43, 280, 174, 16, blend565(kViolet, kLine, 120));
+    display_.fillRoundRect(20, 12, 280, 205, 16, blend565(kPanel, kBackground, 230));
+    display_.drawRoundRect(20, 12, 280, 205, 16, blend565(kViolet, kLine, 120));
     display_.drawCircle(160, 86, 31, blend565(kAccent, kBackground, 82));
     display_.drawCircle(160, 86, 23, blend565(kViolet, kBackground, 90));
+    renderCompactLinkStatus(renderTheme(nowMs));
     const bool pairing = latestNotice_.type == app::SystemNoticeType::PairingCode &&
                          status_.state == core::SystemState::Pairing;
     const bool provisioning = latestNotice_.type == app::SystemNoticeType::ProvisioningStarted &&
@@ -724,74 +1012,101 @@ void UiController::renderConnection(const std::uint32_t nowMs) {
 }
 
 void UiController::renderNowPlaying(const std::uint32_t nowMs) {
-    if (!hasPlayback_ || (playback_.playerId[0] == '\0' && playback_.title[0] == '\0') ||
-        (playback_.title[0] == '\0' && playback_.status == app::PlaybackStatus::Stopped)) {
-        renderIdle();
+    if (!hasPlayback_ || idlePlayback(playback_)) {
+        renderIdle(nowMs);
         return;
     }
     if (titleTextWidth_ == 0) {
         resetTitleScroll(nowMs);
     }
-    renderArtwork();
+    renderArtwork(nowMs);
     renderMetadata(nowMs, kText);
     renderFooter(nowMs);
 }
 
-void UiController::renderIdle() {
-    display_.fillRoundRect(35, 49, 250, 150, 14, kPanel);
-    display_.drawRoundRect(35, 49, 250, 150, 14, kLine);
-    display_.drawCircle(160, 90, 23, kAccentDim);
-    display_.fillCircle(153, 101, 5, kAccent);
-    display_.drawLine(158, 100, 158, 77, kAccent);
-    display_.drawLine(158, 77, 174, 73, kAccent);
-    display_.drawLine(174, 73, 174, 94, kAccent);
-    display_.fillCircle(169, 95, 5, kAccent);
-    drawFitted("DeskWave", 160, 126, 220, &fonts::Font4, kText, lgfx::textdatum_t::top_center);
+void UiController::renderIdle(const std::uint32_t nowMs) {
+    const auto theme = renderTheme(nowMs);
+    display_.fillRoundRect(25, 20, 270, 180, 14, panelBackground(theme));
+    renderIdleAccents(theme, false);
+    drawFitted("DeskWave", 160, 105, 220, &fonts::Font4, kText, lgfx::textdatum_t::top_center);
     const char* message =
         playback_.playerId[0] == '\0' ? "No active media player" : "No music playing";
-    drawFitted(message, 160, 162, 220, &fonts::Font2, kTextMuted, lgfx::textdatum_t::top_center);
+    drawFitted(message, 160, 142, 220, &fonts::Font2, kTextMuted,
+               lgfx::textdatum_t::top_center);
+    renderCompactLinkStatus(theme);
+}
+
+void UiController::renderIdleAccents(const RenderTheme& theme, const bool clear) {
+    if (clear) {
+        const auto panel = panelBackground(theme);
+        display_.fillRect(132, 37, 57, 53, panel);
+        display_.fillRect(52, 176, 216, 14, panel);
+    }
+    const auto panel = panelBackground(theme);
+    display_.drawRoundRect(25, 20, 270, 180, 14, blend565(theme.secondary, panel, 95));
+    display_.drawCircle(160, 62, 23, blend565(theme.secondary, panel, 145));
+    display_.fillCircle(153, 73, 5, theme.primary);
+    display_.drawLine(158, 72, 158, 49, theme.primary);
+    display_.drawLine(158, 49, 174, 45, theme.primary);
+    display_.drawLine(174, 45, 174, 66, theme.primary);
+    display_.fillCircle(169, 67, 5, theme.primary);
     if (playback_.playerName[0] != '\0') {
-        drawFitted(playback_.playerName, 160, 184, 210, &fonts::Font0, kAccent,
+        drawFitted(playback_.playerName, 160, 180, 210, &fonts::Font0, theme.primary,
                    lgfx::textdatum_t::top_center);
     }
 }
 
-void UiController::renderArtwork() {
-    display_.fillRoundRect(kArtworkX + 4, kArtworkY + 4, kArtworkSize, kArtworkSize, 10,
-                           blend565(kViolet, kBackground, 55));
-    display_.drawRoundRect(kArtworkX - 1, kArtworkY - 1, kArtworkSize + 2, kArtworkSize + 2, 9,
-                           blend565(kAccent, kBackground, 105));
-    display_.fillRoundRect(kArtworkX, kArtworkY, kArtworkSize, kArtworkSize, 8, kPanelRaised);
+void UiController::renderArtworkGlow(const RenderTheme& theme) {
+    constexpr std::array<std::uint8_t, 4> kLayerScales{{255, 172, 96, 46}};
+    const auto glowBase = canvasBackground(theme);
+    for (std::size_t layer = 0; layer < kLayerScales.size(); ++layer) {
+        const auto layerStrength = scaledAmount(kArtworkGlowStrength, kLayerScales[layer]);
+        const auto amount = scaledAmount(layerStrength, theme.glowScale);
+        const auto accent = layer < 2 ? theme.primary : theme.secondary;
+        const auto offset = static_cast<std::int32_t>(2 + layer);
+        display_.drawRoundRect(kArtworkX - offset, kArtworkY - offset, kArtworkSize + offset * 2,
+                               kArtworkSize + offset * 2, 9 + layer,
+                               blend565(accent, glowBase, amount));
+    }
+}
+
+void UiController::renderArtwork(const std::uint32_t nowMs) {
+    const auto theme = renderTheme(nowMs);
+    renderArtworkGlow(theme);
     bool rendered = false;
-    if (playback_.artworkId[0] != '\0' && std::strcmp(playback_.artworkId, artworkId_) == 0 &&
-        artworkPath_[0] != '\0' && LittleFS.exists(artworkPath_)) {
+    if (artworkId_[0] != '\0' && artworkPath_[0] != '\0' && LittleFS.exists(artworkPath_)) {
         rendered =
             display_.drawJpgFile(LittleFS, artworkPath_, kArtworkX, kArtworkY, kArtworkSize,
                                  kArtworkSize, 0, 0, -1.0F, -1.0F, lgfx::textdatum_t::top_left);
     }
     if (!rendered) {
-        display_.fillRoundRect(kArtworkX, kArtworkY, kArtworkSize, kArtworkSize, 8, kPanelRaised);
+        const auto fallbackBackground = raisedPanelBackground(theme);
+        display_.fillRect(kArtworkX, kArtworkY, kArtworkSize, kArtworkSize, fallbackBackground);
         for (std::int32_t row = 0; row < 4; ++row) {
-            const auto y = kArtworkY + 39 + row * 17;
-            const auto color = blend565(row % 2 == 0 ? kAccent : kViolet, kPanelRaised,
-                                        static_cast<std::uint8_t>(185 - row * 25));
-            display_.drawBezier(kArtworkX + 19, y, kArtworkX + 46, y - 15, kArtworkX + 72, y + 14,
-                                kArtworkX + 94, y - 2, color);
-            display_.drawBezier(kArtworkX + 94, y - 2, kArtworkX + 109, y - 11, kArtworkX + 118,
-                                y + 8, kArtworkX + 126, y, color);
+            const auto y = kArtworkY + 45 + row * 19;
+            const auto color =
+                blend565(row % 2 == 0 ? theme.primary : theme.secondary, fallbackBackground,
+                         static_cast<std::uint8_t>(185 - row * 25));
+            display_.drawBezier(kArtworkX + 19, y, kArtworkX + 52, y - 17, kArtworkX + 84,
+                                y + 15, kArtworkX + 112, y - 2, color);
+            display_.drawBezier(kArtworkX + 112, y - 2, kArtworkX + 131, y - 13,
+                                kArtworkX + 143, y + 9, kArtworkX + 153, y, color);
         }
-        display_.fillCircle(kArtworkX + 69, kArtworkY + 77, 6, kText);
-        display_.drawLine(kArtworkX + 75, kArtworkY + 76, kArtworkX + 75, kArtworkY + 48, kText);
-        display_.drawLine(kArtworkX + 75, kArtworkY + 48, kArtworkX + 94, kArtworkY + 43, kText);
+        display_.fillCircle(kArtworkX + 82, kArtworkY + 96, 7, theme.foreground);
+        display_.drawLine(kArtworkX + 89, kArtworkY + 95, kArtworkX + 89, kArtworkY + 58,
+                          theme.foreground);
+        display_.drawLine(kArtworkX + 89, kArtworkY + 58, kArtworkX + 113, kArtworkY + 52,
+                          theme.foreground);
     }
-    display_.drawRoundRect(kArtworkX, kArtworkY, kArtworkSize, kArtworkSize, 8,
-                           blend565(kText, kLine, 70));
 }
 
 void UiController::resetTitleScroll(const std::uint32_t nowMs) {
     const char* title = playback_.title[0] == '\0' ? "Untitled" : playback_.title;
-    display_.setFont(&fonts::Font4);
+    const bool japanese = needsJapaneseFont(title);
+    display_.setFont(fontForText(title, &fonts::Font4));
+    display_.setTextSize(japanese ? 2 : 1);
     titleTextWidth_ = static_cast<std::int16_t>(display_.textWidth(title));
+    display_.setTextSize(1);
     titleScrollActive_ = titleTextWidth_ > kTitleWidth;
     titleScrollStartedAtMs_ = nowMs;
     lastTitleFrameMs_ = 0;
@@ -806,18 +1121,21 @@ void UiController::renderTitle(const std::uint32_t nowMs, const std::uint16_t co
 
     std::int32_t scrollOffset = 0;
     if (titleScrollActive_ && xOffset == 0) {
-        const auto cycle = static_cast<std::uint32_t>(
-            std::max<std::int16_t>(titleTextWidth_, 1) + kTitleRepeatGap);
+        const auto cycle = static_cast<std::uint32_t>(std::max<std::int16_t>(titleTextWidth_, 1) +
+                                                      kTitleRepeatGap);
         const auto phase = static_cast<std::uint32_t>(
-            (static_cast<std::uint64_t>(nowMs - titleScrollStartedAtMs_) *
-             kTitlePixelsPerSecond / 1'000U) % cycle);
+            (static_cast<std::uint64_t>(nowMs - titleScrollStartedAtMs_) * kTitlePixelsPerSecond /
+             1'000U) %
+            cycle);
         scrollOffset = -static_cast<std::int32_t>(phase);
     }
 
-    const auto metadataBackground = blend565(kPanel, kBackground, 235);
+    const auto metadataBackground = panelBackground(renderTheme(nowMs));
     display_.setClipRect(kTitleX, kTitleY, kTitleWidth, kTitleHeight);
     display_.fillRect(kTitleX, kTitleY, kTitleWidth, kTitleHeight, metadataBackground);
-    display_.setFont(&fonts::Font4);
+    const bool japanese = needsJapaneseFont(title);
+    display_.setFont(fontForText(title, &fonts::Font4));
+    display_.setTextSize(japanese ? 2 : 1);
     display_.setTextColor(color);
     display_.setTextDatum(lgfx::textdatum_t::top_left);
     const auto titleX = kTitleX + xOffset + scrollOffset;
@@ -825,38 +1143,47 @@ void UiController::renderTitle(const std::uint32_t nowMs, const std::uint16_t co
     if (titleScrollActive_ && xOffset == 0) {
         display_.drawString(title, titleX + titleTextWidth_ + kTitleRepeatGap, kTitleY + 1);
     }
+    display_.setTextSize(1);
     display_.drawFastHLine(kTitleX, kTitleY + kTitleHeight - 1, kTitleWidth,
-                          blend565(kLine, metadataBackground, 150));
+                           blend565(renderTheme(nowMs).primary, metadataBackground, 92));
     display_.clearClipRect();
 }
 
 void UiController::renderMetadata(const std::uint32_t nowMs, const std::uint16_t color,
                                   const std::int16_t xOffset) {
-    display_.fillRect(kMetadataX - 3, kMetadataY - 3, kMetadataWidth + 8,
-                      kMetadataHeight + 7, kBackground);
-    const auto metadataBackground = blend565(kPanel, kBackground, 235);
+    const auto theme = renderTheme(nowMs);
+    const auto canvas = canvasBackground(theme);
+    display_.fillRect(kMetadataX - 3, kMetadataY - 3, kMetadataWidth + 8, kMetadataHeight + 7,
+                      canvas);
+    const auto metadataBackground = panelBackground(theme);
     display_.fillRoundRect(kMetadataX, kMetadataY, kMetadataWidth, kMetadataHeight, 8,
                            metadataBackground);
     display_.drawRoundRect(kMetadataX, kMetadataY, kMetadataWidth, kMetadataHeight, 8,
-                           blend565(kLine, kBackground, 190));
+                           blend565(theme.secondary, kBackground, 78));
 
     const auto x = kTitleX + xOffset;
-    const auto fadedAccent = color == kText ? kAccent : blend565(kAccent, kBackground, 105);
-    const auto fadedArtist = color == kText ? kTextMuted : blend565(kTextMuted, kBackground, 105);
-    drawFitted("TRACK", x, 45, 70, &fonts::Font0, fadedAccent);
+    const auto fadedAccent = color == kText ? theme.primary : blend565(theme.primary, canvas, 105);
+    const auto fadedArtist = color == kText ? kTextMuted : blend565(kTextMuted, canvas, 105);
+    drawFitted("TRACK", x, kTrackLabelY, 48, &fonts::Font0, fadedAccent);
     renderTitle(nowMs, color, xOffset);
-    drawFitted(playback_.artist[0] == '\0' ? "Unknown artist" : playback_.artist, x, 89, 144,
+    drawFitted(playback_.artist[0] == '\0' ? "Unknown artist" : playback_.artist, x, kArtistY,
+               kTitleWidth,
                &fonts::Font2, fadedArtist);
 
-    display_.fillRoundRect(157, 117, 148, 40, 7, blend565(kPanelRaised, metadataBackground, 155));
-    display_.drawRoundRect(157, 117, 148, 40, 7,
-                           blend565(kLine, metadataBackground, 175));
-    drawFitted("UP NEXT", 164 + xOffset, 120, 140, &fonts::Font0,
-               color == kText ? kViolet : blend565(kViolet, kBackground, 100));
+    const auto queueX = kMetadataX + 7;
+    const auto queueWidth = kMetadataWidth - 14;
+    display_.fillRoundRect(queueX, kQueueY, queueWidth, kQueueHeight, 7,
+                           blend565(raisedPanelBackground(theme), metadataBackground, 155));
+    display_.drawRoundRect(queueX, kQueueY, queueWidth, kQueueHeight, 7,
+                           blend565(theme.secondary, metadataBackground, 88));
+    drawFitted("UP NEXT", queueX + 7 + xOffset, kQueueY + 5, queueWidth - 14, &fonts::Font0,
+               color == kText ? theme.secondary : blend565(theme.secondary, canvas, 100));
     if (!playback_.queueAvailable) {
-        drawFitted("QUEUE UNAVAILABLE", 164 + xOffset, 138, 136, &fonts::Font0, fadedArtist);
+        drawFitted("QUEUE UNAVAILABLE", queueX + 7 + xOffset, kQueueY + 31, queueWidth - 14,
+                   &fonts::Font0, fadedArtist);
     } else if (playback_.queueCount == 0) {
-        drawFitted("QUEUE EMPTY", 164 + xOffset, 138, 136, &fonts::Font0, fadedArtist);
+        drawFitted("QUEUE EMPTY", queueX + 7 + xOffset, kQueueY + 31, queueWidth - 14,
+                   &fonts::Font0, fadedArtist);
     } else {
         for (std::uint8_t index = 0; index < std::min<std::uint8_t>(2, playback_.queueCount);
              ++index) {
@@ -869,81 +1196,158 @@ void UiController::renderMetadata(const std::uint32_t nowMs, const std::uint16_t
                 std::snprintf(label, sizeof(label), "%u  %s - %s", static_cast<unsigned>(index + 1),
                               entry.title[0] == '\0' ? "Untitled" : entry.title, entry.artist);
             }
-            drawFitted(label, 164 + xOffset, 132 + index * 11, 136, &fonts::Font0, fadedArtist);
+            drawFitted(label, queueX + 7 + xOffset, kQueueY + 23 + index * 17,
+                       queueWidth - 14,
+                       &fonts::Font0, fadedArtist);
         }
     }
+    renderCompactLinkStatus(theme);
+}
+
+void UiController::renderCompactLinkStatus(const RenderTheme& theme) {
+    const auto background = panelBackground(theme);
+    const auto color = status_.hostConnected ? theme.primary : kWarning;
+    display_.fillRect(kMetadataX + kMetadataWidth - 49, kMetadataY + 3, 44, 11, background);
+    display_.fillCircle(kMetadataX + kMetadataWidth - 43, kMetadataY + 8, 2, color);
+    drawFitted(status_.hostConnected ? "LINK" : "RETRY", kMetadataX + kMetadataWidth - 6,
+               kMetadataY + 4, 34, &fonts::Font0, color, lgfx::textdatum_t::top_right);
+}
+
+void UiController::renderThemeLabels(const RenderTheme& theme) {
+    const auto metadataBackground = panelBackground(theme);
+    const auto queueX = kMetadataX + 7;
+    const auto queueWidth = kMetadataWidth - 14;
+    const auto queueBackground = blend565(raisedPanelBackground(theme), metadataBackground, 155);
+    display_.drawRoundRect(kMetadataX, kMetadataY, kMetadataWidth, kMetadataHeight, 8,
+                           blend565(theme.secondary, kBackground, 78));
+    display_.fillRect(kMetadataX + 8, kMetadataY + 4, 50, 10, metadataBackground);
+    drawFitted("TRACK", kTitleX, kTrackLabelY, 48, &fonts::Font0, theme.primary);
+    display_.drawRoundRect(queueX, kQueueY, queueWidth, kQueueHeight, 7,
+                           blend565(theme.secondary, metadataBackground, 88));
+    display_.fillRect(queueX + 6, kQueueY + 3, 86, 11, queueBackground);
+    drawFitted("UP NEXT", queueX + 7, kQueueY + 5, 84, &fonts::Font0, theme.secondary);
+    renderCompactLinkStatus(theme);
+}
+
+void UiController::renderThemeAccents(const std::uint32_t nowMs) {
+    const auto theme = renderTheme(nowMs);
+    if (screen_ == Screen::Actions) {
+        renderActionAccents(theme, true);
+        return;
+    }
+    if (screen_ != Screen::NowPlaying || connectionScreenActive()) {
+        return;
+    }
+    if (idlePlayback(playback_)) {
+        renderIdleAccents(theme, true);
+        return;
+    }
+    // Keep the large visible surfaces in the same palette transition as the icons without
+    // redrawing or re-decoding the JPEG. These are all bounded opaque RGB565 patches.
+    renderNowPlayingBackdrop(theme);
+    renderArtworkGlow(theme);
+    if (!hasPendingPlayback_) {
+        renderMetadata(nowMs, kText);
+    }
+    renderFooter(nowMs);
+}
+
+void UiController::renderNowPlayingBackdrop(const RenderTheme& theme) {
+    const auto canvas = canvasBackground(theme);
+    // Only repaint canvas that is not covered by artwork, metadata, progress, or controls.
+    // This makes the background visibly travel with the palette without a full-screen redraw.
+    display_.fillRect(0, 0, 320, std::max<std::int32_t>(0, kArtworkY - 5), canvas);
+    display_.fillRect(0, kArtworkY - 5, kArtworkX - 1, kMetadataHeight + 10, canvas);
+    display_.fillRect(kArtworkX + kArtworkSize + 6, kArtworkY - 5,
+                      kMetadataX - (kArtworkX + kArtworkSize + 6), kMetadataHeight + 10, canvas);
+    display_.fillRect(kMetadataX + kMetadataWidth + 3, kArtworkY - 5,
+                      320 - (kMetadataX + kMetadataWidth + 3), kMetadataHeight + 10, canvas);
+    display_.fillRect(0, kMainBottomY, 320, kProgressY - kMainBottomY, canvas);
 }
 
 void UiController::drawTransportIcon(const std::int32_t centerX, const std::int32_t centerY,
-                                     const app::PlaybackStatus status, const std::uint16_t color,
+                                     const app::PlaybackStatus status, const std::uint16_t fill,
+                                     const std::uint16_t outline, const std::uint16_t glyph,
                                      const std::uint8_t pulse) {
-    const auto radius = 13 + pulse;
-    display_.fillCircle(centerX, centerY, radius, kSpotify);
-    display_.drawCircle(centerX, centerY, radius, pulse == 0 ? kAccentDim : kAccent);
+    const auto radius = 10 + pulse;
+    display_.fillCircle(centerX, centerY, radius, fill);
+    display_.drawCircle(centerX, centerY, radius, outline);
     if (status == app::PlaybackStatus::Playing) {
-        display_.fillRect(centerX - 4, centerY - 6, 3, 12, color);
-        display_.fillRect(centerX + 2, centerY - 6, 3, 12, color);
+        display_.fillRect(centerX - 4, centerY - 6, 3, 12, glyph);
+        display_.fillRect(centerX + 2, centerY - 6, 3, 12, glyph);
     } else {
         display_.fillTriangle(centerX - 4, centerY - 7, centerX - 4, centerY + 7, centerX + 7,
-                              centerY, color);
+                              centerY, glyph);
     }
 }
 
 void UiController::renderFooter(const std::uint32_t nowMs) {
-    const auto controlsBackground = blend565(kPanel, kBackground, 225);
-    const auto playBackground = blend565(kPanelRaised, kBackground, 240);
+    const auto theme = renderTheme(nowMs);
+    const auto canvas = canvasBackground(theme);
+    const auto controlsBackground = panelBackground(theme);
+    const auto playBackground = raisedPanelBackground(theme);
     progressPainted_ = false;
-    display_.fillRect(0, 174, 320, 21, blend565(kPanel, kBackground, 105));
-    display_.fillRect(0, 195, 320, 45, controlsBackground);
-    display_.fillRect(118, 195, 84, 45, playBackground);
-    display_.fillRect(0, 195, 320, 1, blend565(kLine, kBackground, 190));
+    display_.fillRect(0, kProgressY, 320, kProgressHeight,
+                      blend565(controlsBackground, canvas, 145));
+    display_.fillRect(0, kControlsY, 320, kControlsHeight, controlsBackground);
+    display_.fillRect(118, kControlsY, 84, kControlsHeight, playBackground);
+    display_.fillRect(0, kControlsY, 320, 1, blend565(theme.secondary, canvas, 92));
     constexpr std::array<std::int16_t, 4> dividers{{64, 118, 202, 256}};
     for (const auto divider : dividers) {
-        display_.drawFastVLine(divider, 199, 36, blend565(kLine, controlsBackground, 175));
+        display_.drawFastVLine(divider, kControlsY + 4, kControlsHeight - 8,
+                               blend565(theme.secondary, controlsBackground, 92));
     }
     renderProgress(nowMs);
 
-    const auto shuffleEnabled = playback_.shuffleKnown && playback_.shuffle;
-    const auto shuffleColor = shuffleEnabled ? kSpotify : kTextMuted;
-    display_.drawLine(20, 204, 25, 204, shuffleColor);
-    display_.drawLine(25, 204, 38, 216, shuffleColor);
-    display_.drawLine(38, 216, 43, 216, shuffleColor);
-    display_.fillTriangle(43, 212, 43, 220, 48, 216, shuffleColor);
-    display_.drawLine(20, 216, 25, 216, shuffleColor);
-    display_.drawLine(25, 216, 38, 204, shuffleColor);
-    display_.drawLine(38, 204, 43, 204, shuffleColor);
-    display_.fillTriangle(43, 200, 43, 208, 48, 204, shuffleColor);
-    drawFitted("SHUFFLE", 32, 227, 58, &fonts::Font0, shuffleColor,
-               lgfx::textdatum_t::top_center);
+    renderControlIcons(nowMs, renderTheme(nowMs), false);
+}
 
-    display_.drawFastVLine(84, 203, 16, kTextMuted);
-    display_.fillTriangle(99, 202, 99, 220, 85, 211, kText);
-    drawFitted("PREV", 91, 227, 48, &fonts::Font0, kTextMuted,
-               lgfx::textdatum_t::top_center);
+void UiController::renderControlIcons(const std::uint32_t nowMs, const RenderTheme& theme,
+                                      const bool clear) {
+    const auto canvas = canvasBackground(theme);
+    const auto controlsBackground = panelBackground(theme);
+    const auto playBackground = raisedPanelBackground(theme);
+    if (clear) {
+        display_.fillRect(0, kControlsY + 1, 64, kControlsHeight - 1, controlsBackground);
+        display_.fillRect(65, kControlsY + 1, 53, kControlsHeight - 1, controlsBackground);
+        display_.fillRect(119, kControlsY, 83, kControlsHeight, playBackground);
+        display_.fillRect(203, kControlsY + 1, 53, kControlsHeight - 1, controlsBackground);
+        display_.fillRect(257, kControlsY + 1, 63, kControlsHeight - 1, controlsBackground);
+        display_.drawFastHLine(119, kControlsY, 83, blend565(theme.secondary, canvas, 92));
+    }
+    const auto shuffleEnabled = playback_.shuffleKnown && playback_.shuffle;
+    const auto shuffleColor =
+        shuffleEnabled ? theme.primary : blend565(theme.secondary, controlsBackground, 120);
+    display_.drawLine(20, 215, 25, 215, shuffleColor);
+    display_.drawLine(25, 215, 38, 227, shuffleColor);
+    display_.drawLine(38, 227, 43, 227, shuffleColor);
+    display_.fillTriangle(43, 223, 43, 231, 48, 227, shuffleColor);
+    display_.drawLine(20, 227, 25, 227, shuffleColor);
+    display_.drawLine(25, 227, 38, 215, shuffleColor);
+    display_.drawLine(38, 215, 43, 215, shuffleColor);
+    display_.fillTriangle(43, 211, 43, 219, 48, 215, shuffleColor);
+
+    display_.drawFastVLine(84, 214, 16, theme.secondary);
+    display_.fillTriangle(99, 213, 99, 231, 85, 222, theme.secondary);
 
     const std::uint8_t pulse =
         transportPulseUntilMs_ != 0 && static_cast<std::int32_t>(nowMs - transportPulseUntilMs_) < 0
             ? static_cast<std::uint8_t>((transportPulseUntilMs_ - nowMs) / 90U)
             : 0;
-    drawTransportIcon(160, 211, playback_.status, kBackground,
+    drawTransportIcon(160, kTransportCenterY, playback_.status, theme.primary, canvas, canvas,
                       std::min<std::uint8_t>(pulse, 3));
-    drawFitted(playback_.status == app::PlaybackStatus::Playing ? "PAUSE" : "PLAY", 160, 227, 74,
-               &fonts::Font0, kText, lgfx::textdatum_t::top_center);
 
-    display_.drawFastVLine(236, 203, 16, kTextMuted);
-    display_.fillTriangle(221, 202, 221, 220, 235, 211, kText);
-    drawFitted("NEXT", 229, 227, 48, &fonts::Font0, kTextMuted,
-               lgfx::textdatum_t::top_center);
+    display_.drawFastVLine(236, 214, 16, theme.secondary);
+    display_.fillTriangle(221, 213, 221, 231, 235, 222, theme.secondary);
 
-    display_.fillCircle(280, 210, 2, kViolet);
-    display_.fillCircle(288, 210, 2, kViolet);
-    display_.fillCircle(296, 210, 2, kViolet);
-    drawFitted("MORE", 288, 227, 58, &fonts::Font0, kTextMuted,
-               lgfx::textdatum_t::top_center);
+    display_.fillCircle(280, kTransportCenterY, 2, theme.secondary);
+    display_.fillCircle(288, kTransportCenterY, 2, theme.secondary);
+    display_.fillCircle(296, kTransportCenterY, 2, theme.secondary);
 }
 
 void UiController::renderProgress(const std::uint32_t nowMs) {
-    const auto footerBackground = blend565(kPanel, kBackground, 105);
+    const auto theme = renderTheme(nowMs);
+    const auto footerBackground = blend565(panelBackground(theme), canvasBackground(theme), 145);
     char position[16];
     char duration[16];
     formatDuration(progress_.position(nowMs), position);
@@ -956,36 +1360,34 @@ void UiController::renderProgress(const std::uint32_t nowMs) {
     const bool positionChanged = !progressPainted_ || std::strcmp(renderedPosition_, position) != 0;
     const bool durationChanged = !progressPainted_ || std::strcmp(renderedDuration_, duration) != 0;
     if (!progressPainted_) {
-        display_.fillRect(0, 174, 320, 21, footerBackground);
-        display_.fillRoundRect(8, 178, 304, 3, 1, kLine);
-        if (progressWidth > 0) {
-            display_.fillRoundRect(8, 178, progressWidth, 3, 1, kAccent);
-            display_.fillCircle(8 + progressWidth, 179, 3, kText);
-        }
-    } else if (progressWidth != renderedProgressWidth_) {
-        const auto start = std::max(8, std::min(renderedProgressWidth_, progressWidth) - 4);
-        const auto end = std::max(start + 1,
-                                  std::min(312, std::max(renderedProgressWidth_, progressWidth) + 4));
-        display_.fillRect(start, 175, end - start, 9, footerBackground);
-        display_.fillRoundRect(start, 178, end - start, 3, 1, kLine);
-        if (progressWidth > 0) {
-            display_.fillRoundRect(8, 178, progressWidth, 3, 1, kAccent);
-            display_.fillCircle(8 + progressWidth, 179, 3, kText);
-        }
+        display_.fillRect(0, kProgressY, 320, kProgressHeight, footerBackground);
+    }
+    if (!progressPainted_ || progressWidth != renderedProgressWidth_) {
+        renderProgressBar(nowMs, renderTheme(nowMs));
     }
     if (positionChanged) {
-        display_.fillRect(0, 184, 70, 11, footerBackground);
-        drawFitted(position, 8, 184, 60, &fonts::Font0, kTextMuted);
+        display_.fillRect(0, 197, 70, 8, footerBackground);
+        drawFitted(position, 8, 197, 60, &fonts::Font0, kTextMuted);
     }
     if (durationChanged) {
-        display_.fillRect(246, 184, 74, 11, footerBackground);
-        drawFitted(duration, 312, 184, 60, &fonts::Font0, kTextMuted,
-                   lgfx::textdatum_t::top_right);
+        display_.fillRect(246, 197, 74, 8, footerBackground);
+        drawFitted(duration, 312, 197, 60, &fonts::Font0, kTextMuted, lgfx::textdatum_t::top_right);
     }
-    renderedProgressWidth_ = progressWidth;
     app::copyText(renderedPosition_, position);
     app::copyText(renderedDuration_, duration);
     progressPainted_ = true;
+}
+
+void UiController::renderProgressBar(const std::uint32_t nowMs, const RenderTheme& theme) {
+    const auto footerBackground = blend565(panelBackground(theme), canvasBackground(theme), 145);
+    const auto progressWidth = static_cast<std::int32_t>(progress_.fraction(nowMs) * 304.0F);
+    display_.fillRect(4, 185, 312, 9, footerBackground);
+    display_.fillRoundRect(8, 188, 304, 3, 1, blend565(theme.background, footerBackground, 115));
+    if (progressWidth > 0) {
+        display_.fillRoundRect(8, 188, progressWidth, 3, 1, theme.primary);
+        display_.fillCircle(8 + progressWidth, 189, 3, theme.foreground);
+    }
+    renderedProgressWidth_ = progressWidth;
 }
 
 void UiController::renderDevice() {
@@ -1030,24 +1432,14 @@ void UiController::renderDevice() {
                kTextMuted, lgfx::textdatum_t::top_center);
 }
 
-void UiController::renderActions() {
+void UiController::renderActions(const std::uint32_t nowMs) {
     drawFitted("Shape the sound", 18, 39, 280, &fonts::Font4, kText);
     drawFitted("Tap a luminous card", 19, 67, 260, &fonts::Font0, kTextMuted);
     display_.fillRoundRect(12, 82, 142, 98, 14, blend565(kPanel, kBackground, 235));
     display_.fillRoundRect(166, 82, 142, 98, 14, blend565(kPanel, kBackground, 235));
-    display_.drawRoundRect(12, 82, 142, 98, 14,
-                           playback_.shuffleKnown && playback_.shuffle ? kAccent : kLine);
-    display_.drawRoundRect(166, 82, 142, 98, 14,
-                           playback_.repeat == app::RepeatMode::Off ? kLine : kViolet);
     drawFitted("SHUFFLE", 83, 93, 125, &fonts::Font0, kTextMuted, lgfx::textdatum_t::top_center);
-    drawFitted(playback_.shuffleKnown ? (playback_.shuffle ? "ON" : "OFF") : "N/A", 83, 119, 125,
-               &fonts::Font4, playback_.shuffleKnown && playback_.shuffle ? kAccent : kText,
-               lgfx::textdatum_t::top_center);
     drawFitted("SMART*", 83, 157, 90, &fonts::Font0, kTextMuted, lgfx::textdatum_t::top_center);
     drawFitted("REPEAT", 237, 93, 125, &fonts::Font0, kTextMuted, lgfx::textdatum_t::top_center);
-    drawFitted(repeatName(playback_.repeat), 237, 119, 125, &fonts::Font2,
-               playback_.repeat == app::RepeatMode::Unknown ? kTextMuted : kAccent,
-               lgfx::textdatum_t::top_center);
     drawFitted("OFF / ONE / ALL", 237, 157, 120, &fonts::Font0, kTextMuted,
                lgfx::textdatum_t::top_center);
     drawFitted("*Smart Shuffle is not exposed by this player", 160, 184, 294, &fonts::Font0,
@@ -1058,10 +1450,36 @@ void UiController::renderActions() {
     drawFitted("ACTIONS", 14, 205, 100, &fonts::Font2, kText);
     drawFitted("Tap a card or close", 14, 224, 190, &fonts::Font0, kTextMuted);
     display_.drawFastVLine(256, 199, 36, blend565(kLine, footerBackground, 175));
-    display_.fillCircle(280, 210, 2, kViolet);
-    display_.fillCircle(288, 210, 2, kViolet);
-    display_.fillCircle(296, 210, 2, kViolet);
-    drawFitted("CLOSE", 288, 227, 58, &fonts::Font0, kTextMuted,
+    renderActionAccents(renderTheme(nowMs), false);
+}
+
+void UiController::renderActionAccents(const RenderTheme& theme, const bool clear) {
+    const auto cardBackground = blend565(kPanel, kBackground, 235);
+    const auto footerBackground = blend565(kPanel, kBackground, 225);
+    if (clear) {
+        display_.fillRect(25, 112, 116, 39, cardBackground);
+        display_.fillRect(179, 112, 116, 39, cardBackground);
+        display_.fillRect(270, 201, 39, 39, footerBackground);
+    }
+    display_.drawRoundRect(12, 82, 142, 98, 14,
+                           playback_.shuffleKnown && playback_.shuffle
+                               ? theme.primary
+                               : blend565(theme.secondary, kLine, 76));
+    display_.drawRoundRect(166, 82, 142, 98, 14,
+                           playback_.repeat == app::RepeatMode::Off
+                               ? blend565(theme.secondary, kLine, 76)
+                               : theme.secondary);
+    drawFitted(playback_.shuffleKnown ? (playback_.shuffle ? "ON" : "OFF") : "N/A", 83, 119, 125,
+               &fonts::Font4,
+               playback_.shuffleKnown && playback_.shuffle ? theme.primary : theme.foreground,
+               lgfx::textdatum_t::top_center);
+    drawFitted(repeatName(playback_.repeat), 237, 119, 125, &fonts::Font2,
+               playback_.repeat == app::RepeatMode::Unknown ? kTextMuted : theme.secondary,
+               lgfx::textdatum_t::top_center);
+    display_.fillCircle(280, 210, 2, theme.secondary);
+    display_.fillCircle(288, 210, 2, theme.secondary);
+    display_.fillCircle(296, 210, 2, theme.secondary);
+    drawFitted("CLOSE", 288, 227, 58, &fonts::Font0, theme.secondary,
                lgfx::textdatum_t::top_center);
 }
 
@@ -1139,6 +1557,7 @@ void UiController::renderAbout() {
 }
 
 void UiController::renderVolumeOverlay(const std::uint32_t nowMs) {
+    const auto theme = renderTheme(nowMs);
     std::uint8_t opacity = 255;
     if (volumeOverlayUntilMs_ > nowMs && volumeOverlayUntilMs_ - nowMs < 300) {
         opacity = static_cast<std::uint8_t>((volumeOverlayUntilMs_ - nowMs) * 255U / 300U);
@@ -1146,19 +1565,22 @@ void UiController::renderVolumeOverlay(const std::uint32_t nowMs) {
     const auto panelColor =
         blend565(kPanelRaised, kBackground, std::max<std::uint8_t>(opacity, 80));
     display_.fillRoundRect(76, 65, 168, 108, 13, panelColor);
-    display_.drawRoundRect(76, 65, 168, 108, 13, blend565(kAccent, panelColor, opacity));
-    drawFitted(volumeOverlayMuted_ ? "MUTED" : "VOLUME", 160, 79, 140, &fonts::Font2,
-               blend565(volumeOverlayMuted_ ? kWarning : kText, panelColor, opacity),
-               lgfx::textdatum_t::top_center);
-    display_.fillRoundRect(94, 112, 132, 10, 4, kLine);
+    display_.drawRoundRect(
+        76, 65, 168, 108, 13,
+        blend565(volumeOverlayMuted_ ? theme.secondary : theme.primary, panelColor, opacity));
+    drawFitted(
+        volumeOverlayMuted_ ? "MUTED" : "VOLUME", 160, 79, 140, &fonts::Font2,
+        blend565(volumeOverlayMuted_ ? theme.secondary : theme.foreground, panelColor, opacity),
+        lgfx::textdatum_t::top_center);
+    display_.fillRoundRect(94, 112, 132, 10, 4, blend565(theme.background, kLine, 95));
     const auto width = static_cast<std::int32_t>(volumeOverlayPercent_ * 132 / 100);
     if (width > 0 && !volumeOverlayMuted_) {
-        display_.fillRoundRect(94, 112, width, 10, 4, blend565(kAccent, panelColor, opacity));
+        display_.fillRoundRect(94, 112, width, 10, 4, blend565(theme.primary, panelColor, opacity));
     }
     char percent[16];
     std::snprintf(percent, sizeof(percent), "%d%%", volumeOverlayPercent_);
-    drawFitted(percent, 160, 135, 110, &fonts::Font4, blend565(kText, panelColor, opacity),
-               lgfx::textdatum_t::top_center);
+    drawFitted(percent, 160, 135, 110, &fonts::Font4,
+               blend565(theme.foreground, panelColor, opacity), lgfx::textdatum_t::top_center);
 }
 
 void UiController::renderToast() {
@@ -1183,24 +1605,28 @@ void UiController::renderFactoryResetOverlay() {
 void UiController::drawFitted(const char* text, const std::int32_t x, const std::int32_t y,
                               const std::int32_t maxWidth, const lgfx::IFont* font,
                               const std::uint16_t color, const lgfx::textdatum_t datum) {
-    char buffer[160];
+    // A queue label can contain two maximum-sized metadata fields plus its
+    // prefix. Keep the whole UTF-8 source until width fitting removes complete
+    // code points below.
+    char buffer[300];
     app::copyText(buffer, text == nullptr ? "" : text);
-    display_.setFont(font);
+    display_.setFont(fontForText(buffer, font));
+    display_.setTextSize(1);
     display_.setTextColor(color);
     display_.setTextDatum(datum);
     auto length = std::strlen(buffer);
-    if (display_.textWidth(buffer) > maxWidth && length > 3) {
-        while (length > 3 && display_.textWidth(buffer) > maxWidth) {
-            --length;
-            while (length > 0 && (static_cast<unsigned char>(buffer[length]) & 0xC0U) == 0x80U) {
+    if (display_.textWidth(buffer) > maxWidth) {
+        constexpr char kEllipsis[] = "...";
+        const auto ellipsisWidth = display_.textWidth(kEllipsis);
+        while (length > 0 && display_.textWidth(buffer) + ellipsisWidth > maxWidth) {
+            do {
                 --length;
-            }
+            } while (length > 0 &&
+                     (static_cast<unsigned char>(buffer[length]) & 0xC0U) == 0x80U);
             buffer[length] = '\0';
         }
-        if (length > 3) {
-            buffer[length - 3] = '.';
-            buffer[length - 2] = '.';
-            buffer[length - 1] = '.';
+        if (ellipsisWidth <= maxWidth && length + sizeof(kEllipsis) <= sizeof(buffer)) {
+            std::memcpy(buffer + length, kEllipsis, sizeof(kEllipsis));
         }
     }
     display_.drawString(buffer, x, y);

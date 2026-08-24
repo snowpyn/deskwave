@@ -103,7 +103,7 @@ after changing an override.
 ## Runtime data
 
 - Configuration: `~/.config/deskwave/`
-- Resized artwork: `~/.cache/deskwave/artwork/`
+- Processed artwork/palette bundles: `~/.cache/deskwave/artwork/`
 - Device database: `~/.local/state/deskwave/devices.sqlite3`
 
 Directories are mode `0700`, and the SQLite file and cache objects are mode
@@ -142,10 +142,38 @@ HTTP(S) sources are supported. Before decoding, the host enforces byte, redirect
 DNS, address, and pixel limits. Private/special-purpose HTTP destinations are
 blocked by default to prevent an untrusted media application from turning the
 host into a LAN probe. Images are normalized to high-quality non-progressive
-320×320 JPEG, content-addressed, and evicted to the configured cache budget.
+320×320 JPEG. The host validates the completed source, extracts the primary,
+secondary, background, and foreground colors, hashes the normalized JPEG, and
+atomically stores the JPEG and palette as one content-addressed cache bundle.
+The bundle is `<artwork_id>.jpg` plus schema-1
+`<artwork_id>.palette.json`, whose embedded `artwork_id` and complete theme are
+validated together. A cache hit reuses both outputs, so the cover and palette
+cannot diverge.
+
+Artwork resolution is generation-aware. A newer track supersedes outstanding
+work, and a late result is discarded before it can update state. Temporary
+HTTP/HTTPS failures receive three total attempts, with 250 ms then 750 ms
+backoff. When MPRIS publishes a new track before its `mpris:artUrl`, the service
+allows a 1.0-second metadata grace period and keeps the previous valid
+artwork/theme and its prior promoted generation instead of publishing a blank.
+The same retained presentation survives pause, brief metadata gaps, and short
+D-Bus or host reconnects. A resolved bundle or authoritative fallback promotes
+the new intent generation atomically; rapid skips can therefore leave harmless
+generation gaps. A track confirmed to have no usable artwork receives the
+branded fallback and fallback theme deliberately.
+
+The ESP32 downloads only the authenticated normalized JPEG. It streams into a
+temporary file, checks the declared bounds and JPEG structure, verifies the
+complete file's SHA-256 against `artwork_id`, and atomically installs it only
+for the matching `artwork_generation`.
 
 Set `allow_private_artwork_hosts = true` only if a trusted player genuinely
 serves artwork from a private address and the SSRF tradeoff is understood.
+
+At `DEBUG` level, sanitized artwork lifecycle logs include the track/update
+generation, delayed-metadata grace, source scheme, retry, cache hit/miss,
+validation, stale-result rejection, and fallback decision. Full source URLs,
+paths containing media-library details, and bearer tokens are not logged.
 
 ## Diagnostics
 

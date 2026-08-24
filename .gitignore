@@ -15,6 +15,7 @@ dist/
 build/
 .venv/
 venv/
+.superdesign/tmp/
 
 # Local configuration and secrets
 .env

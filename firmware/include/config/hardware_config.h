@@ -58,13 +58,18 @@ inline constexpr bool kHasRgbStatusLed = true;
 inline constexpr int kStatusLedRed = 4;
 inline constexpr int kStatusLedGreen = 16;
 inline constexpr int kStatusLedBlue = 17;
+// Per-channel white balance for the on-board common-anode RGB LED. The green
+// and blue dies are brighter than red at the same PWM duty on this board.
+inline constexpr std::uint8_t kStatusLedRedCalibration = 255;
+inline constexpr std::uint8_t kStatusLedGreenCalibration = 176;
+inline constexpr std::uint8_t kStatusLedBlueCalibration = 240;
 inline constexpr int kStatusLed = 17;
 inline constexpr int kBuzzer = -1;
 
 inline constexpr std::array kAssignedPins{
-    kDisplaySclk, kDisplayMosi, kDisplayMiso, kDisplayCs, kDisplayDc, kBacklight,
-    kTouchCs,       kTouchIrq,      kTouchDin,     kTouchMiso, kTouchClk,
-    kStatusLedRed,  kStatusLedGreen, kStatusLedBlue,
+    kDisplaySclk, kDisplayMosi,  kDisplayMiso,    kDisplayCs,     kDisplayDc,
+    kBacklight,   kTouchCs,      kTouchIrq,       kTouchDin,      kTouchMiso,
+    kTouchClk,    kStatusLedRed, kStatusLedGreen, kStatusLedBlue,
 };
 #else
 inline constexpr int kDisplaySclk = 12;
@@ -94,6 +99,9 @@ inline constexpr bool kHasRgbStatusLed = false;
 inline constexpr int kStatusLedRed = -1;
 inline constexpr int kStatusLedGreen = -1;
 inline constexpr int kStatusLedBlue = 17;
+inline constexpr std::uint8_t kStatusLedRedCalibration = 255;
+inline constexpr std::uint8_t kStatusLedGreenCalibration = 255;
+inline constexpr std::uint8_t kStatusLedBlueCalibration = 255;
 inline constexpr int kStatusLed = 17;
 inline constexpr int kBuzzer = -1;
 

@@ -193,13 +193,13 @@ core::PhysicalControl InputManager::touchControlAt(const std::int16_t x,
                 return core::PhysicalControl::RepeatButton;
             }
         }
-        if (y >= 195 && x >= 256) {
+        if (y >= 205 && x >= 256) {
             return core::PhysicalControl::MoreButton;
         }
         return core::PhysicalControl::NoControl;
     }
     // Match the five full-height footer targets drawn by the now-playing UI.
-    if (controlContext_ == core::ControlContext::Playback && y >= 190) {
+    if (controlContext_ == core::ControlContext::Playback && y >= 205) {
         if (x < 64) {
             return core::PhysicalControl::ShuffleButton;
         }
@@ -303,8 +303,7 @@ void InputManager::pollTouch(const std::uint32_t nowMs) {
                 core::Gesture::ShortPress);
         }
     } else if (!touchLongEmitted_) {
-        const auto gesture = duration >= 700 ? core::Gesture::LongPress
-                                             : core::Gesture::ShortPress;
+        const auto gesture = duration >= 700 ? core::Gesture::LongPress : core::Gesture::ShortPress;
         publish(touchControl_, gesture);
     }
     touchActive_ = false;

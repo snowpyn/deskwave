@@ -64,14 +64,19 @@ classified only after three spatially stable samples, preventing the noisy
 first ADC sample from collapsing every target into the center play/pause area.
 
 The board's common-anode RGB LED is independent of the TFT backlight on
-GPIO 21. DeskWave drives its three active-low channels with a slow ambient
-rainbow; the TFT backlight remains a steady single-color brightness channel.
+GPIO 21. DeskWave drives its three active-low channels from the same eased
+artwork-primary color used by the Now Playing screen. Firmware converts that
+sRGB color to linear PWM and applies the channel-balance constants in
+`hardware_config.h` for the verified board. The RGB output is brightness-capped,
+scales down when the display idles, and may flash red for a semantic Error
+state. The TFT backlight remains a steady single-color brightness channel;
+"RGB sync" refers to the separate rear RGB LED.
 
 The footer's visible boundaries and touch hitboxes are identical: Shuffle
 0–63, Previous 64–117, Play/Pause 118–201, Next 202–255, and More 256–319.
-The now-playing header and queue card are informational except for the
-upper-right status target, which opens the Actions screen. `MORE` also opens or
-closes Actions.
+The headerless Now Playing artwork and queue card are informational. The tiny
+upper-right `LINK`/`RETRY` status target opens the Actions screen; the footer
+More target also opens or closes Actions.
 
 ### Backlight caution
 

@@ -1,8 +1,11 @@
+import pytest
+
 from deskwave_host.models import (
     PlaybackState,
     PlaybackStatus,
     PlayerSummary,
     QueueEntry,
+    ThemePalette,
     select_active_player,
 )
 
@@ -45,3 +48,54 @@ def test_state_payload_contains_bounded_upcoming_queue() -> None:
         "Track 2",
         "Track 3",
     ]
+
+
+def test_state_payload_contains_strict_theme_and_generation() -> None:
+    theme = ThemePalette(
+        primary=0x123456,
+        secondary=0x654321,
+        background=0x010203,
+        foreground=0xFAFBFC,
+    )
+    state = PlaybackState(theme=theme, artwork_generation=17)
+
+    payload = state.to_payload()
+
+    assert payload["theme"] == {
+        "primary": 0x123456,
+        "secondary": 0x654321,
+        "background": 0x010203,
+        "foreground": 0xFAFBFC,
+    }
+    assert payload["artwork_generation"] == 17
+    assert PlaybackState().to_payload()["theme"] is None
+
+
+@pytest.mark.parametrize("value", [-1, 0x1000000, 1.5, True])
+def test_theme_palette_rejects_non_rgb_values(value: object) -> None:
+    with pytest.raises(ValueError, match="packed 24-bit RGB"):
+        ThemePalette(
+            primary=value,  # type: ignore[arg-type]
+            secondary=0,
+            background=0,
+            foreground=0,
+        )
+
+
+def test_theme_and_generation_participate_in_content_identity() -> None:
+    first = PlaybackState(
+        theme=ThemePalette(0x112233, 0x445566, 0x010203, 0xF0F0F0),
+        artwork_generation=1,
+    )
+    second = PlaybackState(
+        theme=ThemePalette(0x112234, 0x445566, 0x010203, 0xF0F0F0),
+        artwork_generation=2,
+    )
+
+    assert first.content_key() != second.content_key()
+
+
+@pytest.mark.parametrize("generation", [-1, 0x1_0000_0000, True])
+def test_artwork_generation_is_strict_uint32(generation: object) -> None:
+    with pytest.raises(ValueError, match="unsigned 32-bit"):
+        PlaybackState(artwork_generation=generation)  # type: ignore[arg-type]

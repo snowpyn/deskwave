@@ -37,6 +37,7 @@ POSITION_SYNC_SECONDS = 2.0
 MAX_SNAPSHOT_FAILURES = 3
 MAX_TRACKLIST_ITEMS = 64
 MAX_QUEUE_ENTRIES = 4
+MPRIS_RECONNECT_STATE_GRACE_SECONDS = 5.0
 
 
 def _value(properties: dict[str, Any], key: str, default: Any = None) -> Any:
@@ -221,6 +222,7 @@ class MPRISBackend(MediaBackend):
         self._last_scan = 0.0
         self._last_publish = 0.0
         self._muted_restore_volume = 0.5
+        self._connection_failure_since: float | None = None
 
     async def start(self, callback: StateCallback) -> None:
         if self._poll_task is not None:
@@ -363,6 +365,7 @@ class MPRISBackend(MediaBackend):
                     await self._connect_bus()
                     reconnect_delay = 1.0
                 await self._poll_once()
+                self._connection_failure_since = None
             except asyncio.CancelledError:
                 raise
             except Exception as error:  # boundary: D-Bus library exposes varied connection errors
@@ -374,11 +377,27 @@ class MPRISBackend(MediaBackend):
                 self._players.clear()
                 self._snapshots.clear()
                 self._snapshot_failures.clear()
-                await self._set_empty_state()
+                await self._hold_state_during_reconnect()
                 await self._wait(reconnect_delay)
                 reconnect_delay = min(30.0, reconnect_delay * 2)
                 continue
             await self._wait(POLL_SECONDS)
+
+    async def _hold_state_during_reconnect(self) -> None:
+        """Keep the last real snapshot through a short session-bus interruption."""
+
+        now = monotonic()
+        if self._connection_failure_since is None:
+            self._connection_failure_since = now
+        elapsed = now - self._connection_failure_since
+        if elapsed < MPRIS_RECONNECT_STATE_GRACE_SECONDS:
+            LOGGER.debug(
+                "Retaining the last MPRIS state during reconnect (%.1fs/%.1fs)",
+                elapsed,
+                MPRIS_RECONNECT_STATE_GRACE_SECONDS,
+            )
+            return
+        await self._set_empty_state()
 
     async def _wait(self, delay: float) -> None:
         self._wake_event.clear()

@@ -2,11 +2,13 @@
 
 #include <array>
 
+#include "app/messages.h"
 #include "deskwave/core/application_state.h"
 #include "deskwave/core/backoff.h"
 #include "deskwave/core/input_logic.h"
 #include "deskwave/core/pin_validation.h"
 #include "deskwave/core/progress.h"
+#include "deskwave/core/theme.h"
 
 using namespace deskwave::core;
 
@@ -139,6 +141,93 @@ void test_pin_validation_detects_conflicts_and_unsafe_defaults() {
     TEST_ASSERT_FALSE(pinsAvoidUnsafeEsp32S3Defaults(unsafePins));
 }
 
+void test_theme_rgb_packing_and_interpolation() {
+    const Rgb888 color = unpackRgb(0x12ABEFU);
+    TEST_ASSERT_EQUAL_UINT8(0x12, color.red);
+    TEST_ASSERT_EQUAL_UINT8(0xAB, color.green);
+    TEST_ASSERT_EQUAL_UINT8(0xEF, color.blue);
+    TEST_ASSERT_EQUAL_UINT32(0x12ABEFU, packRgb(color));
+
+    const Rgb888 black{};
+    const Rgb888 white{255, 255, 255};
+    const auto midpoint = interpolateColor(black, white, 128);
+    TEST_ASSERT_EQUAL_UINT8(128, midpoint.red);
+    TEST_ASSERT_EQUAL_UINT8(128, midpoint.green);
+    TEST_ASSERT_EQUAL_UINT8(128, midpoint.blue);
+    TEST_ASSERT_TRUE(colorsEqual(black, interpolateColor(black, white, 0)));
+    TEST_ASSERT_TRUE(colorsEqual(white, interpolateColor(black, white, 255)));
+
+    const Rgb888 accent{200, 100, 50};
+    const auto halfBrightness = scaleColor(accent, 128);
+    TEST_ASSERT_EQUAL_UINT8(100, halfBrightness.red);
+    TEST_ASSERT_EQUAL_UINT8(50, halfBrightness.green);
+    TEST_ASSERT_EQUAL_UINT8(25, halfBrightness.blue);
+    TEST_ASSERT_TRUE(colorsEqual(Rgb888{}, scaleColor(accent, 0)));
+    TEST_ASSERT_TRUE(colorsEqual(accent, scaleColor(accent, 255)));
+
+    const auto ledMidpoint = rgbLedPwm(Rgb888{128, 128, 128}, 255, Rgb888{255, 255, 255});
+    TEST_ASSERT_EQUAL_UINT8(64, ledMidpoint.red);
+    TEST_ASSERT_EQUAL_UINT8(64, ledMidpoint.green);
+    TEST_ASSERT_EQUAL_UINT8(64, ledMidpoint.blue);
+    TEST_ASSERT_TRUE(colorsEqual(Rgb888{}, rgbLedPwm(accent, 0, Rgb888{255, 255, 255})));
+    TEST_ASSERT_TRUE(colorsEqual(Rgb888{255, 176, 240},
+                                 rgbLedPwm(white, 255, Rgb888{255, 176, 240})));
+}
+
+void test_theme_interruption_is_continuous_and_eased() {
+    const ThemePalette first{{10, 20, 30}, {40, 50, 60}, {1, 2, 3}, {240, 241, 242}};
+    const ThemePalette second{{110, 120, 130}, {140, 150, 160}, {11, 12, 13}, {230, 231, 232}};
+    const ThemePalette third{{210, 200, 190}, {180, 170, 160}, {21, 22, 23}, {220, 221, 222}};
+    const auto interrupted = interpolateTheme(first, second, 96);
+    TEST_ASSERT_TRUE(themesEqual(interrupted, interpolateTheme(interrupted, third, 0)));
+    TEST_ASSERT_TRUE(themesEqual(third, interpolateTheme(interrupted, third, 255)));
+
+    TEST_ASSERT_EQUAL_UINT8(0, easedProgress(0, 750));
+    TEST_ASSERT_UINT8_WITHIN(4, 128, easedProgress(375, 750));
+    TEST_ASSERT_EQUAL_UINT8(255, easedProgress(750, 750));
+    const std::uint32_t started = UINT32_MAX - 15U;
+    const std::uint32_t now = 16U;
+    TEST_ASSERT_EQUAL_UINT8(255, easedProgress(static_cast<std::uint32_t>(now - started), 32));
+}
+
+void test_theme_softening_desaturates_and_dims() {
+    const Rgb888 red{255, 0, 0};
+    const Rgb888 black{};
+    const auto neutral = softenColor(red, black, 255, 0);
+    TEST_ASSERT_EQUAL_UINT8(neutral.red, neutral.green);
+    TEST_ASSERT_EQUAL_UINT8(neutral.green, neutral.blue);
+    TEST_ASSERT_TRUE(neutral.red > 0);
+    TEST_ASSERT_TRUE(colorsEqual(black, softenColor(red, black, 0, 255)));
+    TEST_ASSERT_TRUE(colorsEqual(red, softenColor(red, black, 0, 0)));
+}
+
+void test_theme_and_generation_survive_artwork_messages() {
+    constexpr char artworkA[] = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    constexpr char artworkB[] = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    deskwave::app::PlaybackSnapshot snapshot;
+    snapshot.artworkGeneration = 41;
+    snapshot.hasTheme = true;
+    snapshot.theme = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}, {240, 241, 242}};
+
+    deskwave::app::ArtworkRequest request;
+    request.artworkGeneration = snapshot.artworkGeneration;
+    request.hasTheme = snapshot.hasTheme;
+    request.theme = snapshot.theme;
+    deskwave::app::ArtworkResult result;
+    result.artworkGeneration = request.artworkGeneration;
+    result.hasTheme = request.hasTheme;
+    result.theme = request.theme;
+
+    TEST_ASSERT_EQUAL_UINT32(41, result.artworkGeneration);
+    TEST_ASSERT_TRUE(result.hasTheme);
+    TEST_ASSERT_TRUE(themesEqual(snapshot.theme, result.theme));
+    TEST_ASSERT_EQUAL_UINT32(0, deskwave::app::PlaybackSnapshot{}.artworkGeneration);
+    TEST_ASSERT_TRUE(deskwave::app::artworkIdentityMatches(artworkA, 41, artworkA, 41));
+    TEST_ASSERT_FALSE(deskwave::app::artworkIdentityMatches(artworkA, 41, artworkA, 42));
+    TEST_ASSERT_FALSE(deskwave::app::artworkIdentityMatches(artworkA, 41, artworkB, 41));
+    TEST_ASSERT_FALSE(deskwave::app::artworkIdentityMatches("", 41, artworkA, 41));
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_state_machine_happy_path_and_recovery);
@@ -149,5 +238,9 @@ int main(int, char**) {
     RUN_TEST(test_progress_extrapolates_only_while_playing_and_clamps);
     RUN_TEST(test_backoff_is_bounded_and_resettable);
     RUN_TEST(test_pin_validation_detects_conflicts_and_unsafe_defaults);
+    RUN_TEST(test_theme_rgb_packing_and_interpolation);
+    RUN_TEST(test_theme_interruption_is_continuous_and_eased);
+    RUN_TEST(test_theme_softening_desaturates_and_dims);
+    RUN_TEST(test_theme_and_generation_survive_artwork_messages);
     return UNITY_END();
 }

@@ -44,6 +44,8 @@ class Application {
     void persistSettingsIfDue(std::uint32_t nowMs);
     void updateHealth(std::uint32_t nowMs);
     void updateStatusLed(std::uint32_t nowMs);
+    void syncArtworkProtection();
+    void acknowledgeArtworkResult(const ArtworkResult& result);
     [[nodiscard]] static bool hostState(core::SystemState state) noexcept;
 
     storage::SettingsStore& settingsStore_;
@@ -72,6 +74,8 @@ class Application {
     std::uint32_t factoryResetChordStartedAtMs_{0};
     std::int16_t optimisticVolumePercent_{-1};
     std::uint8_t selectedPlayer_{0};
+    char reportedActiveArtworkId_[65]{};
+    char reportedStagedArtworkId_[65]{};
     bool hasPlayback_{false};
     bool settingsDirty_{false};
     bool factoryResetChordTiming_{false};

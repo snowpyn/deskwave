@@ -25,35 +25,13 @@ constexpr std::uint32_t kPlayerRefreshMs = 5'000;
 constexpr std::int32_t kSeekStepMs = 10'000;
 
 #if defined(DESKWAVE_ESP32_D0WD_V3)
-void writeRgbStatusLed(const std::uint8_t red, const std::uint8_t green,
-                       const std::uint8_t blue) {
+constexpr std::uint8_t kRgbLightMaximum = 150;
+
+void writeRgbStatusLed(const std::uint8_t red, const std::uint8_t green, const std::uint8_t blue) {
     // The CYD RGB LED is common-anode, so PWM values are inverted.
     analogWrite(hardware::kStatusLedRed, 255U - red);
     analogWrite(hardware::kStatusLedGreen, 255U - green);
     analogWrite(hardware::kStatusLedBlue, 255U - blue);
-}
-
-void rainbowStatusColor(const std::uint8_t hue, std::uint8_t& red, std::uint8_t& green,
-                        std::uint8_t& blue) {
-    if (hue < 85U) {
-        red = static_cast<std::uint8_t>(255U - hue * 3U);
-        green = static_cast<std::uint8_t>(hue * 3U);
-        blue = 0;
-    } else if (hue < 170U) {
-        const auto offset = static_cast<std::uint8_t>(hue - 85U);
-        red = 0;
-        green = static_cast<std::uint8_t>(255U - offset * 3U);
-        blue = static_cast<std::uint8_t>(offset * 3U);
-    } else {
-        const auto offset = static_cast<std::uint8_t>(hue - 170U);
-        red = static_cast<std::uint8_t>(offset * 3U);
-        green = 0;
-        blue = static_cast<std::uint8_t>(255U - offset * 3U);
-    }
-    constexpr std::uint16_t brightness = 150;
-    red = static_cast<std::uint8_t>(red * brightness / 255U);
-    green = static_cast<std::uint8_t>(green * brightness / 255U);
-    blue = static_cast<std::uint8_t>(blue * brightness / 255U);
 }
 #endif
 
@@ -167,9 +145,39 @@ void Application::loop() {
             ui_.setDimmed(true, settings_.brightness);
         }
     }
-    updateStatusLed(now);
     ui_.tick(now);
+    // Render/transition the authoritative theme first so the physical RGB LED
+    // samples the exact accent shown in this same frame.
+    updateStatusLed(now);
+    syncArtworkProtection();
     vTaskDelay(pdMS_TO_TICKS(2));
+}
+
+void Application::syncArtworkProtection() {
+    const char* activeArtworkId = ui_.activeArtworkId();
+    const char* stagedArtworkId = ui_.stagedArtworkId();
+    if (std::strcmp(reportedActiveArtworkId_, activeArtworkId) == 0 &&
+        std::strcmp(reportedStagedArtworkId_, stagedArtworkId) == 0) {
+        return;
+    }
+    copyText(reportedActiveArtworkId_, activeArtworkId);
+    copyText(reportedStagedArtworkId_, stagedArtworkId);
+    artworkManager_.setArtworkProtection(reportedActiveArtworkId_, reportedStagedArtworkId_);
+    DW_LOG_DEBUG("artwork", "Protected active %.12s staged %.12s",
+                 reportedActiveArtworkId_[0] == '\0' ? "fallback" : reportedActiveArtworkId_,
+                 reportedStagedArtworkId_[0] == '\0' ? "none" : reportedStagedArtworkId_);
+}
+
+void Application::acknowledgeArtworkResult(const ArtworkResult& result) {
+    const char* activeArtworkId = ui_.activeArtworkId();
+    const char* stagedArtworkId = ui_.stagedArtworkId();
+    if (!artworkManager_.acknowledgeResult(result, activeArtworkId, stagedArtworkId)) {
+        DW_LOG_ERROR("artwork", "Could not acknowledge published %.12s generation %lu",
+                     result.artworkId, static_cast<unsigned long>(result.artworkGeneration));
+        return;
+    }
+    copyText(reportedActiveArtworkId_, activeArtworkId);
+    copyText(reportedStagedArtworkId_, stagedArtworkId);
 }
 
 void Application::consumeQueues(const std::uint32_t nowMs) {
@@ -201,11 +209,17 @@ void Application::consumeQueues(const std::uint32_t nowMs) {
         hasPlayback_ = true;
         optimisticVolumePercent_ = snapshot.volumePercent;
         ui_.setPlayback(snapshot, nowMs);
+        syncArtworkProtection();
     }
 
     ArtworkResult artwork;
     if (xQueueReceive(artworkResultQueue_, &artwork, 0) == pdTRUE) {
         ui_.setArtwork(artwork, nowMs);
+        if (artwork.success) {
+            acknowledgeArtworkResult(artwork);
+        } else {
+            syncArtworkProtection();
+        }
     }
 
     CommandFeedback feedback;
@@ -654,12 +668,16 @@ void Application::updateStatusLed(const std::uint32_t nowMs) {
         writeRgbStatusLed((nowMs / 150U) % 2U == 0 ? 180 : 0, 0, 0);
         return;
     }
-    std::uint8_t red = 0;
-    std::uint8_t green = 0;
-    std::uint8_t blue = 0;
-    // One complete, fluid hue cycle every 9.7 seconds.
-    rainbowStatusColor(static_cast<std::uint8_t>((nowMs / 38U) & 0xFFU), red, green, blue);
-    writeRgbStatusLed(red, green, blue);
+    auto scale = static_cast<std::uint8_t>(
+        (static_cast<std::uint16_t>(settings_.brightness) * kRgbLightMaximum + 127U) / 255U);
+    if (dimmed_) {
+        scale = static_cast<std::uint8_t>(std::max<unsigned>(4U, scale / 5U));
+    }
+    const core::Rgb888 calibration{hardware::kStatusLedRedCalibration,
+                                   hardware::kStatusLedGreenCalibration,
+                                   hardware::kStatusLedBlueCalibration};
+    const auto light = core::rgbLedPwm(ui_.lightColor(nowMs), scale, calibration);
+    writeRgbStatusLed(light.red, light.green, light.blue);
 #else
     bool enabled = false;
     if (deviceStatus_.hostConnected) {

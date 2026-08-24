@@ -7,6 +7,7 @@ from typing import Any
 from aiohttp import ClientWebSocketResponse, WSMsgType
 from aiohttp.test_utils import TestClient, TestServer
 from conftest import FakeBackend
+from PIL import Image
 
 from deskwave_host.api import create_app
 from deskwave_host.artwork import ArtworkCache
@@ -43,12 +44,16 @@ async def receive_type(websocket: ClientWebSocketResponse, expected: str) -> dic
 async def test_pair_control_disconnect_and_reconnect(
     host_config: HostConfig, tmp_path: Path
 ) -> None:
+    cover = tmp_path / "cover.png"
+    Image.new("RGB", (640, 480), color=(35, 100, 190)).save(cover, format="PNG")
     initial = PlaybackState(
         title="A real track",
         artists=("Artist",),
         status=PlaybackStatus.PLAYING,
+        artwork_url=cover.as_uri(),
         player_id="org.mpris.MediaPlayer2.test",
         player_name="Test Player",
+        track_id="track-1",
         can_control=True,
     )
     backend = FakeBackend(initial)
@@ -65,7 +70,17 @@ async def test_pair_control_disconnect_and_reconnect(
         hello = await receive_type(websocket, "hello")
         assert hello["payload"]["protocol"] == 1
         state = await receive_type(websocket, "playback_state")
+        if state["payload"]["theme"] is None:
+            state = await receive_type(websocket, "playback_state")
         assert state["payload"]["title"] == "A real track"
+        assert state["payload"]["artwork_id"] is not None
+        assert state["payload"]["artwork_generation"] == 1
+        assert set(state["payload"]["theme"]) == {
+            "primary",
+            "secondary",
+            "background",
+            "foreground",
+        }
 
         await websocket.send_str(json.dumps(make_message("list_players", 43, {})))
         player_list = await receive_type(websocket, "players")
@@ -85,6 +100,9 @@ async def test_pair_control_disconnect_and_reconnect(
         await receive_type(reconnected, "hello")
         recovered = await receive_type(reconnected, "playback_state")
         assert recovered["payload"]["status"] == "paused"
+        assert recovered["payload"]["artwork_id"] == state["payload"]["artwork_id"]
+        assert recovered["payload"]["theme"] == state["payload"]["theme"]
+        assert recovered["payload"]["artwork_generation"] == 1
         for _ in range(3):
             await reconnected.send_bytes(b"unsupported")
             invalid = await receive_type(reconnected, "error")
