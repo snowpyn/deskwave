@@ -24,6 +24,7 @@ struct ThemePalette {
 [[nodiscard]] Rgb888 interpolateColor(const Rgb888& from, const Rgb888& to,
                                       std::uint8_t amount) noexcept;
 [[nodiscard]] Rgb888 scaleColor(const Rgb888& color, std::uint8_t scale) noexcept;
+[[nodiscard]] Rgb888 normalizeColor(const Rgb888& color) noexcept;
 [[nodiscard]] Rgb888 rgbLedPwm(const Rgb888& srgb, std::uint8_t intensity,
                                const Rgb888& calibration) noexcept;
 [[nodiscard]] ThemePalette interpolateTheme(const ThemePalette& from, const ThemePalette& to,

@@ -160,6 +160,9 @@ responses. Do not expose the fixture outside the trusted test LAN.
       background through a track transition, scales down with idle dimming, and
       does not continue an unrelated rainbow cycle. Triggering Error still
       produces its red override.
+- [ ] Red-, green-, blue-, and neutral-dominant covers exercise all three RGB
+      channels; dark canvas colors remain visibly distinct instead of collapsing
+      to blue-only output.
 - [ ] Play tracks with Japanese-only and mixed Japanese/Latin titles, artists,
       and queue entries (for example `夜に駆ける` / `YOASOBI`). Japanese glyphs
       render instead of boxes or mojibake, fitted rows end with a clean ellipsis,

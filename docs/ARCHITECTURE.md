@@ -186,9 +186,11 @@ snapshots and local actions from the application coordinator.
   top-right `LINK`/`RETRY` indicator remains.
 - The entire exposed Now Playing canvas uses a dark, muted artwork-derived
   support color, and the CYD physical RGB light samples that final rendered
-  canvas color at runtime. Its sRGB value is converted to linear LED PWM and
-  balanced for the board's three dies before brightness scaling. Display
-  dimming scales light intensity; Error retains its red semantic override.
+  canvas color at runtime. Firmware normalizes its channel ratios so the dark
+  canvas remains visible across all three LED dies, then converts the result to
+  linear LED PWM and applies per-die balance before capped brightness scaling.
+  Display dimming scales light intensity; Error retains its red semantic
+  override.
 - UTF-8 metadata containing non-ASCII characters selects LovyanGFX's complete
   proportional Japanese font. The title renderer measures and scrolls with that
   font, while fitted labels remove whole UTF-8 code points before adding an

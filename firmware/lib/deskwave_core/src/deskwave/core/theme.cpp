@@ -55,6 +55,18 @@ Rgb888 scaleColor(const Rgb888& color, const std::uint8_t scale) noexcept {
     return {scaled(color.red), scaled(color.green), scaled(color.blue)};
 }
 
+Rgb888 normalizeColor(const Rgb888& color) noexcept {
+    const auto peak = std::max({color.red, color.green, color.blue});
+    if (peak == 0) {
+        return {};
+    }
+    const auto normalized = [peak](const std::uint8_t channel) {
+        return static_cast<std::uint8_t>((static_cast<std::uint32_t>(channel) * 255U + peak / 2U) /
+                                         peak);
+    };
+    return {normalized(color.red), normalized(color.green), normalized(color.blue)};
+}
+
 Rgb888 rgbLedPwm(const Rgb888& srgb, const std::uint8_t intensity,
                  const Rgb888& calibration) noexcept {
     // TFT theme values are sRGB, but LED PWM duty controls approximately linear

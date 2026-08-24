@@ -165,6 +165,14 @@ void test_theme_rgb_packing_and_interpolation() {
     TEST_ASSERT_TRUE(colorsEqual(Rgb888{}, scaleColor(accent, 0)));
     TEST_ASSERT_TRUE(colorsEqual(accent, scaleColor(accent, 255)));
 
+    TEST_ASSERT_TRUE(colorsEqual(Rgb888{}, normalizeColor(Rgb888{})));
+    TEST_ASSERT_TRUE(colorsEqual(Rgb888{255, 128, 64}, normalizeColor(Rgb888{64, 32, 16})));
+    TEST_ASSERT_TRUE(colorsEqual(Rgb888{220, 251, 255}, normalizeColor(Rgb888{57, 65, 66})));
+    TEST_ASSERT_TRUE(colorsEqual(Rgb888{79, 71, 100}, rgbLedPwm(normalizeColor(Rgb888{57, 65, 66}),
+                                                                106, Rgb888{255, 176, 240})));
+    TEST_ASSERT_TRUE(colorsEqual(Rgb888{106, 9, 3}, rgbLedPwm(normalizeColor(Rgb888{90, 32, 16}),
+                                                              106, Rgb888{255, 176, 240})));
+
     const auto ledMidpoint = rgbLedPwm(Rgb888{128, 128, 128}, 255, Rgb888{255, 255, 255});
     TEST_ASSERT_EQUAL_UINT8(64, ledMidpoint.red);
     TEST_ASSERT_EQUAL_UINT8(64, ledMidpoint.green);

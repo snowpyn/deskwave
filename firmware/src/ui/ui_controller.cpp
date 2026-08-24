@@ -218,7 +218,7 @@ UiController::RenderTheme UiController::renderTheme(const std::uint32_t nowMs) c
 
 core::Rgb888 UiController::lightColor(const std::uint32_t nowMs) const noexcept {
     if (!hasPlayback_) {
-        return rgb888(kBackground);
+        return {};
     }
     // Sample the final RGB565 canvas rather than the palette's brighter primary role.
     // This includes the same track interpolation and resting-state softening that the
