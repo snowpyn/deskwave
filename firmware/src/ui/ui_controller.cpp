@@ -96,6 +96,17 @@ constexpr std::uint16_t rgb565(const core::Rgb888 color) {
     return rgb565(color.red, color.green, color.blue);
 }
 
+constexpr core::Rgb888 rgb888(const std::uint16_t color) {
+    const auto red = static_cast<std::uint8_t>((color >> 11U) & 0x1FU);
+    const auto green = static_cast<std::uint8_t>((color >> 5U) & 0x3FU);
+    const auto blue = static_cast<std::uint8_t>(color & 0x1FU);
+    return {
+        static_cast<std::uint8_t>((red << 3U) | (red >> 2U)),
+        static_cast<std::uint8_t>((green << 2U) | (green >> 4U)),
+        static_cast<std::uint8_t>((blue << 3U) | (blue >> 2U)),
+    };
+}
+
 std::uint8_t scaledAmount(const std::uint8_t amount, const std::uint8_t scale) {
     return static_cast<std::uint8_t>((static_cast<std::uint16_t>(amount) * scale + 127U) / 255U);
 }
@@ -207,13 +218,13 @@ UiController::RenderTheme UiController::renderTheme(const std::uint32_t nowMs) c
 
 core::Rgb888 UiController::lightColor(const std::uint32_t nowMs) const noexcept {
     if (!hasPlayback_) {
-        return kFallbackTheme.primary;
+        return rgb888(kBackground);
     }
-    const auto palette = sampledTheme(nowMs);
-    const auto rest = sampledRestAmount(nowMs);
-    return core::softenColor(palette.primary, palette.background,
-                             scaledAmount(kRestDesaturation, rest),
-                             scaledAmount(kRestBackgroundBlend, rest));
+    // Sample the final RGB565 canvas rather than the palette's brighter primary role.
+    // This includes the same track interpolation and resting-state softening that the
+    // display renders, and expanding that actual panel value avoids a second color path
+    // drifting from the visible song background through rounding or blend changes.
+    return rgb888(canvasBackground(renderTheme(nowMs)));
 }
 
 std::uint16_t UiController::canvasBackground(const RenderTheme& theme) const noexcept {

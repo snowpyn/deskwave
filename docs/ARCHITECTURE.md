@@ -185,10 +185,10 @@ snapshots and local actions from the application coordinator.
   cover and reflowed metadata occupy the reclaimed space, while only a compact
   top-right `LINK`/`RETRY` indicator remains.
 - The entire exposed Now Playing canvas uses a dark, muted artwork-derived
-  support color, and the CYD physical RGB light samples the same eased primary
-  color at runtime. Its sRGB value is converted to linear LED PWM and balanced
-  for the board's three dies before brightness scaling. Display dimming scales
-  light intensity; Error retains its red semantic override.
+  support color, and the CYD physical RGB light samples that final rendered
+  canvas color at runtime. Its sRGB value is converted to linear LED PWM and
+  balanced for the board's three dies before brightness scaling. Display
+  dimming scales light intensity; Error retains its red semantic override.
 - UTF-8 metadata containing non-ASCII characters selects LovyanGFX's complete
   proportional Japanese font. The title renderer measures and scrolls with that
   font, while fitted labels remove whole UTF-8 code points before adding an

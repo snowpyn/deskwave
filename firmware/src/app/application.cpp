@@ -147,7 +147,7 @@ void Application::loop() {
     }
     ui_.tick(now);
     // Render/transition the authoritative theme first so the physical RGB LED
-    // samples the exact accent shown in this same frame.
+    // samples the exact canvas background shown in this same frame.
     updateStatusLed(now);
     syncArtworkProtection();
     vTaskDelay(pdMS_TO_TICKS(2));

@@ -156,9 +156,10 @@ responses. Do not expose the fixture outside the trusted test LAN.
       remains, and the 166 px cover is not clipped.
 - [ ] The complete exposed canvas is a deep, readable artwork-derived tone rather
       than the fixed neutral gray fallback.
-- [ ] The rear RGB light visibly matches the current display primary through a
-      track transition, scales down with idle dimming, and does not continue an
-      unrelated rainbow cycle. Triggering Error still produces its red override.
+- [ ] The rear RGB light visibly matches the current song-reactive canvas
+      background through a track transition, scales down with idle dimming, and
+      does not continue an unrelated rainbow cycle. Triggering Error still
+      produces its red override.
 - [ ] Play tracks with Japanese-only and mixed Japanese/Latin titles, artists,
       and queue entries (for example `夜に駆ける` / `YOASOBI`). Japanese glyphs
       render instead of boxes or mojibake, fitted rows end with a clean ellipsis,
