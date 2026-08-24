@@ -66,15 +66,12 @@ Rgb888 rgbLedPwm(const Rgb888& srgb, const std::uint8_t intensity,
     };
     const Rgb888 linear{linearize(srgb.red), linearize(srgb.green), linearize(srgb.blue)};
     const Rgb888 balanced{
-        static_cast<std::uint8_t>((static_cast<std::uint16_t>(linear.red) * calibration.red +
-                                   127U) /
-                                  255U),
-        static_cast<std::uint8_t>((static_cast<std::uint16_t>(linear.green) * calibration.green +
-                                   127U) /
-                                  255U),
-        static_cast<std::uint8_t>((static_cast<std::uint16_t>(linear.blue) * calibration.blue +
-                                   127U) /
-                                  255U),
+        static_cast<std::uint8_t>(
+            (static_cast<std::uint16_t>(linear.red) * calibration.red + 127U) / 255U),
+        static_cast<std::uint8_t>(
+            (static_cast<std::uint16_t>(linear.green) * calibration.green + 127U) / 255U),
+        static_cast<std::uint8_t>(
+            (static_cast<std::uint16_t>(linear.blue) * calibration.blue + 127U) / 255U),
     };
     return scaleColor(balanced, intensity);
 }

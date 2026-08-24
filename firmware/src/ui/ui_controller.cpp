@@ -1031,8 +1031,7 @@ void UiController::renderIdle(const std::uint32_t nowMs) {
     drawFitted("DeskWave", 160, 105, 220, &fonts::Font4, kText, lgfx::textdatum_t::top_center);
     const char* message =
         playback_.playerId[0] == '\0' ? "No active media player" : "No music playing";
-    drawFitted(message, 160, 142, 220, &fonts::Font2, kTextMuted,
-               lgfx::textdatum_t::top_center);
+    drawFitted(message, 160, 142, 220, &fonts::Font2, kTextMuted, lgfx::textdatum_t::top_center);
     renderCompactLinkStatus(theme);
 }
 
@@ -1087,10 +1086,10 @@ void UiController::renderArtwork(const std::uint32_t nowMs) {
             const auto color =
                 blend565(row % 2 == 0 ? theme.primary : theme.secondary, fallbackBackground,
                          static_cast<std::uint8_t>(185 - row * 25));
-            display_.drawBezier(kArtworkX + 19, y, kArtworkX + 52, y - 17, kArtworkX + 84,
-                                y + 15, kArtworkX + 112, y - 2, color);
-            display_.drawBezier(kArtworkX + 112, y - 2, kArtworkX + 131, y - 13,
-                                kArtworkX + 143, y + 9, kArtworkX + 153, y, color);
+            display_.drawBezier(kArtworkX + 19, y, kArtworkX + 52, y - 17, kArtworkX + 84, y + 15,
+                                kArtworkX + 112, y - 2, color);
+            display_.drawBezier(kArtworkX + 112, y - 2, kArtworkX + 131, y - 13, kArtworkX + 143,
+                                y + 9, kArtworkX + 153, y, color);
         }
         display_.fillCircle(kArtworkX + 82, kArtworkY + 96, 7, theme.foreground);
         display_.drawLine(kArtworkX + 89, kArtworkY + 95, kArtworkX + 89, kArtworkY + 58,
@@ -1167,8 +1166,7 @@ void UiController::renderMetadata(const std::uint32_t nowMs, const std::uint16_t
     drawFitted("TRACK", x, kTrackLabelY, 48, &fonts::Font0, fadedAccent);
     renderTitle(nowMs, color, xOffset);
     drawFitted(playback_.artist[0] == '\0' ? "Unknown artist" : playback_.artist, x, kArtistY,
-               kTitleWidth,
-               &fonts::Font2, fadedArtist);
+               kTitleWidth, &fonts::Font2, fadedArtist);
 
     const auto queueX = kMetadataX + 7;
     const auto queueWidth = kMetadataWidth - 14;
@@ -1196,8 +1194,7 @@ void UiController::renderMetadata(const std::uint32_t nowMs, const std::uint16_t
                 std::snprintf(label, sizeof(label), "%u  %s - %s", static_cast<unsigned>(index + 1),
                               entry.title[0] == '\0' ? "Untitled" : entry.title, entry.artist);
             }
-            drawFitted(label, queueX + 7 + xOffset, kQueueY + 23 + index * 17,
-                       queueWidth - 14,
+            drawFitted(label, queueX + 7 + xOffset, kQueueY + 23 + index * 17, queueWidth - 14,
                        &fonts::Font0, fadedArtist);
         }
     }
@@ -1621,8 +1618,7 @@ void UiController::drawFitted(const char* text, const std::int32_t x, const std:
         while (length > 0 && display_.textWidth(buffer) + ellipsisWidth > maxWidth) {
             do {
                 --length;
-            } while (length > 0 &&
-                     (static_cast<unsigned char>(buffer[length]) & 0xC0U) == 0x80U);
+            } while (length > 0 && (static_cast<unsigned char>(buffer[length]) & 0xC0U) == 0x80U);
             buffer[length] = '\0';
         }
         if (ellipsisWidth <= maxWidth && length + sizeof(kEllipsis) <= sizeof(buffer)) {

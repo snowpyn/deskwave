@@ -25,7 +25,7 @@
         "firmware/include/ui/ui_controller.h": "5a43d041b49ba2b87033c81fcd39b3b71b222210d3d070a1bc65652a4aeb3be1",
         "firmware/include/app/messages.h": "07eec1e4e415c284e7afafd4d85471b8bdcbd28f10a5e3ad19425cd352100c84",
         "firmware/lib/deskwave_core/src/deskwave/core/theme.h": "8fdfc5d1c5ec929a5323cee887f35ca94edda1714035b7b3cf87adbcd46c013e",
-        "firmware/src/ui/ui_controller.cpp": "37bfc6f7516072fd9e9a7edc1b717a0e7a4ebcbbc3212365e33005b001f98b9f",
+        "firmware/src/ui/ui_controller.cpp": "c41f741d14567bd97da644e7863e07fcc93039bcdb7de2ecc2f671e5b6495ea5",
         "firmware/src/app/application.cpp": "4cdfffcff50a554800c321a2f9426fcb93f287b8e0e7c01b2e97dbb608d790fa"
       },
       "components": [
@@ -47,7 +47,7 @@
           "currentVersion": 4
         }
       },
-      "updatedAt": "2026-08-24T18:12:29Z"
+      "updatedAt": "2026-08-24T18:15:10Z"
     }
   }
 }

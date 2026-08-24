@@ -170,8 +170,8 @@ void test_theme_rgb_packing_and_interpolation() {
     TEST_ASSERT_EQUAL_UINT8(64, ledMidpoint.green);
     TEST_ASSERT_EQUAL_UINT8(64, ledMidpoint.blue);
     TEST_ASSERT_TRUE(colorsEqual(Rgb888{}, rgbLedPwm(accent, 0, Rgb888{255, 255, 255})));
-    TEST_ASSERT_TRUE(colorsEqual(Rgb888{255, 176, 240},
-                                 rgbLedPwm(white, 255, Rgb888{255, 176, 240})));
+    TEST_ASSERT_TRUE(
+        colorsEqual(Rgb888{255, 176, 240}, rgbLedPwm(white, 255, Rgb888{255, 176, 240})));
 }
 
 void test_theme_interruption_is_continuous_and_eased() {
