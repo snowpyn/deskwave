@@ -202,6 +202,60 @@ Text never wraps. `drawFitted()` truncates with an ellipsis to a fixed pixel wid
 
 Artwork-reactive theming is primarily a Now Playing concern. Other screens may borrow a muted current accent for continuity, but semantic controls, warnings, and readability take precedence.
 
+## Idle Spotify ambient clock target
+
+When the Now Playing route has no active media player, or a selected player has no active music,
+replace the existing centered idle card with a full-canvas ambient clock. This target is specific to
+the idle branch and does not add a Spotify logo, clock, or date to active playback.
+
+### Information hierarchy and copy
+
+1. A large current local time is the dominant glance target. Use a 12-hour clock with minutes and a
+   clearly separated uppercase `AM` or `PM`; suppress a leading zero on the hour.
+2. Render the local calendar date below it in the exact abbreviated-month format `Aug/31/2026`,
+   generated as `%b/%d/%Y`.
+3. Place a recognizable Spotify circle-and-three-arcs mark above or beside the time. Build it from
+   circles and Bezier strokes already supported by LovyanGFX; do not use an image download or font
+   glyph.
+4. Keep the existing compact `LINK`/`RETRY` indicator in the top-right corner. It remains subordinate
+   to the time and must not become a full-width header.
+5. Do not show the old `DeskWave`, `No active media player`, or `No music playing` card copy in this
+   target. The clock itself is the useful idle state.
+
+### Composition
+
+- Use the full `320 x 240` canvas with no enclosing card or persistent transport footer.
+- Keep the Spotify mark in the upper visual third, the clock centered near the optical midpoint, and
+  the date directly below with enough separation to read from arm's length.
+- Use `fonts::Font4` for the largest practical clock digits, `fonts::Font2` for `AM`/`PM` and the date,
+  and `fonts::Font0` only for the compact link state. Never introduce a new typeface.
+- Protect a quiet central readability zone behind the clock. Animated paths can pass behind this zone
+  only at very low contrast.
+
+### Color and atmosphere
+
+- Base the idle canvas on `kBackground` and `kBackgroundLift`.
+- Use the existing player green `#1DB954` as the Spotify mark and primary luminous accent.
+- Mix `kAccent` into near-green highlights and reserve `kViolet` for a very faint secondary edge so
+  the result remains recognizably Spotify-led rather than a generic rainbow.
+- Keep the time on `kText`, the date on a brightened `kTextMuted`, and preserve `kWarning` for `RETRY`.
+
+### Motion keyframe and animation contract
+
+The canvas design should show a representative mid-animation keyframe. The firmware motion is a slow,
+continuous ambient loop rather than a screen saver bounce:
+
+- Two or three broad curved wave ribbons travel horizontally across the canvas at different speeds.
+  Their phase wraps seamlessly; direction never reverses and no element bounces.
+- A restrained circular halo around the Spotify mark breathes over roughly `2400 ms`.
+- Six to ten tiny particles drift horizontally with small fixed vertical offsets and wrap at the edge.
+- The time updates once per minute; the date updates at local midnight. Redraw only their bounded text
+  rectangles when values change.
+- Target a `50 ms` animation cadence. Use preblended RGB565 colors and bounded dirty regions or an
+  indexed sprite; never re-decode artwork, allocate per frame, or block touch/network work.
+- Enter and leave idle with the existing theme transition engine: fade the ambient clock in when media
+  stops and hand off cleanly to active artwork when playback starts.
+
 ## Performance and redraw rules
 
 - Full-screen repaint is for screen/state transitions, not steady playback. The exposed artwork-derived canvas may update in a small number of coarse opaque regions during the short theme transition.

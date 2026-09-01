@@ -202,13 +202,19 @@ snapshots and local actions from the application coordinator.
 - Paused/idle presentation keeps the active palette, with reduced saturation
   and glow intensity, and interpolates back to full intensity on resume. Brief
   host rediscovery also preserves the last confirmed cover and palette.
+- With no active media, Now Playing becomes a full-canvas Spotify ambient clock:
+  three horizontally wrapping RGB565 wave ribbons, eight drifting particles,
+  and a breathing logo halo animate in bounded top/bottom bands around a static
+  12-hour time, `AM`/`PM`, and `%b/%d/%Y` date. The host sends Unix time and its
+  current local UTC offset every 30 seconds; firmware advances that sample with
+  `millis()` and redraws the central clock only when the minute changes.
 - Progress is synchronized from host position and extrapolated from local
   monotonic time only while playing.
 - Volume, transport, seek, shuffle, and repeat actions update visible state
   immediately. Confirmed host snapshots reconcile optimistic state; command
   errors produce a visible toast.
 - Full-screen redraws occur only for screen/state transitions. Theme animation,
-  artwork glow, progress, and connection updates use bounded dirty regions.
+  idle ambient motion, artwork glow, progress, and connection updates use bounded dirty regions.
   JPEG decode occurs once when a verified cover is installed, never on a
   transition animation frame.
 - Idle dimming changes PWM brightness without changing the saved value. Any

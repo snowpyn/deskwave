@@ -1,10 +1,14 @@
+import asyncio
 import json
+from types import MethodType
 
 import pytest
 
+from deskwave_host.api import server
 from deskwave_host.api.server import (
     MAX_DEVICE_MESSAGE_BYTES,
     MAX_DEVICE_TEXT_BYTES,
+    DeviceSession,
     RateLimiter,
     _encode_device_message,
     _players_payload,
@@ -18,6 +22,29 @@ from deskwave_host.models import (
     ThemePalette,
 )
 from deskwave_host.protocol import make_message
+
+
+class _OpenWebSocket:
+    closed = False
+
+
+async def test_idle_session_emits_periodic_clock_sync(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(server, "CLOCK_SYNC_SECONDS", 0.001)
+    session = object.__new__(DeviceSession)
+    session.websocket = _OpenWebSocket()  # type: ignore[assignment]
+    sent: list[tuple[str, dict[str, object]]] = []
+
+    async def capture(
+        self: DeviceSession, message_type: str, payload: dict[str, object]
+    ) -> dict[str, object]:
+        sent.append((message_type, payload))
+        self.websocket.closed = True  # type: ignore[misc]
+        return {}
+
+    session.send = MethodType(capture, session)  # type: ignore[method-assign]
+    await session.send_updates(asyncio.Queue())
+
+    assert sent == [("clock_sync", {})]
 
 
 def test_rate_limiter_bounds_tracked_identities() -> None:

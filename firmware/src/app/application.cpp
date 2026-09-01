@@ -43,9 +43,9 @@ Application::Application(storage::SettingsStore& settingsStore,
                          network::NetworkManager& networkManager,
                          network::ArtworkManager& artworkManager, ui::UiController& ui,
                          const QueueHandle_t inputQueue, const QueueHandle_t playbackQueue,
-                         const QueueHandle_t noticeQueue, const QueueHandle_t commandQueue,
-                         const QueueHandle_t feedbackQueue, const QueueHandle_t artworkResultQueue,
-                         const QueueHandle_t playerQueue)
+                         const QueueHandle_t clockQueue, const QueueHandle_t noticeQueue,
+                         const QueueHandle_t commandQueue, const QueueHandle_t feedbackQueue,
+                         const QueueHandle_t artworkResultQueue, const QueueHandle_t playerQueue)
     : settingsStore_(settingsStore),
       inputManager_(inputManager),
       networkManager_(networkManager),
@@ -53,6 +53,7 @@ Application::Application(storage::SettingsStore& settingsStore,
       ui_(ui),
       inputQueue_(inputQueue),
       playbackQueue_(playbackQueue),
+      clockQueue_(clockQueue),
       noticeQueue_(noticeQueue),
       commandQueue_(commandQueue),
       feedbackQueue_(feedbackQueue),
@@ -182,6 +183,11 @@ void Application::acknowledgeArtworkResult(const ArtworkResult& result) {
 }
 
 void Application::consumeQueues(const std::uint32_t nowMs) {
+    ClockSync clock;
+    if (xQueueReceive(clockQueue_, &clock, 0) == pdTRUE) {
+        ui_.setClock(clock, nowMs);
+    }
+
     SystemNotice notice;
     while (xQueueReceive(noticeQueue_, &notice, 0) == pdTRUE) {
         deviceStatus_.state = notice.state;

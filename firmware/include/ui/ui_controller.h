@@ -47,6 +47,7 @@ class UiController {
     void setArtwork(const app::ArtworkResult& result, std::uint32_t nowMs);
     void setPlayers(const app::PlayerListSnapshot& players, std::uint8_t selectedPlayer);
     void setSelectedPlayer(std::uint8_t selectedPlayer);
+    void setClock(const app::ClockSync& clock, std::uint32_t nowMs);
     void setDeviceStatus(const DeviceStatus& status);
     void setNotice(const app::SystemNotice& notice, std::uint32_t nowMs);
     void setSettings(const SettingsView& settings);
@@ -85,8 +86,13 @@ class UiController {
     void renderConnection(std::uint32_t nowMs);
     void renderNowPlaying(std::uint32_t nowMs);
     void renderIdle(std::uint32_t nowMs);
+    void renderIdleAnimation(std::uint32_t nowMs);
+    void renderIdleClock(std::uint32_t nowMs, bool clear);
+    void renderIdleSpotify(std::uint32_t nowMs);
+    void renderIdleLinkStatus(const RenderTheme& theme);
+    void drawIdleWave(std::uint32_t phase, std::int32_t baseY, std::int32_t amplitude,
+                      std::uint8_t thickness, std::uint16_t color);
     void renderCompactLinkStatus(const RenderTheme& theme);
-    void renderIdleAccents(const RenderTheme& theme, bool clear);
     void renderNowPlayingBackdrop(const RenderTheme& theme);
     void renderArtwork(std::uint32_t nowMs);
     void renderArtworkGlow(const RenderTheme& theme);
@@ -143,6 +149,7 @@ class UiController {
     DeviceStatus status_{};
     SettingsView settings_{};
     core::ProgressClock progress_{};
+    app::ClockSync clock_{};
     app::SystemNotice latestNotice_{};
     Screen screen_{Screen::NowPlaying};
     Screen screenBeforeActions_{Screen::NowPlaying};
@@ -156,6 +163,7 @@ class UiController {
     std::uint32_t transportPulseUntilMs_{0};
     std::uint32_t toastUntilMs_{0};
     std::uint32_t lastAnimationFrameMs_{0};
+    std::uint32_t lastIdleFrameMs_{0};
     std::uint32_t lastThemeFrameMs_{0};
     std::uint32_t lastProgressFrameMs_{0};
     std::uint32_t titleScrollStartedAtMs_{0};
@@ -166,6 +174,7 @@ class UiController {
     std::uint32_t artworkGeneration_{0};
     std::uint32_t themeTransitionStartedAtMs_{0};
     std::uint32_t restTransitionStartedAtMs_{0};
+    std::uint64_t renderedClockMinute_{0};
     char renderedPosition_[16]{};
     char renderedDuration_[16]{};
     std::uint8_t resetSecondsRemaining_{0};
@@ -185,6 +194,7 @@ class UiController {
     bool dimmed_{false};
     bool titleScrollActive_{false};
     bool progressPainted_{false};
+    bool clockRendered_{false};
     bool dirty_{true};
 };
 

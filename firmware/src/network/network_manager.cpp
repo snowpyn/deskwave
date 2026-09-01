@@ -79,11 +79,13 @@ bool validArtworkPath(const char* path, const char* artworkId) {
 }  // namespace
 
 NetworkManager::NetworkManager(storage::SettingsStore& settingsStore,
-                               const QueueHandle_t playbackQueue, const QueueHandle_t noticeQueue,
-                               const QueueHandle_t commandQueue, const QueueHandle_t feedbackQueue,
-                               const QueueHandle_t artworkQueue, const QueueHandle_t playerQueue)
+                               const QueueHandle_t playbackQueue, const QueueHandle_t clockQueue,
+                               const QueueHandle_t noticeQueue, const QueueHandle_t commandQueue,
+                               const QueueHandle_t feedbackQueue, const QueueHandle_t artworkQueue,
+                               const QueueHandle_t playerQueue)
     : settingsStore_(settingsStore),
       playbackQueue_(playbackQueue),
+      clockQueue_(clockQueue),
       noticeQueue_(noticeQueue),
       commandQueue_(commandQueue),
       feedbackQueue_(feedbackQueue),
@@ -484,6 +486,18 @@ void NetworkManager::handleProtocolMessage(const std::uint8_t* payload, const st
         DW_LOG_WARN("protocol", "Rejected malformed protocol message");
         return;
     }
+    if (document["timestamp_ms"].is<std::uint64_t>() &&
+        document["utc_offset_seconds"].is<std::int32_t>()) {
+        const auto offset = document["utc_offset_seconds"].as<std::int32_t>();
+        if (offset >= -24 * 60 * 60 && offset <= 24 * 60 * 60) {
+            app::ClockSync clock;
+            clock.unixMs = document["timestamp_ms"].as<std::uint64_t>();
+            clock.utcOffsetSeconds = offset;
+            clock.receivedAtMs = millis();
+            clock.valid = true;
+            xQueueOverwrite(clockQueue_, &clock);
+        }
+    }
     const String type = document["type"].as<String>();
     const JsonObjectConst body = document["payload"].as<JsonObjectConst>();
     if (type == "playback_state") {
@@ -492,6 +506,8 @@ void NetworkManager::handleProtocolMessage(const std::uint8_t* payload, const st
         handleCommandResult(body);
     } else if (type == "players") {
         handlePlayers(body);
+    } else if (type == "clock_sync") {
+        // The envelope already refreshed the wall clock. No payload is required.
     } else if (type == "hello") {
         if (body["protocol"] != 1) {
             publishNotice(app::SystemNoticeType::RecoverableError, "Protocol mismatch");

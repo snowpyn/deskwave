@@ -5,6 +5,7 @@
 #include "app/messages.h"
 #include "deskwave/core/application_state.h"
 #include "deskwave/core/backoff.h"
+#include "deskwave/core/clock.h"
 #include "deskwave/core/input_logic.h"
 #include "deskwave/core/pin_validation.h"
 #include "deskwave/core/progress.h"
@@ -131,6 +132,29 @@ void test_backoff_is_bounded_and_resettable() {
     TEST_ASSERT_EQUAL_UINT32(100, backoff.next(0));
 }
 
+void test_local_clock_formats_timezone_date_and_ampm() {
+    ClockText text;
+    TEST_ASSERT_TRUE(formatLocalClock(1'788'226'860'000ULL, -4 * 60 * 60, text));
+    TEST_ASSERT_EQUAL_STRING("9:41", text.time);
+    TEST_ASSERT_EQUAL_STRING("PM", text.period);
+    TEST_ASSERT_EQUAL_STRING("Aug/31/2026", text.date);
+
+    TEST_ASSERT_TRUE(formatLocalClock(0, 0, text));
+    TEST_ASSERT_EQUAL_STRING("12:00", text.time);
+    TEST_ASSERT_EQUAL_STRING("AM", text.period);
+    TEST_ASSERT_EQUAL_STRING("Jan/01/1970", text.date);
+
+    TEST_ASSERT_TRUE(formatLocalClock(1'709'208'300'000ULL, 0, text));
+    TEST_ASSERT_EQUAL_STRING("12:05", text.time);
+    TEST_ASSERT_EQUAL_STRING("PM", text.period);
+    TEST_ASSERT_EQUAL_STRING("Feb/29/2024", text.date);
+
+    TEST_ASSERT_FALSE(formatLocalClock(1'788'226'860'000ULL, 25 * 60 * 60, text));
+    TEST_ASSERT_EQUAL_STRING("--:--", text.time);
+    TEST_ASSERT_EQUAL_STRING("--", text.period);
+    TEST_ASSERT_EQUAL_STRING("---/--/----", text.date);
+}
+
 void test_pin_validation_detects_conflicts_and_unsafe_defaults() {
     constexpr std::array safePins{4, 5, 6, 7, -1};
     constexpr std::array duplicatePins{4, 5, 4};
@@ -248,6 +272,7 @@ int main(int, char**) {
     RUN_TEST(test_control_mapper_changes_with_context);
     RUN_TEST(test_progress_extrapolates_only_while_playing_and_clamps);
     RUN_TEST(test_backoff_is_bounded_and_resettable);
+    RUN_TEST(test_local_clock_formats_timezone_date_and_ampm);
     RUN_TEST(test_pin_validation_detects_conflicts_and_unsafe_defaults);
     RUN_TEST(test_theme_rgb_packing_and_interpolation);
     RUN_TEST(test_theme_interruption_is_continuous_and_eased);

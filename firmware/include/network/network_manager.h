@@ -15,7 +15,7 @@ namespace deskwave::network {
 class NetworkManager {
    public:
     NetworkManager(storage::SettingsStore& settingsStore, QueueHandle_t playbackQueue,
-                   QueueHandle_t noticeQueue, QueueHandle_t commandQueue,
+                   QueueHandle_t clockQueue, QueueHandle_t noticeQueue, QueueHandle_t commandQueue,
                    QueueHandle_t feedbackQueue, QueueHandle_t artworkQueue,
                    QueueHandle_t playerQueue);
     [[nodiscard]] bool begin();
@@ -48,6 +48,7 @@ class NetworkManager {
 
     storage::SettingsStore& settingsStore_;
     QueueHandle_t playbackQueue_;
+    QueueHandle_t clockQueue_;
     QueueHandle_t noticeQueue_;
     QueueHandle_t commandQueue_;
     QueueHandle_t feedbackQueue_;

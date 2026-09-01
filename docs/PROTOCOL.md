@@ -95,6 +95,7 @@ Every text message uses this top-level shape:
   "type": "playback_state",
   "sequence": 182,
   "timestamp_ms": 1770000000000,
+  "utc_offset_seconds": -14400,
   "payload": {}
 }
 ```
@@ -107,6 +108,9 @@ Rules:
   sequence space and wraps to zero.
 - `timestamp_ms` is optional and non-negative. Host timestamps are Unix epoch
   milliseconds; firmware timestamps are monotonic milliseconds since boot.
+- Host messages include `utc_offset_seconds`, bounded to plus or minus 24 hours,
+  so the display can derive host-local civil time without embedding timezone or
+  daylight-saving policy in firmware. Device messages may omit it.
 - `payload` must be a JSON object.
 - Device-to-host WebSocket messages are limited to 16,384 bytes by the host.
   Host state/player messages are deliberately kept below the firmware's 8,192
@@ -140,6 +144,12 @@ Sent first after authentication:
   "heartbeat_seconds": 20
 }
 ```
+
+### `clock_sync`
+
+Sent every 30 seconds while no playback update is pending. Its payload is empty;
+the authoritative Unix time and current host-local UTC offset are carried in the
+envelope. The ESP32 advances that sample with its monotonic clock between syncs.
 
 ### `playback_state`
 

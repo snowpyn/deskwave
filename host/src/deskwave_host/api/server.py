@@ -31,6 +31,7 @@ from deskwave_host.service import MediaService
 from deskwave_host.storage import DeviceStore, PairingError
 
 LOGGER = logging.getLogger("network")
+CLOCK_SYNC_SECONDS = 30
 CONFIG_KEY: web.AppKey[HostConfig] = web.AppKey("config", HostConfig)
 STORE_KEY: web.AppKey[DeviceStore] = web.AppKey("store", DeviceStore)
 SERVICE_KEY: web.AppKey[MediaService] = web.AppKey("service", MediaService)
@@ -327,8 +328,13 @@ class DeviceSession:
 
     async def send_updates(self, queue: asyncio.Queue[PlaybackState]) -> None:
         while not self.websocket.closed:
-            state = await queue.get()
-            await self.send("playback_state", _state_payload(state))
+            try:
+                async with asyncio.timeout(CLOCK_SYNC_SECONDS):
+                    state = await queue.get()
+            except TimeoutError:
+                await self.send("clock_sync", {})
+            else:
+                await self.send("playback_state", _state_payload(state))
 
     async def handle(self, message: IncomingMessage) -> None:
         self.store.touch(self.device_id)

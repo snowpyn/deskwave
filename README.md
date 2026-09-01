@@ -34,9 +34,10 @@ the automated checks.
   brief MPRIS metadata gaps, pause, and short reconnects. A deliberate branded
   fallback replaces them only when the active track is confirmed to have no
   usable artwork.
-- Provides Now Playing, Device, Settings, Actions, About, idle, provisioning,
-  pairing, reconnecting, and error screens. Now Playing shows the next two
-  tracks when the active MPRIS player exposes its standard TrackList.
+- Provides Now Playing, Device, Settings, Actions, About, provisioning, pairing,
+  reconnecting, and error screens. With no active media, the idle state becomes
+  an animated Spotify clock using the host's local time and date. Now Playing
+  shows the next two tracks when the active MPRIS player exposes its standard TrackList.
 - Acts only as a remote control and display. Audio continues playing on the
   selected PC or phone; DeskWave never receives or outputs the audio stream.
 

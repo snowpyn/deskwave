@@ -19,8 +19,9 @@ class Application {
     Application(storage::SettingsStore& settingsStore, controls::InputManager& inputManager,
                 network::NetworkManager& networkManager, network::ArtworkManager& artworkManager,
                 ui::UiController& ui, QueueHandle_t inputQueue, QueueHandle_t playbackQueue,
-                QueueHandle_t noticeQueue, QueueHandle_t commandQueue, QueueHandle_t feedbackQueue,
-                QueueHandle_t artworkResultQueue, QueueHandle_t playerQueue);
+                QueueHandle_t clockQueue, QueueHandle_t noticeQueue, QueueHandle_t commandQueue,
+                QueueHandle_t feedbackQueue, QueueHandle_t artworkResultQueue,
+                QueueHandle_t playerQueue);
     [[nodiscard]] bool begin();
     void loop();
 
@@ -55,6 +56,7 @@ class Application {
     ui::UiController& ui_;
     QueueHandle_t inputQueue_;
     QueueHandle_t playbackQueue_;
+    QueueHandle_t clockQueue_;
     QueueHandle_t noticeQueue_;
     QueueHandle_t commandQueue_;
     QueueHandle_t feedbackQueue_;

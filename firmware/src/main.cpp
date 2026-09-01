@@ -17,13 +17,13 @@ namespace {
 deskwave::app::Application* application = nullptr;
 bool fatalStartupError = false;
 
-bool queuesReady(const QueueHandle_t input, const QueueHandle_t playback,
+bool queuesReady(const QueueHandle_t input, const QueueHandle_t playback, const QueueHandle_t clock,
                  const QueueHandle_t notices, const QueueHandle_t commands,
                  const QueueHandle_t feedback, const QueueHandle_t artworkRequests,
                  const QueueHandle_t artworkResults, const QueueHandle_t players) {
-    return input != nullptr && playback != nullptr && notices != nullptr && commands != nullptr &&
-           feedback != nullptr && artworkRequests != nullptr && artworkResults != nullptr &&
-           players != nullptr;
+    return input != nullptr && playback != nullptr && clock != nullptr && notices != nullptr &&
+           commands != nullptr && feedback != nullptr && artworkRequests != nullptr &&
+           artworkResults != nullptr && players != nullptr;
 }
 
 }  // namespace
@@ -34,14 +34,15 @@ void setup() {
 
     const auto inputQueue = xQueueCreate(32, sizeof(deskwave::controls::InputEvent));
     const auto playbackQueue = xQueueCreate(1, sizeof(deskwave::app::PlaybackSnapshot));
+    const auto clockQueue = xQueueCreate(1, sizeof(deskwave::app::ClockSync));
     const auto noticeQueue = xQueueCreate(8, sizeof(deskwave::app::SystemNotice));
     const auto commandQueue = xQueueCreate(16, sizeof(deskwave::app::ControlRequest));
     const auto feedbackQueue = xQueueCreate(8, sizeof(deskwave::app::CommandFeedback));
     const auto artworkRequestQueue = xQueueCreate(1, sizeof(deskwave::app::ArtworkRequest));
     const auto artworkResultQueue = xQueueCreate(1, sizeof(deskwave::app::ArtworkResult));
     const auto playerQueue = xQueueCreate(1, sizeof(deskwave::app::PlayerListSnapshot));
-    if (!queuesReady(inputQueue, playbackQueue, noticeQueue, commandQueue, feedbackQueue,
-                     artworkRequestQueue, artworkResultQueue, playerQueue)) {
+    if (!queuesReady(inputQueue, playbackQueue, clockQueue, noticeQueue, commandQueue,
+                     feedbackQueue, artworkRequestQueue, artworkResultQueue, playerQueue)) {
         DW_LOG_ERROR("system", "Required application queues could not be allocated");
         fatalStartupError = true;
 #if defined(DESKWAVE_ESP32_D0WD_V3)
@@ -61,11 +62,11 @@ void setup() {
     static deskwave::network::ArtworkManager artworkManager(artworkRequestQueue,
                                                             artworkResultQueue);
     static deskwave::network::NetworkManager networkManager(
-        settingsStore, playbackQueue, noticeQueue, commandQueue, feedbackQueue, artworkRequestQueue,
-        playerQueue);
+        settingsStore, playbackQueue, clockQueue, noticeQueue, commandQueue, feedbackQueue,
+        artworkRequestQueue, playerQueue);
     static deskwave::app::Application controller(
         settingsStore, inputManager, networkManager, artworkManager, ui, inputQueue, playbackQueue,
-        noticeQueue, commandQueue, feedbackQueue, artworkResultQueue, playerQueue);
+        clockQueue, noticeQueue, commandQueue, feedbackQueue, artworkResultQueue, playerQueue);
     application = &controller;
     if (!application->begin()) {
         fatalStartupError = true;

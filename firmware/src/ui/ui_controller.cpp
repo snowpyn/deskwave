@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "deskwave/core/clock.h"
 #include "deskwave_version.h"
 #include "system/logging.h"
 
@@ -26,6 +27,7 @@ constexpr std::uint16_t kText = rgb565(241, 244, 242);
 constexpr std::uint16_t kTextMuted = rgb565(169, 181, 190);
 constexpr std::uint16_t kAccent = rgb565(111, 218, 194);
 constexpr std::uint16_t kAccentDim = rgb565(34, 91, 86);
+constexpr std::uint16_t kSpotify = rgb565(29, 185, 84);
 constexpr std::uint16_t kViolet = rgb565(168, 145, 222);
 constexpr std::uint16_t kMagenta = rgb565(224, 152, 178);
 constexpr std::uint16_t kWarning = rgb565(232, 192, 119);
@@ -63,6 +65,10 @@ constexpr std::int32_t kTitleRepeatGap = 16;
 constexpr std::uint32_t kThemeTransitionMs = 750;
 constexpr std::uint32_t kRestTransitionMs = 600;
 constexpr std::uint32_t kThemeFrameMs = 50;
+constexpr std::uint32_t kIdleFrameMs = 50;
+constexpr std::uint32_t kIdleHaloPeriodMs = 2'400;
+constexpr std::int32_t kIdleTopBandHeight = 80;
+constexpr std::int32_t kIdleBottomBandY = 174;
 constexpr std::uint8_t kArtworkGlowStrength = 112;
 constexpr std::uint8_t kRestGlowScale = 128;
 constexpr std::uint8_t kRestDesaturation = 58;
@@ -445,6 +451,16 @@ void UiController::setPlayback(const app::PlaybackSnapshot& snapshot, const std:
         }
         return;
     }
+    const bool currentIdle = !hasPlayback_ || idlePlayback(playback_);
+    const bool nextIdle = idlePlayback(snapshot);
+    if (hasPlayback_ && currentIdle != nextIdle) {
+        applyPlayback(snapshot, nowMs);
+        hasPendingPlayback_ = false;
+        hasStagedArtwork_ = false;
+        transitionSwapped_ = false;
+        dirty_ = true;
+        return;
+    }
     if (trackChanged(snapshot) && screen_ == Screen::NowPlaying && !connectionScreenActive()) {
         pendingPlayback_ = snapshot;
         hasPendingPlayback_ = true;
@@ -601,6 +617,12 @@ void UiController::setSelectedPlayer(const std::uint8_t selectedPlayer) {
     if (screen_ == Screen::Device) {
         dirty_ = true;
     }
+}
+
+void UiController::setClock(const app::ClockSync& clock, const std::uint32_t nowMs) {
+    (void)nowMs;
+    clock_ = clock;
+    clockRendered_ = false;
 }
 
 void UiController::setDeviceStatus(const DeviceStatus& status) {
@@ -767,6 +789,12 @@ void UiController::tick(const std::uint32_t nowMs) {
     }
     if (screen_ == Screen::NowPlaying && !connectionScreenActive() && !hasPendingPlayback_ &&
         volumeOverlayUntilMs_ == 0 && toastUntilMs_ == 0 && !factoryResetChordVisible_) {
+        if (idlePlayback(playback_) &&
+            static_cast<std::uint32_t>(nowMs - lastIdleFrameMs_) >= kIdleFrameMs) {
+            renderIdleAnimation(nowMs);
+            lastIdleFrameMs_ = nowMs;
+            animatedUi = true;
+        }
         if (!idlePlayback(playback_) && titleScrollActive_ &&
             static_cast<std::uint32_t>(nowMs - lastTitleFrameMs_) >= kTitleFrameMs) {
             renderTitle(nowMs, kText);
@@ -1036,34 +1064,126 @@ void UiController::renderNowPlaying(const std::uint32_t nowMs) {
 }
 
 void UiController::renderIdle(const std::uint32_t nowMs) {
-    const auto theme = renderTheme(nowMs);
-    display_.fillRoundRect(25, 20, 270, 180, 14, panelBackground(theme));
-    renderIdleAccents(theme, false);
-    drawFitted("DeskWave", 160, 105, 220, &fonts::Font4, kText, lgfx::textdatum_t::top_center);
-    const char* message =
-        playback_.playerId[0] == '\0' ? "No active media player" : "No music playing";
-    drawFitted(message, 160, 142, 220, &fonts::Font2, kTextMuted, lgfx::textdatum_t::top_center);
-    renderCompactLinkStatus(theme);
+    display_.fillScreen(kBackground);
+    clockRendered_ = false;
+    renderIdleAnimation(nowMs);
+    lastIdleFrameMs_ = nowMs;
 }
 
-void UiController::renderIdleAccents(const RenderTheme& theme, const bool clear) {
-    if (clear) {
-        const auto panel = panelBackground(theme);
-        display_.fillRect(132, 37, 57, 53, panel);
-        display_.fillRect(52, 176, 216, 14, panel);
+void UiController::drawIdleWave(const std::uint32_t phase, const std::int32_t baseY,
+                                const std::int32_t amplitude, const std::uint8_t thickness,
+                                const std::uint16_t color) {
+    constexpr std::int32_t kWaveWidth = 160;
+    for (std::int32_t segment = -1; segment <= 2; ++segment) {
+        const auto startX = segment * kWaveWidth - static_cast<std::int32_t>(phase);
+        for (std::uint8_t stroke = 0; stroke < thickness; ++stroke) {
+            const auto y = baseY + static_cast<std::int32_t>(stroke) - thickness / 2;
+            display_.drawBezier(startX, y, startX + 40, y - amplitude, startX + 120, y + amplitude,
+                                startX + kWaveWidth, y, color);
+        }
     }
-    const auto panel = panelBackground(theme);
-    display_.drawRoundRect(25, 20, 270, 180, 14, blend565(theme.secondary, panel, 95));
-    display_.drawCircle(160, 62, 23, blend565(theme.secondary, panel, 145));
-    display_.fillCircle(153, 73, 5, theme.primary);
-    display_.drawLine(158, 72, 158, 49, theme.primary);
-    display_.drawLine(158, 49, 174, 45, theme.primary);
-    display_.drawLine(174, 45, 174, 66, theme.primary);
-    display_.fillCircle(169, 67, 5, theme.primary);
-    if (playback_.playerName[0] != '\0') {
-        drawFitted(playback_.playerName, 160, 180, 210, &fonts::Font0, theme.primary,
-                   lgfx::textdatum_t::top_center);
+}
+
+void UiController::renderIdleSpotify(const std::uint32_t nowMs) {
+    const auto phase = nowMs % kIdleHaloPeriodMs;
+    const auto distance = phase <= kIdleHaloPeriodMs / 2 ? phase : kIdleHaloPeriodMs - phase;
+    const auto pulse = static_cast<std::uint8_t>(distance * 38U / (kIdleHaloPeriodMs / 2));
+    const auto halo = blend565(kSpotify, kBackground, static_cast<std::uint8_t>(38U + pulse));
+    display_.fillCircle(160, 42, 24 + pulse / 19, halo);
+    display_.fillCircle(160, 42, 16, kSpotify);
+
+    const auto glyph = kBackground;
+    for (std::int32_t stroke = 0; stroke < 2; ++stroke) {
+        display_.drawBezier(149, 36 + stroke, 155, 32 + stroke, 165, 33 + stroke, 172, 37 + stroke,
+                            glyph);
     }
+    display_.drawBezier(150, 41, 156, 38, 164, 39, 170, 42, glyph);
+    display_.drawBezier(151, 46, 156, 43, 163, 44, 168, 47, glyph);
+}
+
+void UiController::renderIdleLinkStatus(const RenderTheme& theme) {
+    const auto color = status_.hostConnected ? kAccent : kWarning;
+    display_.fillRect(264, 4, 50, 12, kBackground);
+    display_.fillCircle(270, 10, 2, color);
+    drawFitted(status_.hostConnected ? "LINK" : "RETRY", 312, 5, 36, &fonts::Font0, color,
+               lgfx::textdatum_t::top_right);
+    (void)theme;
+}
+
+void UiController::renderIdleClock(const std::uint32_t nowMs, const bool clear) {
+    core::ClockText text;
+    std::uint64_t currentUnixMs = 0;
+    std::uint64_t minute = 0;
+    if (clock_.valid) {
+        currentUnixMs = clock_.unixMs + static_cast<std::uint32_t>(nowMs - clock_.receivedAtMs);
+        minute = currentUnixMs / 60'000U;
+        (void)core::formatLocalClock(currentUnixMs, clock_.utcOffsetSeconds, text);
+    }
+    if (!clear && clockRendered_ && (!clock_.valid || renderedClockMinute_ == minute)) {
+        return;
+    }
+    display_.fillRect(0, 80, 320, 94, kBackground);
+
+    display_.setFont(&fonts::Font4);
+    display_.setTextSize(2);
+    const auto timeWidth = display_.textWidth(text.time);
+    display_.setTextSize(1);
+    display_.setFont(&fonts::Font2);
+    const auto periodWidth = display_.textWidth(text.period);
+    const auto totalWidth = timeWidth + 7 + periodWidth;
+    const auto startX = (320 - totalWidth) / 2;
+
+    display_.setFont(&fonts::Font4);
+    display_.setTextSize(2);
+    display_.setTextColor(kText);
+    display_.setTextDatum(lgfx::textdatum_t::top_left);
+    display_.drawString(text.time, startX, 84);
+    display_.setTextSize(1);
+    display_.setFont(&fonts::Font2);
+    display_.drawString(text.period, startX + timeWidth + 7, 119);
+    drawFitted(text.date, 160, 154, 220, &fonts::Font2, kTextMuted, lgfx::textdatum_t::top_center);
+
+    renderedClockMinute_ = minute;
+    clockRendered_ = true;
+}
+
+void UiController::renderIdleAnimation(const std::uint32_t nowMs) {
+    const auto theme = renderTheme(nowMs);
+    display_.fillRect(0, 0, 320, kIdleTopBandHeight, kBackground);
+    display_.fillRect(0, kIdleBottomBandY, 320, 240 - kIdleBottomBandY, kBackground);
+
+    drawIdleWave((nowMs / 60U) % 160U, 38, 15, 7, blend565(kSpotify, kBackground, 28));
+    drawIdleWave((nowMs / 86U + 57U) % 160U, 62, 8, 4, blend565(kAccent, kBackground, 22));
+    drawIdleWave((nowMs / 50U + 103U) % 160U, 207, 14, 6, blend565(kSpotify, kBackground, 24));
+
+    struct Particle {
+        std::uint16_t offset;
+        std::uint8_t divisor;
+        std::uint8_t y;
+        std::uint8_t radius;
+        bool accent;
+    };
+    static constexpr std::array<Particle, 8> kParticles{{
+        {0, 48, 18, 1, true},
+        {71, 61, 29, 2, false},
+        {143, 39, 67, 1, true},
+        {219, 72, 53, 1, false},
+        {31, 55, 184, 2, true},
+        {107, 43, 198, 1, false},
+        {187, 67, 221, 2, true},
+        {259, 51, 235, 1, false},
+    }};
+    for (const auto& particle : kParticles) {
+        const auto travel = static_cast<std::uint32_t>(nowMs / particle.divisor + particle.offset);
+        const auto x = 329 - static_cast<std::int32_t>(travel % 340U);
+        const auto color =
+            blend565(particle.accent ? kSpotify : kViolet, kBackground, particle.accent ? 62 : 38);
+        display_.fillCircle(x, particle.y, particle.radius, color);
+    }
+
+    renderIdleSpotify(nowMs);
+    renderIdleLinkStatus(theme);
+    renderIdleClock(nowMs, false);
 }
 
 void UiController::renderArtworkGlow(const RenderTheme& theme) {
@@ -1247,7 +1367,6 @@ void UiController::renderThemeAccents(const std::uint32_t nowMs) {
         return;
     }
     if (idlePlayback(playback_)) {
-        renderIdleAccents(theme, true);
         return;
     }
     // Keep the large visible surfaces in the same palette transition as the icons without

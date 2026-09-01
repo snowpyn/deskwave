@@ -56,3 +56,5 @@ def test_message_builder_sets_protocol_envelope() -> None:
     assert message["type"] == "hello"
     assert message["sequence"] == 4
     assert isinstance(message["timestamp_ms"], int)
+    assert isinstance(message["utc_offset_seconds"], int)
+    assert -24 * 60 * 60 <= message["utc_offset_seconds"] <= 24 * 60 * 60

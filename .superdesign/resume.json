@@ -20,13 +20,13 @@
         "firmware/src/app/application.cpp:640:689"
       ],
       "fingerprints": {
-        ".superdesign/design-system.md": "4b919eeeea56506d4c4ac07a0de7da5a03b1d5617035559999af944a02fc27e4",
+        ".superdesign/design-system.md": "a7c912c14ad108e6c49a2fd7ea4ef2a012a17ed1a76f23659f029e1e1a957e49",
         ".superdesign/init/theme.md": "d61516bcdd1d94b4016c7cf19098ff6abc2ec41199a21692491231cf6684f0b5",
-        "firmware/include/ui/ui_controller.h": "5a43d041b49ba2b87033c81fcd39b3b71b222210d3d070a1bc65652a4aeb3be1",
-        "firmware/include/app/messages.h": "07eec1e4e415c284e7afafd4d85471b8bdcbd28f10a5e3ad19425cd352100c84",
-        "firmware/lib/deskwave_core/src/deskwave/core/theme.h": "8fdfc5d1c5ec929a5323cee887f35ca94edda1714035b7b3cf87adbcd46c013e",
-        "firmware/src/ui/ui_controller.cpp": "c41f741d14567bd97da644e7863e07fcc93039bcdb7de2ecc2f671e5b6495ea5",
-        "firmware/src/app/application.cpp": "4cdfffcff50a554800c321a2f9426fcb93f287b8e0e7c01b2e97dbb608d790fa"
+        "firmware/include/ui/ui_controller.h": "90e7a7d48436154892535dbf916cbd54b91a8ab417cacaf5a0ae64885a30c3a3",
+        "firmware/include/app/messages.h": "868025026e754f5b05f60b76b68779096916d14998e9db3c04f6b86c183a3ea9",
+        "firmware/lib/deskwave_core/src/deskwave/core/theme.h": "a63575b2e897efcb281e602eca4a7bd8bbde04fda0bd54d2690e036e73b86e23",
+        "firmware/src/ui/ui_controller.cpp": "07f7d8590b419f5a03ce5befbcd0523ea5c2b424d31499210f408b85bcfcbdca",
+        "firmware/src/app/application.cpp": "ddca224ee0381e08ad082e2e135d667eff2a684ede5d3b81cdcfa1bd0885be6a"
       },
       "components": [
         {
@@ -48,6 +48,39 @@
         }
       },
       "updatedAt": "2026-08-24T18:15:10Z"
+    },
+    "/now-playing/idle": {
+      "targetKind": "existing-ui",
+      "projectId": "3a924890-89a1-45fc-a11b-d87d8193389d",
+      "baselineDraftId": "649f78ec-31b1-4398-8125-f9708e61c5e0",
+      "activeDraftId": "649f78ec-31b1-4398-8125-f9708e61c5e0",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "firmware/include/ui/ui_controller.h",
+        "firmware/include/app/messages.h",
+        "firmware/lib/deskwave_core/src/deskwave/core/theme.h",
+        "firmware/src/ui/ui_controller.cpp:1:260",
+        "firmware/src/ui/ui_controller.cpp:690:1215"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "a7c912c14ad108e6c49a2fd7ea4ef2a012a17ed1a76f23659f029e1e1a957e49",
+        ".superdesign/init/theme.md": "d61516bcdd1d94b4016c7cf19098ff6abc2ec41199a21692491231cf6684f0b5",
+        "firmware/include/ui/ui_controller.h": "90e7a7d48436154892535dbf916cbd54b91a8ab417cacaf5a0ae64885a30c3a3",
+        "firmware/include/app/messages.h": "868025026e754f5b05f60b76b68779096916d14998e9db3c04f6b86c183a3ea9",
+        "firmware/lib/deskwave_core/src/deskwave/core/theme.h": "a63575b2e897efcb281e602eca4a7bd8bbde04fda0bd54d2690e036e73b86e23",
+        "firmware/src/ui/ui_controller.cpp": "07f7d8590b419f5a03ce5befbcd0523ea5c2b424d31499210f408b85bcfcbdca"
+      },
+      "drafts": {
+        "649f78ec-31b1-4398-8125-f9708e61c5e0": {
+          "title": "DeskWave Ambient Clock",
+          "visualDirection": "full-canvas Spotify ambient clock with horizontal wave ribbons, breathing halo, drifting particles, local time with AM/PM, and abbreviated date",
+          "baselineVersion": 1,
+          "currentVersion": 3
+        }
+      },
+      "updatedAt": "2026-09-01T03:30:00Z"
     }
   }
 }

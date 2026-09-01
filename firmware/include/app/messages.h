@@ -26,6 +26,13 @@ void copyText(char (&destination)[Size], const char* source) noexcept {
 enum class PlaybackStatus : std::uint8_t { Stopped, Playing, Paused };
 enum class RepeatMode : std::uint8_t { Unknown, Off, Track, Playlist };
 
+struct ClockSync {
+    std::uint64_t unixMs{0};
+    std::uint32_t receivedAtMs{0};
+    std::int32_t utcOffsetSeconds{0};
+    bool valid{false};
+};
+
 inline constexpr std::size_t kMaximumQueueItems = 4;
 
 struct QueueEntry {
