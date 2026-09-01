@@ -185,7 +185,10 @@ void formatDuration(const std::uint64_t milliseconds, char (&buffer)[16]) {
 }  // namespace
 
 UiController::UiController(display::DisplayDriver& display)
-    : display_(display), themeFrom_(kFallbackTheme), themeTarget_(kFallbackTheme) {}
+    : display_(display),
+      idleBand_(&display),
+      themeFrom_(kFallbackTheme),
+      themeTarget_(kFallbackTheme) {}
 
 core::ThemePalette UiController::sampledTheme(const std::uint32_t nowMs) const noexcept {
     if (core::themesEqual(themeFrom_, themeTarget_)) {
@@ -284,6 +287,12 @@ bool UiController::begin(const std::uint8_t brightness, const std::uint8_t defau
                          const std::uint32_t nowMs) {
     if (!display_.initialize(brightness)) {
         return false;
+    }
+    idleBand_.setColorDepth(16);
+    idleBand_.setPsram(false);
+    idleBandReady_ = idleBand_.createSprite(display_.width(), kIdleTopBandHeight) != nullptr;
+    if (!idleBandReady_) {
+        DW_LOG_WARN("ui", "Idle animation buffer unavailable; using a static idle composition");
     }
     screen_ = defaultScreen <= static_cast<std::uint8_t>(Screen::About)
                   ? static_cast<Screen>(defaultScreen)
@@ -789,7 +798,7 @@ void UiController::tick(const std::uint32_t nowMs) {
     }
     if (screen_ == Screen::NowPlaying && !connectionScreenActive() && !hasPendingPlayback_ &&
         volumeOverlayUntilMs_ == 0 && toastUntilMs_ == 0 && !factoryResetChordVisible_) {
-        if (idlePlayback(playback_) &&
+        if (idleBandReady_ && idlePlayback(playback_) &&
             static_cast<std::uint32_t>(nowMs - lastIdleFrameMs_) >= kIdleFrameMs) {
             renderIdleAnimation(nowMs);
             lastIdleFrameMs_ = nowMs;
@@ -1070,43 +1079,46 @@ void UiController::renderIdle(const std::uint32_t nowMs) {
     lastIdleFrameMs_ = nowMs;
 }
 
-void UiController::drawIdleWave(const std::uint32_t phase, const std::int32_t baseY,
-                                const std::int32_t amplitude, const std::uint8_t thickness,
-                                const std::uint16_t color) {
+void UiController::drawIdleWave(lgfx::LGFXBase& canvas, const std::uint32_t phase,
+                                const std::int32_t baseY, const std::int32_t amplitude,
+                                const std::uint8_t thickness, const std::uint16_t color) {
     constexpr std::int32_t kWaveWidth = 160;
     for (std::int32_t segment = -1; segment <= 2; ++segment) {
         const auto startX = segment * kWaveWidth - static_cast<std::int32_t>(phase);
         for (std::uint8_t stroke = 0; stroke < thickness; ++stroke) {
             const auto y = baseY + static_cast<std::int32_t>(stroke) - thickness / 2;
-            display_.drawBezier(startX, y, startX + 40, y - amplitude, startX + 120, y + amplitude,
-                                startX + kWaveWidth, y, color);
+            canvas.drawBezier(startX, y, startX + 40, y - amplitude, startX + 120, y + amplitude,
+                              startX + kWaveWidth, y, color);
         }
     }
 }
 
-void UiController::renderIdleSpotify(const std::uint32_t nowMs) {
+void UiController::renderIdleSpotify(lgfx::LGFXBase& canvas, const std::uint32_t nowMs) {
     const auto phase = nowMs % kIdleHaloPeriodMs;
     const auto distance = phase <= kIdleHaloPeriodMs / 2 ? phase : kIdleHaloPeriodMs - phase;
     const auto pulse = static_cast<std::uint8_t>(distance * 38U / (kIdleHaloPeriodMs / 2));
     const auto halo = blend565(kSpotify, kBackground, static_cast<std::uint8_t>(38U + pulse));
-    display_.fillCircle(160, 42, 24 + pulse / 19, halo);
-    display_.fillCircle(160, 42, 16, kSpotify);
+    canvas.fillCircle(160, 42, 24 + pulse / 19, halo);
+    canvas.fillCircle(160, 42, 16, kSpotify);
 
     const auto glyph = kBackground;
     for (std::int32_t stroke = 0; stroke < 2; ++stroke) {
-        display_.drawBezier(149, 36 + stroke, 155, 32 + stroke, 165, 33 + stroke, 172, 37 + stroke,
-                            glyph);
+        canvas.drawBezier(149, 36 + stroke, 155, 32 + stroke, 165, 33 + stroke, 172, 37 + stroke,
+                          glyph);
     }
-    display_.drawBezier(150, 41, 156, 38, 164, 39, 170, 42, glyph);
-    display_.drawBezier(151, 46, 156, 43, 163, 44, 168, 47, glyph);
+    canvas.drawBezier(150, 41, 156, 38, 164, 39, 170, 42, glyph);
+    canvas.drawBezier(151, 46, 156, 43, 163, 44, 168, 47, glyph);
 }
 
-void UiController::renderIdleLinkStatus(const RenderTheme& theme) {
+void UiController::renderIdleLinkStatus(lgfx::LGFXBase& canvas, const RenderTheme& theme) {
     const auto color = status_.hostConnected ? kAccent : kWarning;
-    display_.fillRect(264, 4, 50, 12, kBackground);
-    display_.fillCircle(270, 10, 2, color);
-    drawFitted(status_.hostConnected ? "LINK" : "RETRY", 312, 5, 36, &fonts::Font0, color,
-               lgfx::textdatum_t::top_right);
+    canvas.fillRect(264, 4, 50, 12, kBackground);
+    canvas.fillCircle(270, 10, 2, color);
+    canvas.setFont(&fonts::Font0);
+    canvas.setTextSize(1);
+    canvas.setTextColor(color);
+    canvas.setTextDatum(lgfx::textdatum_t::top_right);
+    canvas.drawString(status_.hostConnected ? "LINK" : "RETRY", 312, 5);
     (void)theme;
 }
 
@@ -1149,13 +1161,6 @@ void UiController::renderIdleClock(const std::uint32_t nowMs, const bool clear) 
 
 void UiController::renderIdleAnimation(const std::uint32_t nowMs) {
     const auto theme = renderTheme(nowMs);
-    display_.fillRect(0, 0, 320, kIdleTopBandHeight, kBackground);
-    display_.fillRect(0, kIdleBottomBandY, 320, 240 - kIdleBottomBandY, kBackground);
-
-    drawIdleWave((nowMs / 60U) % 160U, 38, 15, 7, blend565(kSpotify, kBackground, 28));
-    drawIdleWave((nowMs / 86U + 57U) % 160U, 62, 8, 4, blend565(kAccent, kBackground, 22));
-    drawIdleWave((nowMs / 50U + 103U) % 160U, 207, 14, 6, blend565(kSpotify, kBackground, 24));
-
     struct Particle {
         std::uint16_t offset;
         std::uint8_t divisor;
@@ -1173,16 +1178,49 @@ void UiController::renderIdleAnimation(const std::uint32_t nowMs) {
         {187, 67, 221, 2, true},
         {259, 51, 235, 1, false},
     }};
-    for (const auto& particle : kParticles) {
-        const auto travel = static_cast<std::uint32_t>(nowMs / particle.divisor + particle.offset);
-        const auto x = 329 - static_cast<std::int32_t>(travel % 340U);
-        const auto color =
-            blend565(particle.accent ? kSpotify : kViolet, kBackground, particle.accent ? 62 : 38);
-        display_.fillCircle(x, particle.y, particle.radius, color);
-    }
 
-    renderIdleSpotify(nowMs);
-    renderIdleLinkStatus(theme);
+    const auto drawParticles = [&](lgfx::LGFXBase& canvas, const std::int32_t sourceY,
+                                   const std::int32_t height) {
+        for (const auto& particle : kParticles) {
+            if (particle.y < sourceY || particle.y >= sourceY + height) {
+                continue;
+            }
+            const auto travel =
+                static_cast<std::uint32_t>(nowMs / particle.divisor + particle.offset);
+            const auto x = 329 - static_cast<std::int32_t>(travel % 340U);
+            const auto color = blend565(particle.accent ? kSpotify : kViolet, kBackground,
+                                        particle.accent ? 62 : 38);
+            canvas.fillCircle(x, particle.y - sourceY, particle.radius, color);
+        }
+    };
+
+    if (idleBandReady_) {
+        idleBand_.fillScreen(kBackground);
+        drawIdleWave(idleBand_, (nowMs / 60U) % 160U, 38, 15, 7,
+                     blend565(kSpotify, kBackground, 28));
+        drawIdleWave(idleBand_, (nowMs / 86U + 57U) % 160U, 62, 8, 4,
+                     blend565(kAccent, kBackground, 22));
+        drawParticles(idleBand_, 0, kIdleTopBandHeight);
+        renderIdleSpotify(idleBand_, nowMs);
+        renderIdleLinkStatus(idleBand_, theme);
+        idleBand_.pushSprite(0, 0);
+
+        idleBand_.fillScreen(kBackground);
+        drawIdleWave(idleBand_, (nowMs / 50U + 103U) % 160U, 207 - kIdleBottomBandY, 14, 6,
+                     blend565(kSpotify, kBackground, 24));
+        drawParticles(idleBand_, kIdleBottomBandY, 240 - kIdleBottomBandY);
+        idleBand_.pushSprite(0, kIdleBottomBandY);
+    } else {
+        drawIdleWave(display_, (nowMs / 60U) % 160U, 38, 15, 7,
+                     blend565(kSpotify, kBackground, 28));
+        drawIdleWave(display_, (nowMs / 86U + 57U) % 160U, 62, 8, 4,
+                     blend565(kAccent, kBackground, 22));
+        drawIdleWave(display_, (nowMs / 50U + 103U) % 160U, 207, 14, 6,
+                     blend565(kSpotify, kBackground, 24));
+        drawParticles(display_, 0, 240);
+        renderIdleSpotify(display_, nowMs);
+        renderIdleLinkStatus(display_, theme);
+    }
     renderIdleClock(nowMs, false);
 }
 

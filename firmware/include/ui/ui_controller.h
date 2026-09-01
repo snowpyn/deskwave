@@ -88,10 +88,10 @@ class UiController {
     void renderIdle(std::uint32_t nowMs);
     void renderIdleAnimation(std::uint32_t nowMs);
     void renderIdleClock(std::uint32_t nowMs, bool clear);
-    void renderIdleSpotify(std::uint32_t nowMs);
-    void renderIdleLinkStatus(const RenderTheme& theme);
-    void drawIdleWave(std::uint32_t phase, std::int32_t baseY, std::int32_t amplitude,
-                      std::uint8_t thickness, std::uint16_t color);
+    void renderIdleSpotify(lgfx::LGFXBase& canvas, std::uint32_t nowMs);
+    void renderIdleLinkStatus(lgfx::LGFXBase& canvas, const RenderTheme& theme);
+    void drawIdleWave(lgfx::LGFXBase& canvas, std::uint32_t phase, std::int32_t baseY,
+                      std::int32_t amplitude, std::uint8_t thickness, std::uint16_t color);
     void renderCompactLinkStatus(const RenderTheme& theme);
     void renderNowPlayingBackdrop(const RenderTheme& theme);
     void renderArtwork(std::uint32_t nowMs);
@@ -143,6 +143,7 @@ class UiController {
     [[nodiscard]] static const char* screenName(Screen screen) noexcept;
 
     display::DisplayDriver& display_;
+    lgfx::LGFX_Sprite idleBand_;
     app::PlaybackSnapshot playback_{};
     app::PlaybackSnapshot pendingPlayback_{};
     app::PlayerListSnapshot players_{};
@@ -195,6 +196,7 @@ class UiController {
     bool titleScrollActive_{false};
     bool progressPainted_{false};
     bool clockRendered_{false};
+    bool idleBandReady_{false};
     bool dirty_{true};
 };
 
