@@ -19,7 +19,9 @@ class ReconnectBackoff {
         if (attempt_ < 31) {
             ++attempt_;
         }
-        return std::min(maximumMs_, bounded + (randomValue % jitterRange));
+        const auto jittered = static_cast<std::uint64_t>(bounded) + (randomValue % jitterRange);
+        return static_cast<std::uint32_t>(
+            std::min<std::uint64_t>(jittered, static_cast<std::uint64_t>(maximumMs_)));
     }
 
     void reset() noexcept { attempt_ = 0; }

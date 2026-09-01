@@ -38,18 +38,25 @@ bool SettingsStore::migrateLegacy(Preferences& preferences) {
     const String legacySsid = preferences.getString("wifi_ssid", "");
     const String legacyPassword = preferences.getString("wifi_pass", "");
     const String legacyToken = preferences.getString("host_token", "");
+    bool success = true;
     if (!legacySsid.isEmpty() && validSsid(legacySsid) && validPassword(legacyPassword)) {
-        preferences.putBool("wifi_valid", false);
-        preferences.putString("ssid", legacySsid);
-        preferences.putString("password", legacyPassword);
-        preferences.putBool("wifi_valid", true);
+        success = preferences.putBool("wifi_valid", false) == sizeof(bool);
+        if (success) {
+            success =
+                preferences.putString("ssid", legacySsid) == legacySsid.length() &&
+                preferences.putString("password", legacyPassword) == legacyPassword.length() &&
+                preferences.putBool("wifi_valid", true) == sizeof(bool);
+        }
     }
     if (!legacyToken.isEmpty() && validToken(legacyToken)) {
-        preferences.putBool("paired", false);
-        preferences.putString("token", legacyToken);
-        preferences.putBool("paired", true);
+        success = success && preferences.putBool("paired", false) == sizeof(bool);
+        if (success) {
+            success = preferences.putString("token", legacyToken) == legacyToken.length() &&
+                      preferences.putBool("paired", true) == sizeof(bool);
+        }
     }
-    return preferences.putUChar("schema", config::kSettingsSchemaVersion) == sizeof(std::uint8_t);
+    return success &&
+           preferences.putUChar("schema", config::kSettingsSchemaVersion) == sizeof(std::uint8_t);
 }
 
 SettingsLoadStatus SettingsStore::load(DeviceSettings& settings) {
@@ -82,10 +89,13 @@ SettingsLoadStatus SettingsStore::load(DeviceSettings& settings) {
         unlock();
         return SettingsLoadStatus::Unsupported;
     }
-    if (schema < config::kSettingsSchemaVersion && !migrateLegacy(preferences)) {
-        preferences.end();
-        unlock();
-        return SettingsLoadStatus::Corrupt;
+    if (schema < config::kSettingsSchemaVersion) {
+        if (!migrateLegacy(preferences)) {
+            preferences.end();
+            unlock();
+            return SettingsLoadStatus::Corrupt;
+        }
+        migrated = true;
     }
 
     settings = DeviceSettings{};

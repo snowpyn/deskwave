@@ -16,7 +16,9 @@ Default TCP port: 8765
 ```
 
 The ESP32 first uses a configured host override when present, otherwise queries
-mDNS. Protocol 1 uses unencrypted `http://` and `ws://` on a trusted private LAN.
+mDNS. The provisioning page can store the override for networks that block
+multicast discovery. Protocol 1 uses unencrypted `http://` and `ws://` on a
+trusted private LAN.
 Authentication prevents unauthorised control but does not provide network
 confidentiality.
 

@@ -255,10 +255,11 @@ entries; long strings are shortened only at UTF-8 character boundaries, and
 long titles use the normal continuous marquee.
 
 Device settings are changed on the Settings screen and stored in versioned NVS.
-They include brightness, idle dim timeout, default screen, and volume step. A
-manual host override exists in the storage model for networks where mDNS is not
-available; ordinary users do not need to edit firmware source for Wi-Fi,
-pairing, display preferences, or player selection.
+They include brightness, idle dim timeout, default screen, and volume step. The
+first-boot provisioning page also accepts an optional host address and port for
+networks where mDNS is not available; leave the address blank to use automatic
+discovery. Ordinary users do not need to edit firmware source for Wi-Fi, pairing,
+display preferences, or player selection.
 
 For a dedicated device that must join one known network on first boot, copy
 `firmware/include/config/device_secrets.example.h` to `device_secrets.h` and

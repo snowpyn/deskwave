@@ -167,10 +167,11 @@ stateDiagram-v2
     Error --> Boot: factory reset and restart
 ```
 
-Wi-Fi retry and host discovery use separate bounded exponential backoff clocks
-with jitter. WebSocket heartbeat frames detect dead sessions. If the HTTP health
-endpoint is reachable but the saved token cannot establish a WebSocket for 30
-seconds, firmware clears only the rejected pairing token and returns to pairing.
+Wi-Fi, host discovery, and WebSocket retry use separate bounded exponential
+backoff clocks with jitter. WebSocket heartbeat frames detect dead sessions. If
+the HTTP health endpoint is reachable but the saved token cannot establish a
+WebSocket for 30 seconds, firmware clears only the rejected pairing token and
+returns to pairing.
 
 ## UI state and feedback
 

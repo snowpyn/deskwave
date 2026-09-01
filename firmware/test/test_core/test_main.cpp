@@ -130,6 +130,11 @@ void test_backoff_is_bounded_and_resettable() {
     }
     backoff.reset();
     TEST_ASSERT_EQUAL_UINT32(100, backoff.next(0));
+
+    // The jitter calculation must saturate before converting back to uint32_t;
+    // otherwise a large but valid maximum can wrap to a short delay.
+    ReconnectBackoff largeBackoff(UINT32_MAX, UINT32_MAX);
+    TEST_ASSERT_EQUAL_UINT32(UINT32_MAX, largeBackoff.next(UINT32_MAX));
 }
 
 void test_local_clock_formats_timezone_date_and_ampm() {

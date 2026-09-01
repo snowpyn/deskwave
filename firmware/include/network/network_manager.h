@@ -59,6 +59,7 @@ class NetworkManager {
     core::StateMachine stateMachine_;
     core::ReconnectBackoff wifiBackoff_{1'000, 30'000};
     core::ReconnectBackoff hostBackoff_{500, 30'000};
+    core::ReconnectBackoff webSocketBackoff_{1'000, 30'000};
     TaskHandle_t task_{nullptr};
     String deviceId_;
     String host_;

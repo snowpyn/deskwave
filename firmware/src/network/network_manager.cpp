@@ -390,11 +390,12 @@ bool NetworkManager::pairDevice(storage::DeviceSettings& settings) {
 void NetworkManager::configureWebSocket(const String& token) {
     activeToken_ = token;
     const String authorization = "Bearer " + token;
+    const auto reconnectIntervalMs = webSocketBackoff_.next(esp_random());
     // WebSocketsClient::begin() clears its authorization fields, so configure
     // the endpoint before installing the bearer header.
     webSocket_.begin(host_.c_str(), hostPort_, config::kWebSocketPath, "");
     webSocket_.setAuthorization(authorization.c_str());
-    webSocket_.setReconnectInterval(3'000);
+    webSocket_.setReconnectInterval(reconnectIntervalMs);
     webSocket_.enableHeartbeat(15'000, 3'000, 2);
     webSocket_.onEvent(
         [this](const WStype_t type, std::uint8_t* payload, const std::size_t length) {
@@ -449,6 +450,7 @@ void NetworkManager::handleWebSocketEvent(const WStype_t type, std::uint8_t* pay
     switch (type) {
         case WStype_CONNECTED:
             webSocketConnected_ = true;
+            webSocketBackoff_.reset();
             lastConnectedAtMs_ = millis();
             transition(core::StateEvent::HostConnected, "Connected");
             DW_LOG_INFO("host", "Authenticated WebSocket connected");

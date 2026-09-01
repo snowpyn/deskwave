@@ -3,12 +3,35 @@
 #include <WiFi.h>
 #include <esp_system.h>
 
+#include "config/build_config.h"
 #include "system/logging.h"
 
 namespace deskwave::network {
 namespace {
 
 constexpr char kCharacters[] = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+
+bool parsePort(const String& text, std::uint16_t& result) {
+    if (text.isEmpty() || text.length() > 5) {
+        return false;
+    }
+    unsigned long value = 0;
+    for (std::size_t index = 0; index < text.length(); ++index) {
+        const char character = text[index];
+        if (character < '0' || character > '9') {
+            return false;
+        }
+        value = value * 10U + static_cast<unsigned long>(character - '0');
+        if (value > 65'535U) {
+            return false;
+        }
+    }
+    if (value == 0) {
+        return false;
+    }
+    result = static_cast<std::uint16_t>(value);
+    return true;
+}
 
 }  // namespace
 
@@ -68,6 +91,9 @@ void ProvisioningPortal::handleRoot() {
           "<h1>DeskWave Wi-Fi</h1><p>Enter the network this device should join.</p>"
           "<form method=post action=/save><label>Network name<input name=ssid maxlength=32 "
           "required></label><label>Password<input name=password type=password maxlength=63></label>"
+          "<label>Host address (optional)<input name=host maxlength=253 "
+          "placeholder='192.168.1.20'></label><label>Host port<input name=port type=number "
+          "min=1 max=65535 value=8765 required></label>"
           "<input type=hidden name=nonce value='");
     page += nonce_;
     page += F("'><button type=submit>Save and connect</button></form>");
@@ -78,14 +104,22 @@ void ProvisioningPortal::handleSave() {
     sendHeaders();
     const String ssid = server_.arg("ssid");
     const String password = server_.arg("password");
+    const String host = server_.arg("host");
+    const String portText = server_.arg("port");
     const String nonce = server_.arg("nonce");
+    std::uint16_t port = 0;
     if (nonce != nonce_ || ssid.isEmpty() || ssid.length() > 32 ||
-        (!password.isEmpty() && (password.length() < 8 || password.length() > 63))) {
+        (!password.isEmpty() && (password.length() < 8 || password.length() > 63)) ||
+        !parsePort(portText, port) || host.length() > 253 || host.indexOf(' ') >= 0) {
         server_.send(400, "text/plain", "Invalid network details. Return and try again.");
         return;
     }
     if (!settingsStore_.saveWifi(ssid, password)) {
         server_.send(500, "text/plain", "DeskWave could not store the credentials safely.");
+        return;
+    }
+    if (!settingsStore_.saveHostOverride(host, port)) {
+        server_.send(500, "text/plain", "DeskWave could not store the host override safely.");
         return;
     }
     credentialsSaved_ = true;
