@@ -18,10 +18,11 @@ diagnostic only; DeskWave does not require it in normal operation.
 ## Display stays dark
 
 1. Disconnect power and verify VCC/GND against the display module datasheet.
-2. Confirm CS 10, DC 9, RESET 8, SCLK 12, MOSI 11, and backlight 14.
+2. Confirm TFT CS 15, DC 2, no-connected reset, SCLK 14, MOSI 13, and
+   backlight 21.
 3. Determine whether the breakout's backlight input is active-low and set
    `kBacklightInverted` accordingly.
-4. Confirm the build target is `esp32-s3-devkitc-1` and the panel really uses an
+4. Confirm the build target is `esp32-d0wd-v3` and the panel really uses an
    ILI9341 controller.
 5. Check serial for `Display initialization failed`.
 
@@ -90,6 +91,10 @@ The service advertises `_deskwave._tcp.local.`. From another Linux machine,
 `avahi-browse -rt _deskwave._tcp` can independently confirm discovery when
 Avahi tools are installed.
 
+If the journal reports `Address family not supported by protocol`, reinstall
+the current user-service unit. Its `RestrictAddressFamilies` list must include
+`AF_NETLINK`, which Zeroconf uses only to inspect local network interfaces.
+
 ## Pairing code never appears
 
 Pairing begins only after Wi-Fi and host discovery. Resolve the state shown
@@ -127,6 +132,10 @@ appear only while a tab is actively presenting media. Sandboxed applications
 may require their desktop integration/portal. DeskWave cannot synthesize
 metadata that the player does not expose.
 
+For phone playback, the phone session must be bridged into this same desktop
+D-Bus (for example by KDE Connect). DeskWave cannot directly inspect Android or
+iOS media sessions over Wi-Fi.
+
 ## Track information is missing
 
 Inspect the active player's MPRIS properties:
@@ -143,21 +152,52 @@ artwork means that property was unavailable or rejected; the UI shows a neutral
 fallback instead of fake data. Use the Device screen to select the intended
 player if several are present.
 
-## Artwork remains a placeholder
+## Artwork is missing, stale, or paired with the wrong colors
 
-Host logs identify retrieval/validation failures without logging full sensitive
-URLs. Common causes:
+The previous valid cover remaining briefly after a track change is expected: it
+stays visible while MPRIS supplies a delayed `mpris:artUrl` and while the host
+validates the replacement. Pause, a short metadata gap, and a short reconnect
+also retain it. A branded fallback should appear only when the active track is
+confirmed to have no usable cover. The normal missing-`artUrl` grace is 1.0
+second; temporary remote failures receive three total attempts with 250 ms then
+750 ms backoff.
 
-- the MPRIS player exposes no `mpris:artUrl`;
-- a local file disappeared or is too large;
-- the remote response is not an image;
-- the source exceeds byte/pixel/redirect limits;
-- a private HTTP artwork host is blocked by the default SSRF policy;
-- the ESP32 rejects a download over 384 KiB or a malformed JPEG;
-- LittleFS could not mount or commit the cache file.
+Enable host `DEBUG` logging temporarily and inspect the sanitized lifecycle:
+
+```bash
+journalctl --user -u deskwave-host -f | rg \
+  'artwork|generation|cache|retry|fallback'
+```
+
+The logs distinguish metadata grace, cache hit/miss, bounded fetch retries,
+validation failure, stale-generation rejection, and deliberate fallback. They
+redact full source URLs and local paths. Common causes are:
+
+- the player never exposes `mpris:artUrl`, or publishes it after other track
+  metadata;
+- an absolute local `file://` target disappeared, changed during reading, is
+  not readable by the user service, or exceeds the byte/pixel limits;
+- an HTTP/HTTPS source returns a temporary status, redirect loop, wrong content
+  type, incomplete/corrupt body, or invalid TLS certificate;
+- a private/special-purpose HTTP artwork host is blocked by the default SSRF
+  policy;
+- a processed host cache bundle fails JPEG, palette, or SHA validation and must
+  be rebuilt;
+- the ESP32 rejects a response over 384 KiB, malformed JPEG markers, a final
+  SHA-256 different from `artwork_id`, or an obsolete `artwork_generation`;
+- LittleFS could not mount, retain its 32 KiB safety reserve, or atomically
+  commit the verified temporary file.
+
+Do not add sleeps or increase retry counts to mask this state. Confirm the
+active player and `mpris:artUrl`, then follow one generation through host and
+firmware logs. During rapid skipping, a logged stale-generation rejection is
+healthy; an old cover overwriting the final track is not.
 
 Do not enable `allow_private_artwork_hosts` merely to hide an unrelated error.
 If it is genuinely required, enable it only for trusted players and networks.
+If the correct cover is ever shown with another cover's palette, preserve both
+logs and report it as a generation-integrity defect; artwork and theme are
+committed as one unit and should never mismatch.
 
 ## Controls show a rejection
 

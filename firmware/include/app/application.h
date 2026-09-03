@@ -19,8 +19,9 @@ class Application {
     Application(storage::SettingsStore& settingsStore, controls::InputManager& inputManager,
                 network::NetworkManager& networkManager, network::ArtworkManager& artworkManager,
                 ui::UiController& ui, QueueHandle_t inputQueue, QueueHandle_t playbackQueue,
-                QueueHandle_t noticeQueue, QueueHandle_t commandQueue, QueueHandle_t feedbackQueue,
-                QueueHandle_t artworkResultQueue, QueueHandle_t playerQueue);
+                QueueHandle_t clockQueue, QueueHandle_t noticeQueue, QueueHandle_t commandQueue,
+                QueueHandle_t feedbackQueue, QueueHandle_t artworkResultQueue,
+                QueueHandle_t playerQueue);
     [[nodiscard]] bool begin();
     void loop();
 
@@ -44,6 +45,8 @@ class Application {
     void persistSettingsIfDue(std::uint32_t nowMs);
     void updateHealth(std::uint32_t nowMs);
     void updateStatusLed(std::uint32_t nowMs);
+    void syncArtworkProtection();
+    void acknowledgeArtworkResult(const ArtworkResult& result);
     [[nodiscard]] static bool hostState(core::SystemState state) noexcept;
 
     storage::SettingsStore& settingsStore_;
@@ -53,6 +56,7 @@ class Application {
     ui::UiController& ui_;
     QueueHandle_t inputQueue_;
     QueueHandle_t playbackQueue_;
+    QueueHandle_t clockQueue_;
     QueueHandle_t noticeQueue_;
     QueueHandle_t commandQueue_;
     QueueHandle_t feedbackQueue_;
@@ -63,18 +67,19 @@ class Application {
     PlayerListSnapshot players_{};
     ui::DeviceStatus deviceStatus_{};
     ui::SettingsView settings_{};
-    std::uint32_t lastActivityAtMs_{0};
     std::uint32_t settingsChangedAtMs_{0};
     std::uint32_t lastHealthUpdateMs_{0};
     std::uint32_t lastHealthLogMs_{0};
     std::uint32_t lastPlayerRequestMs_{0};
+    std::uint32_t lastStatusLedUpdateMs_{0};
     std::uint32_t factoryResetChordStartedAtMs_{0};
     std::int16_t optimisticVolumePercent_{-1};
     std::uint8_t selectedPlayer_{0};
+    char reportedActiveArtworkId_[65]{};
+    char reportedStagedArtworkId_[65]{};
     bool hasPlayback_{false};
     bool settingsDirty_{false};
     bool factoryResetChordTiming_{false};
-    bool dimmed_{false};
     bool begun_{false};
 };
 

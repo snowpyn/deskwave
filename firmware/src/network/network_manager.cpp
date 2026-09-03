@@ -39,14 +39,53 @@ std::uint64_t boundedMilliseconds(const JsonVariantConst value, const std::uint6
     return std::min(value.as<std::uint64_t>(), maximum);
 }
 
+bool parsePackedColor(const JsonVariantConst value, core::Rgb888& destination) {
+    if (!value.is<std::uint32_t>()) {
+        return false;
+    }
+    const auto packed = value.as<std::uint32_t>();
+    if (packed > 0xFFFFFFU) {
+        return false;
+    }
+    destination = core::unpackRgb(packed);
+    return true;
+}
+
+bool parseTheme(const JsonVariantConst value, core::ThemePalette& destination) {
+    if (!value.is<JsonObjectConst>()) {
+        return false;
+    }
+    const auto theme = value.as<JsonObjectConst>();
+    core::ThemePalette parsed;
+    if (!parsePackedColor(theme["primary"], parsed.primary) ||
+        !parsePackedColor(theme["secondary"], parsed.secondary) ||
+        !parsePackedColor(theme["background"], parsed.background) ||
+        !parsePackedColor(theme["foreground"], parsed.foreground)) {
+        return false;
+    }
+    destination = parsed;
+    return true;
+}
+
+bool validArtworkPath(const char* path, const char* artworkId) {
+    if (path == nullptr || !isHexIdentifier(artworkId)) {
+        return false;
+    }
+    char expectedPath[96];
+    std::snprintf(expectedPath, sizeof(expectedPath), "/v1/artwork/%s.jpg", artworkId);
+    return std::strcmp(path, expectedPath) == 0;
+}
+
 }  // namespace
 
 NetworkManager::NetworkManager(storage::SettingsStore& settingsStore,
-                               const QueueHandle_t playbackQueue, const QueueHandle_t noticeQueue,
-                               const QueueHandle_t commandQueue, const QueueHandle_t feedbackQueue,
-                               const QueueHandle_t artworkQueue, const QueueHandle_t playerQueue)
+                               const QueueHandle_t playbackQueue, const QueueHandle_t clockQueue,
+                               const QueueHandle_t noticeQueue, const QueueHandle_t commandQueue,
+                               const QueueHandle_t feedbackQueue, const QueueHandle_t artworkQueue,
+                               const QueueHandle_t playerQueue)
     : settingsStore_(settingsStore),
       playbackQueue_(playbackQueue),
+      clockQueue_(clockQueue),
       noticeQueue_(noticeQueue),
       commandQueue_(commandQueue),
       feedbackQueue_(feedbackQueue),
@@ -98,7 +137,7 @@ void NetworkManager::transition(const core::StateEvent event, const char* primar
 
 void NetworkManager::run() {
     storage::DeviceSettings settings;
-    const auto loadStatus = settingsStore_.load(settings);
+    auto loadStatus = settingsStore_.load(settings);
     if (loadStatus == storage::SettingsLoadStatus::Unsupported ||
         loadStatus == storage::SettingsLoadStatus::Corrupt) {
         transition(core::StateEvent::FatalError, "Settings unavailable",
@@ -108,6 +147,29 @@ void NetworkManager::run() {
         while (true) {
             vTaskDelay(pdMS_TO_TICKS(1'000));
         }
+    }
+    const bool bootstrapRequested =
+        config::kBootstrapWifiEnabled &&
+        (loadStatus == storage::SettingsLoadStatus::Empty ||
+         (config::kForceBootstrapWifi && settings.wifiSsid != config::kBootstrapWifiSsid));
+    if (bootstrapRequested) {
+        if (!settingsStore_.saveWifi(config::kBootstrapWifiSsid, config::kBootstrapWifiPassword)) {
+            transition(core::StateEvent::FatalError, "Wi-Fi profile unavailable",
+                       "Private bootstrap profile could not be saved");
+            while (true) {
+                vTaskDelay(pdMS_TO_TICKS(1'000));
+            }
+        }
+        loadStatus = settingsStore_.load(settings);
+        if (loadStatus != storage::SettingsLoadStatus::Ok &&
+            loadStatus != storage::SettingsLoadStatus::Migrated) {
+            transition(core::StateEvent::FatalError, "Wi-Fi profile unavailable",
+                       "Saved profile could not be loaded");
+            while (true) {
+                vTaskDelay(pdMS_TO_TICKS(1'000));
+            }
+        }
+        DW_LOG_INFO("network", "Private first-boot Wi-Fi profile installed");
     }
     if (!settings.wifiConfigured) {
         transition(core::StateEvent::BootWithoutCredentials, "Wi-Fi setup required");
@@ -224,8 +286,9 @@ bool NetworkManager::discoverHost(const storage::DeviceSettings& settings) {
     }
     const int count = MDNS.queryService(config::kMdnsService, config::kMdnsProtocol);
     if (count <= 0) {
-        publishNotice(app::SystemNoticeType::RecoverableError, "DeskWave Host offline",
-                      "Searching again");
+        // Keep discovery quiet while the backoff clock runs. The current
+        // "Finding DeskWave Host" state is already visible and actionable;
+        // repeating error toasts made a healthy retry loop look like a fault.
         vTaskDelay(pdMS_TO_TICKS(hostBackoff_.next(esp_random())));
         return false;
     }
@@ -327,14 +390,17 @@ bool NetworkManager::pairDevice(storage::DeviceSettings& settings) {
 void NetworkManager::configureWebSocket(const String& token) {
     activeToken_ = token;
     const String authorization = "Bearer " + token;
+    const auto reconnectIntervalMs = webSocketBackoff_.next(esp_random());
+    // WebSocketsClient::begin() clears its authorization fields, so configure
+    // the endpoint before installing the bearer header.
+    webSocket_.begin(host_.c_str(), hostPort_, config::kWebSocketPath, "");
     webSocket_.setAuthorization(authorization.c_str());
-    webSocket_.setReconnectInterval(3'000);
+    webSocket_.setReconnectInterval(reconnectIntervalMs);
     webSocket_.enableHeartbeat(15'000, 3'000, 2);
     webSocket_.onEvent(
         [this](const WStype_t type, std::uint8_t* payload, const std::size_t length) {
             handleWebSocketEvent(type, payload, length);
         });
-    webSocket_.begin(host_.c_str(), hostPort_, config::kWebSocketPath, "");
     disconnectedAtMs_ = millis();
 }
 
@@ -384,6 +450,7 @@ void NetworkManager::handleWebSocketEvent(const WStype_t type, std::uint8_t* pay
     switch (type) {
         case WStype_CONNECTED:
             webSocketConnected_ = true;
+            webSocketBackoff_.reset();
             lastConnectedAtMs_ = millis();
             transition(core::StateEvent::HostConnected, "Connected");
             DW_LOG_INFO("host", "Authenticated WebSocket connected");
@@ -421,6 +488,18 @@ void NetworkManager::handleProtocolMessage(const std::uint8_t* payload, const st
         DW_LOG_WARN("protocol", "Rejected malformed protocol message");
         return;
     }
+    if (document["timestamp_ms"].is<std::uint64_t>() &&
+        document["utc_offset_seconds"].is<std::int32_t>()) {
+        const auto offset = document["utc_offset_seconds"].as<std::int32_t>();
+        if (offset >= -24 * 60 * 60 && offset <= 24 * 60 * 60) {
+            app::ClockSync clock;
+            clock.unixMs = document["timestamp_ms"].as<std::uint64_t>();
+            clock.utcOffsetSeconds = offset;
+            clock.receivedAtMs = millis();
+            clock.valid = true;
+            xQueueOverwrite(clockQueue_, &clock);
+        }
+    }
     const String type = document["type"].as<String>();
     const JsonObjectConst body = document["payload"].as<JsonObjectConst>();
     if (type == "playback_state") {
@@ -429,6 +508,8 @@ void NetworkManager::handleProtocolMessage(const std::uint8_t* payload, const st
         handleCommandResult(body);
     } else if (type == "players") {
         handlePlayers(body);
+    } else if (type == "clock_sync") {
+        // The envelope already refreshed the wall clock. No payload is required.
     } else if (type == "hello") {
         if (body["protocol"] != 1) {
             publishNotice(app::SystemNoticeType::RecoverableError, "Protocol mismatch");
@@ -467,6 +548,10 @@ void NetworkManager::handlePlaybackState(const JsonObjectConst payload) {
     app::copyText(snapshot.playerName, payload["player_name"] | "");
     app::copyText(snapshot.playerId, payload["player_id"] | "");
     app::copyText(snapshot.trackId, payload["track_id"] | "");
+    snapshot.hasTheme = parseTheme(payload["theme"], snapshot.theme);
+    if (payload["artwork_generation"].is<std::uint32_t>()) {
+        snapshot.artworkGeneration = payload["artwork_generation"].as<std::uint32_t>();
+    }
     snapshot.hasDuration = payload["duration_ms"].is<std::uint64_t>();
     snapshot.durationMs = boundedMilliseconds(payload["duration_ms"], 7ULL * 24 * 60 * 60 * 1000);
     snapshot.positionMs = boundedMilliseconds(
@@ -511,22 +596,82 @@ void NetworkManager::handlePlaybackState(const JsonObjectConst payload) {
     snapshot.canNext = capabilities["next"] | false;
     snapshot.canPrevious = capabilities["previous"] | false;
     snapshot.canControl = capabilities["control"] | false;
+    if (payload["lyrics"].is<JsonObjectConst>()) {
+        const JsonObjectConst lyrics = payload["lyrics"].as<JsonObjectConst>();
+        const String lyricsStatus = lyrics["status"] | "unavailable";
+        if (lyricsStatus == "loading") {
+            snapshot.lyricsStatus = app::LyricsStatus::Loading;
+        } else if (lyricsStatus == "synced") {
+            snapshot.lyricsStatus = app::LyricsStatus::Synced;
+        } else if (lyricsStatus == "instrumental") {
+            snapshot.lyricsStatus = app::LyricsStatus::Instrumental;
+        } else {
+            snapshot.lyricsStatus = app::LyricsStatus::Unavailable;
+        }
+        if (snapshot.lyricsStatus == app::LyricsStatus::Synced &&
+            lyrics["lines"].is<JsonArrayConst>()) {
+            for (const JsonObjectConst line : lyrics["lines"].as<JsonArrayConst>()) {
+                if (snapshot.lyricCount >= app::kMaximumLyricLines ||
+                    !line["time_ms"].is<std::uint64_t>() || !line["text"].is<const char*>()) {
+                    continue;
+                }
+                const char* text = line["text"].as<const char*>();
+                if (text[0] == '\0') {
+                    continue;
+                }
+                auto& destination = snapshot.lyrics[snapshot.lyricCount];
+                destination.timeMs =
+                    boundedMilliseconds(line["time_ms"], 7ULL * 24 * 60 * 60 * 1000);
+                app::copyText(destination.text, text);
+                ++snapshot.lyricCount;
+            }
+        }
+    }
 
-    const char* artworkId = payload["artwork_id"] | "";
-    const char* artworkPath = payload["artwork_path"] | "";
-    if (isHexIdentifier(artworkId) && std::strncmp(artworkPath, "/v1/artwork/", 12) == 0 &&
-        std::strstr(artworkPath, "..") == nullptr) {
+    app::ArtworkRequest artworkRequest;
+    bool hasArtworkRequest = false;
+    const JsonVariantConst artworkIdValue = payload["artwork_id"];
+    const JsonVariantConst artworkPathValue = payload["artwork_path"];
+    const bool hasArtworkIdField = !artworkIdValue.isUnbound();
+    const bool hasArtworkPathField = !artworkPathValue.isUnbound();
+    const bool artworkIdIsString = artworkIdValue.is<const char*>();
+    const bool artworkPathIsString = artworkPathValue.is<const char*>();
+    const char* artworkId = artworkIdIsString ? artworkIdValue.as<const char*>() : "";
+    const char* artworkPath = artworkPathIsString ? artworkPathValue.as<const char*>() : "";
+    const bool explicitNullArtwork = hasArtworkIdField && hasArtworkPathField &&
+                                     artworkIdValue.isNull() && artworkPathValue.isNull();
+    const bool validArtworkReference =
+        artworkIdIsString && artworkPathIsString && validArtworkPath(artworkPath, artworkId);
+    if (validArtworkReference && (snapshot.artworkGeneration == 0 || snapshot.hasTheme)) {
         app::copyText(snapshot.artworkId, artworkId);
         app::copyText(snapshot.artworkPath, artworkPath);
-        app::ArtworkRequest request;
-        app::copyText(request.host, host_.c_str());
-        request.port = hostPort_;
-        app::copyText(request.path, artworkPath);
-        app::copyText(request.artworkId, artworkId);
-        app::copyText(request.token, activeToken_.c_str());
-        xQueueOverwrite(artworkQueue_, &request);
+        app::copyText(artworkRequest.host, host_.c_str());
+        artworkRequest.port = hostPort_;
+        app::copyText(artworkRequest.path, artworkPath);
+        app::copyText(artworkRequest.artworkId, artworkId);
+        app::copyText(artworkRequest.token, activeToken_.c_str());
+        artworkRequest.theme = snapshot.theme;
+        artworkRequest.artworkGeneration = snapshot.artworkGeneration;
+        artworkRequest.hasTheme = snapshot.hasTheme;
+        hasArtworkRequest = true;
+    } else if (explicitNullArtwork && snapshot.artworkGeneration != 0 && snapshot.hasTheme) {
+        // A non-zero generation with a complete theme and no artwork is the
+        // host's authoritative fallback bundle. Generation zero remains
+        // backward-compatible and cannot evict a validated cover.
+    } else if (!explicitNullArtwork || snapshot.artworkGeneration != 0) {
+        // Missing, mixed, malformed, or incomplete visual fields are not an
+        // authoritative fallback. Strip their visual tuple so the UI retains
+        // its last acknowledged cover and palette.
+        snapshot.artworkGeneration = 0;
+        snapshot.hasTheme = false;
+        DW_LOG_WARN("protocol", "Ignored malformed artwork/theme bundle");
     }
+    // Publish playback intent before enabling even a warm-cache artwork result
+    // so the main loop can stage or commit the exact matching bundle.
     xQueueOverwrite(playbackQueue_, &snapshot);
+    if (hasArtworkRequest) {
+        xQueueOverwrite(artworkQueue_, &artworkRequest);
+    }
 }
 
 void NetworkManager::handleCommandResult(const JsonObjectConst payload) {

@@ -1,11 +1,13 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 
 #include "deskwave/core/application_state.h"
+#include "deskwave/core/theme.h"
 
 namespace deskwave::app {
 
@@ -23,6 +25,21 @@ void copyText(char (&destination)[Size], const char* source) noexcept {
 
 enum class PlaybackStatus : std::uint8_t { Stopped, Playing, Paused };
 enum class RepeatMode : std::uint8_t { Unknown, Off, Track, Playlist };
+enum class LyricsStatus : std::uint8_t { Unavailable, Loading, Synced, Instrumental };
+
+struct ClockSync {
+    std::uint64_t unixMs{0};
+    std::uint32_t receivedAtMs{0};
+    std::int32_t utcOffsetSeconds{0};
+    bool valid{false};
+};
+
+inline constexpr std::size_t kMaximumLyricLines = 5;
+
+struct LyricLine {
+    std::uint64_t timeMs{0};
+    char text[129]{};
+};
 
 struct PlaybackSnapshot {
     char title[129]{};
@@ -33,9 +50,11 @@ struct PlaybackSnapshot {
     char trackId[129]{};
     char artworkId[65]{};
     char artworkPath[129]{};
+    core::ThemePalette theme{};
     std::uint64_t durationMs{0};
     std::uint64_t positionMs{0};
     std::uint32_t receivedAtMs{0};
+    std::uint32_t artworkGeneration{0};
     std::int16_t volumePercent{-1};
     PlaybackStatus status{PlaybackStatus::Stopped};
     RepeatMode repeat{RepeatMode::Unknown};
@@ -48,6 +67,10 @@ struct PlaybackSnapshot {
     bool canNext{false};
     bool canPrevious{false};
     bool canControl{false};
+    bool hasTheme{false};
+    std::array<LyricLine, kMaximumLyricLines> lyrics{};
+    std::uint8_t lyricCount{0};
+    LyricsStatus lyricsStatus{LyricsStatus::Unavailable};
 };
 
 enum class SystemNoticeType : std::uint8_t {
@@ -105,6 +128,9 @@ struct ArtworkRequest {
     char path[129]{};
     char artworkId[65]{};
     char token[129]{};
+    core::ThemePalette theme{};
+    std::uint32_t artworkGeneration{0};
+    bool hasTheme{false};
 };
 
 struct ArtworkResult {
@@ -112,7 +138,17 @@ struct ArtworkResult {
     char artworkId[65]{};
     char localPath[96]{};
     char error[80]{};
+    core::ThemePalette theme{};
+    std::uint32_t artworkGeneration{0};
+    bool hasTheme{false};
 };
+
+inline bool artworkIdentityMatches(const char* leftId, const std::uint32_t leftGeneration,
+                                   const char* rightId,
+                                   const std::uint32_t rightGeneration) noexcept {
+    return leftId != nullptr && rightId != nullptr && leftId[0] != '\0' && rightId[0] != '\0' &&
+           leftGeneration == rightGeneration && std::strcmp(leftId, rightId) == 0;
+}
 
 inline constexpr std::size_t kMaximumPlayers = 6;
 

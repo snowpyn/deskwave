@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from time import time
+from datetime import datetime
 from typing import Any, TypeGuard
 
 PROTOCOL_VERSION = 1
@@ -111,10 +111,13 @@ def parse_message(raw: str | bytes) -> IncomingMessage:
 def make_message(message_type: str, sequence: int, payload: dict[str, Any]) -> dict[str, Any]:
     if not 0 <= sequence <= MAX_SEQUENCE:
         raise ValueError("sequence is outside the protocol range")
+    now = datetime.now().astimezone()
+    utc_offset = now.utcoffset()
     return {
         "protocol": PROTOCOL_VERSION,
         "type": message_type,
         "sequence": sequence,
-        "timestamp_ms": int(time() * 1000),
+        "timestamp_ms": int(now.timestamp() * 1000),
+        "utc_offset_seconds": 0 if utc_offset is None else int(utc_offset.total_seconds()),
         "payload": payload,
     }

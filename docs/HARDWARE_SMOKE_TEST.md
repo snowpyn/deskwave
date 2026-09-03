@@ -37,8 +37,8 @@ Host journal attachment:
 - [ ] Backlight is not driven directly beyond ESP32 GPIO limits.
 - [ ] All modules share ground.
 - [ ] Every signal matches [WIRING.md](WIRING.md); no GPIO is duplicated.
-- [ ] The board is identified as an ESP32-S3-DevKitC-1-N8 or the hardware profile
-      was deliberately adapted and reviewed.
+- [ ] The board is identified as an ESP32-D0WD-V3 Revision 3.1 and the touch/display
+      loom matches [WIRING.md](WIRING.md).
 
 Stop immediately for unexpected heating, odor, unstable supply voltage, or USB
 over-current warnings.
@@ -50,11 +50,11 @@ From a clean checkout:
 ```bash
 python3 -m venv .qualification-tools
 .qualification-tools/bin/python -m pip install platformio==6.1.19
-.qualification-tools/bin/pio run -e esp32-s3-devkitc-1 -t clean
-.qualification-tools/bin/pio run -e esp32-s3-devkitc-1
-sha256sum .pio/build/esp32-s3-devkitc-1/firmware.bin
-.qualification-tools/bin/pio run -e esp32-s3-devkitc-1 -t upload \
-  --upload-port /dev/ttyACM0
+.qualification-tools/bin/pio run -e esp32-d0wd-v3 -t clean
+.qualification-tools/bin/pio run -e esp32-d0wd-v3
+sha256sum .pio/build/esp32-d0wd-v3/firmware.bin
+.qualification-tools/bin/pio run -e esp32-d0wd-v3 -t upload \
+  --upload-port /dev/ttyUSB1
 ```
 
 - [ ] Clean build succeeds with no project warnings.
@@ -77,27 +77,27 @@ sha256sum .pio/build/esp32-s3-devkitc-1/firmware.bin
 
 Record any panel flag or rotation change in the test record and hardware config.
 
-## Encoder and buttons
+## Touch input
 
-- [ ] One clockwise detent produces one volume increase.
-- [ ] One counter-clockwise detent produces one volume decrease.
-- [ ] Encoder short press toggles play/pause once, on release.
-- [ ] Encoder long press mutes/unmutes once and does not also toggle playback.
-- [ ] Left/Right short presses produce exactly one previous/next command.
-- [ ] Left/Right long presses seek in the expected direction only when supported.
-- [ ] Continued hold produces controlled seek repeats without a command flood.
-- [ ] Menu short press cycles primary screens once.
-- [ ] Menu long press opens/closes Actions once.
-- [ ] Rapid rotation, simultaneous network activity, and artwork decoding do not
-      lose control responsiveness or fill the input queue.
-- [ ] Contact bounce does not cause duplicate commands.
+- [ ] Display corners and the footer are visually upright after the 180-degree
+      panel/touch correction.
+- [ ] A tap on Shuffle, Previous, center Play, Next, and More activates the
+      matching visible target exactly once.
+- [ ] Holding Previous/Next seeks in the expected direction only when supported.
+- [ ] Holding center Play mutes/unmutes once and does not also toggle playback.
+- [ ] Vertical swipes change volume in the expected direction.
+- [ ] Horizontal swipes produce exactly one previous/next command.
+- [ ] Three-sample touch stabilization rejects noisy first ADC samples.
+- [ ] Touches remain responsive during network activity and artwork decoding.
+- [ ] Settings selection, activation, and factory-reset confirmation work through
+      vertical swipe, tap, and center-Play hold gestures.
 
 ## Provisioning and persistence
 
-Begin with a deliberate factory reset.
+Begin with a deliberate factory reset from Settings, using the center Play hold
+to confirm.
 
-- [ ] Recovery chord requires all three buttons for five seconds and cancels on
-      early release.
+- [ ] Factory-reset confirmation is required and an early release does not reset.
 - [ ] Temporary `DeskWave-xxxx` AP appears with the displayed random password.
 - [ ] Incorrect AP password cannot join.
 - [ ] Setup page loads at `192.168.4.1` and rejects a missing/changed nonce.
@@ -105,7 +105,7 @@ Begin with a deliberate factory reset.
 - [ ] Valid 2.4 GHz credentials commit and the temporary AP stops.
 - [ ] Device obtains IP, displays SSID/RSSI, and survives an ESP32 reboot without
       reprovisioning.
-- [ ] Saved brightness, dim timeout, volume step, and default screen survive reboot.
+- [ ] Saved brightness, volume step, and default screen survive reboot.
 - [ ] Factory reset clears Wi-Fi, pairing, and user settings, then returns to
       provisioning.
 
@@ -134,18 +134,105 @@ For each player listed in the record:
 - [ ] Duration and progress are correct where provided.
 - [ ] Progress moves smoothly only while playing and clamps at duration.
 - [ ] A seek updates immediately, then reconciles to confirmed player position.
-- [ ] Track transition does not leave stale title/artwork combinations.
+- [ ] Track transition does not leave stale title/artwork/theme combinations.
 
-## Artwork
+## Artwork and reactive theme
 
-- [ ] Local-file artwork is resized by the host, downloaded once, decoded, and shown.
-- [ ] Public HTTP(S) artwork works when available.
-- [ ] Repeated position resyncs retain artwork without flicker/re-download.
-- [ ] Track change replaces old artwork cleanly.
-- [ ] Missing artwork shows the branded placeholder.
-- [ ] Malformed/non-JPEG/oversize/truncated artwork does not crash or block input.
-- [ ] Host artwork timeout leaves metadata/control usable.
-- [ ] ESP32 reboot repairs/uses the cache without a boot loop.
+Retain host DEBUG logs, firmware logs, and video for these cases. Use a player or
+controlled MPRIS fixture that can publish delayed/changed `mpris:artUrl` values,
+and a test HTTP server that can return fixed, temporary-failure, and truncated
+responses. Do not expose the fixture outside the trusted test LAN.
+
+### Normal sources and visual roles
+
+- [ ] Absolute local `file://` artwork is validated, normalized, downloaded
+      once, decoded, and shown.
+- [ ] Public HTTP and HTTPS artwork both work; redirects remain within the
+      documented limits.
+- [ ] The host-derived primary, secondary, background, and readable foreground
+      colors visibly correspond to the same displayed cover.
+- [ ] Now Playing has no full-width top bar, Spotify mark, player-name banner,
+      or `NOW PLAYING` label; only the tiny top-right `LINK`/`RETRY` indicator
+      remains, and the 166 px cover is not clipped.
+- [ ] The complete exposed canvas is a deep, readable artwork-derived tone rather
+      than the fixed neutral gray fallback.
+- [ ] The rear RGB light visibly matches the current song-reactive canvas
+      background through a track transition, remains unchanged after inactivity, and
+      does not continue an unrelated rainbow cycle. Triggering Error still
+      produces its red override.
+- [ ] Red-, green-, blue-, and neutral-dominant covers exercise all three RGB
+      channels; dark canvas colors remain visibly distinct instead of collapsing
+      to blue-only output.
+- [ ] On the verified Revision 3.1 unit, a red-dominant canvas drives GPIO 17 and
+      appears physically red; GPIO 4 is the physical blue die. The generic CYD
+      red-on-GPIO-4 mapping is not used for this profile.
+- [ ] While active, song lighting uses the complete calibrated PWM range and
+      remains at full intensity when the independent TFT brightness setting is
+      changed. Leaving the device untouched does not reduce TFT or RGB intensity.
+- [ ] Play tracks with Japanese-only and mixed Japanese/Latin titles, artists,
+      and synchronized lyric lines (for example `夜に駆ける` / `YOASOBI`). Japanese glyphs
+      render instead of boxes or mojibake, fitted rows end with a clean ellipsis,
+      and a long Japanese title scrolls continuously without clipped UTF-8.
+- [ ] The former Up Next card is absent. The same area shows `LYRICS`, with the
+      current timestamped line clearly highlighted and adjacent lines subdued.
+- [ ] The lyric highlight advances with playback, pauses in place, follows a
+      seek, and changes tracks without briefly showing the prior track's words.
+- [ ] Loading, instrumental, and unavailable lyric states are explicit and do
+      not displace artwork, transport controls, or the progress bar.
+- [ ] Artwork has no hard frame; its restrained edge glow uses the active
+      primary accent without obscuring the cover.
+- [ ] Play/pause, previous, next, shuffle, repeat, mute, and progress roles use
+      the active theme and remain legible in light, dark, muted, and highly
+      saturated artwork cases.
+- [ ] A track change interpolates glow, icons, progress, and other themed regions
+      smoothly for about 750 ms, with no white/black flash or abrupt color snap.
+- [ ] The old valid cover remains visible while its replacement is downloading;
+      it is replaced only after the new JPEG and matching theme are ready.
+- [ ] Repeated position resyncs retain the same cover/theme without flicker,
+      download, JPEG decode, or palette extraction.
+
+### Ordering, delayed metadata, and fallback
+
+- [ ] Rapidly skip through at least ten distinct covers while requests are in
+      flight; only the final track's generation can install artwork and theme.
+- [ ] Delay the new track's `mpris:artUrl` beyond its first metadata snapshot;
+      the prior valid cover remains through the 1.0-second grace interval, then
+      the delayed cover and its own palette arrive together.
+- [ ] Publish a brief empty metadata snapshot and restore the same track; cover,
+      palette, and generation remain stable.
+- [ ] Pause for at least 30 seconds: the same palette remains, saturation/glow
+      soften gradually, and no artwork request is started merely because of
+      pause.
+- [ ] Resume: the same palette returns smoothly to full intensity without an
+      artwork reload or snap.
+- [ ] Publish a track that genuinely has no `mpris:artUrl`: after the bounded
+      grace, DeskWave deliberately selects the branded placeholder and fallback
+      theme rather than showing a broken or blank region.
+
+### Fetch, validation, reconnect, and cache failures
+
+- [ ] Return temporary HTTP 429/5xx or connection failures, then a valid image;
+      logs show no more than three total attempts, with approximately 250 ms
+      then 750 ms backoff, and the eventual cover.
+- [ ] Keep a URL unavailable through all retries: metadata and controls stay
+      usable, the previous valid cover remains until a deliberate fallback
+      decision, and no retry storm occurs.
+- [ ] Serve empty, non-image, oversize, corrupt, truncated, wrong-length, and
+      wrong-SHA data; no incomplete object is displayed or atomically committed.
+- [ ] Complete an older request after a newer track is active; logs show a stale
+      generation rejection and the visible cover/theme do not change.
+- [ ] Stop the host service or interrupt Wi-Fi briefly while a valid cover is
+      visible; the cover and softened/current theme survive reconnection, then
+      confirmed state resumes without a placeholder flash.
+- [ ] Restart the host with a warm cache, block a previously cached HTTP/HTTPS
+      source, and replay the same track before cache expiry; the cached JPEG and
+      palette bundle are reused together without a source fetch, conversion, or
+      palette extraction. Test disappeared `file://` sources separately: their
+      source stat is part of the cache key, so disappearance must fail safely.
+- [ ] Corrupt one host cache bundle and replay it; validation rejects the bundle
+      and controlled rebuild/fallback occurs without mismatched colors.
+- [ ] ESP32 reboot repairs or reuses its disposable cover cache without a boot
+      loop, and SHA mismatch never replaces the last valid local file.
 
 ## Playback controls
 
@@ -173,7 +260,8 @@ For each step, retain serial and host logs.
 ### Host and desktop
 
 - [ ] Stop `deskwave-host`: device shows Host offline and controls fail visibly.
-- [ ] Restart service: device reconnects automatically.
+- [ ] Restart service: device reconnects automatically without clearing a valid
+      cover/theme during the short outage.
 - [ ] Suspend desktop for at least two minutes: device remains stable.
 - [ ] Wake desktop: D-Bus, service, discovery, and device recover automatically.
 - [ ] Reboot desktop: device recovers without manual action.
@@ -207,9 +295,18 @@ or copy target numbers into the result column.
 | Physical input → application action | <150 ms typical LAN |  |  |
 | Physical input → visible feedback | <50 ms perceived where practical |  |  |
 | Player track change → device state | <500 ms typical |  |  |
+| Artwork/theme transition duration | 500–1,000 ms; nominal 750 ms |  |  |
+| Input latency during artwork/theme transition | no material regression from normal |  |  |
+| Warm host artwork/palette cache reuse | no source fetch or reprocessing |  |  |
 | Host restart → recovered state | automatic; no manual reset |  |  |
 | Peak free heap during artwork/control load | record only |  |  |
 | Largest free block after 8-hour soak | no sustained decline |  |  |
+
+During the measured transition, verify from logs/video that JPEG decode occurs
+only when a replacement cover commits, not on animation frames, and that redraws
+remain bounded to the artwork glow and other dirty themed regions. Record any
+input lag, full-screen flash, tearing, watchdog event, or heap discontinuity as
+a qualification defect.
 
 ## Qualification decision
 

@@ -1,6 +1,6 @@
 # DeskWave
 
-DeskWave is a dedicated ESP32-S3 desktop music controller for Linux. A small
+DeskWave is a dedicated ESP32-D0WD-V3 desktop music controller for Linux. A small
 user-level host service reads real media state through MPRIS/D-Bus, prepares
 album artwork, and streams authenticated updates to the controller over the
 local network.
@@ -16,6 +16,9 @@ the automated checks.
 
 - Shows actual title, artist, album, artwork, player, volume, playback state,
   and smoothly extrapolated progress.
+- Derives a restrained accent palette from each validated cover on the Linux
+  host, then uses it for a borderless artwork glow, control tints, and progress
+  accents on the ESP32.
 - Controls play/pause, previous/next, volume, mute, seeking, shuffle, repeat,
   and manual MPRIS player selection where the active application supports it.
 - Works with Spotify, VLC, browsers, and other Linux applications that expose
@@ -27,9 +30,18 @@ the automated checks.
   bearer token.
 - Recovers from Wi-Fi loss, host restart, desktop suspend/wake, player exit,
   malformed messages, and artwork failures without blocking physical input.
-- Provides Now Playing, Device, Settings, Actions, About, idle, provisioning,
-  pairing, reconnecting, and error screens. Queue UI is intentionally hidden
-  because MPRIS does not expose a portable queue.
+- Keeps the last valid cover and its matching palette through artwork loading,
+  brief MPRIS metadata gaps, pause, and short reconnects. A deliberate branded
+  fallback replaces them only when the active track is confirmed to have no
+  usable artwork.
+- Provides Now Playing, Device, Settings, Actions, About, provisioning, pairing,
+  reconnecting, and error screens. With no active media, the idle state becomes
+  an animated Spotify clock using the host's local time and date. Now Playing
+  shows synchronized lyrics when LRCLIB has timestamped lines for the track.
+- Keeps the panel and song-reactive rear RGB light at their selected active
+  brightness; inactivity never dims either output automatically.
+- Acts only as a remote control and display. Audio continues playing on the
+  selected PC or phone; DeskWave never receives or outputs the audio stream.
 
 ## System overview
 
@@ -37,7 +49,7 @@ the automated checks.
 MPRIS player -> session D-Bus -> DeskWave Host -> HTTP/WebSocket over LAN
                                                         |
                                                         v
-                                  ESP32-S3 -> ILI9341 display + controls
+                                  ESP32-D0WD-V3 -> ILI9341 display + touch controls
 ```
 
 The host and device communicate only on the LAN. The service does not require
@@ -54,9 +66,11 @@ render, or claim of physical-device verification:
 +------------+--------------------------------+
 |            | TRACK TITLE                    |
 |  ARTWORK   | Artist                         |
-|            | Album                          |
-|            |                                |
 |            | 01:42  ========-----  03:58    |
+|            | LYRICS                         |
+|            |   previous line                |
+|            | > current synchronized line    |
+|            |   next line                    |
 +------------+--------------------------------+
 | Host connected     PREV   PLAY   NEXT   72% |
 +---------------------------------------------+
@@ -69,17 +83,34 @@ appearance and display orientation remain part of the physical smoke test.
 
 ## Reference hardware
 
-- ESP32-S3-DevKitC-1-N8 (8 MB flash, no PSRAM required)
+- ESP32-D0WD-V3 Revision 3.1 board (classic ESP32 module)
 - 240×320 SPI ILI9341 display used in 320×240 landscape orientation
-- EC11-style quadrature rotary encoder with push switch
-- Three normally-open momentary buttons
-- Optional status LED with a suitable series resistor
+- XPT2046-compatible resistive touch overlay
+- Common-anode RGB status LED with suitable current limiting
 - Stable 3.3 V logic, appropriate display power, and a shared ground
 
 All board-specific assumptions are centralized in
 [`firmware/include/config/hardware_config.h`](firmware/include/config/hardware_config.h).
 The exact reference pinout and electrical cautions are in
 [Wiring](docs/WIRING.md). Confirm the wiring before applying power.
+
+### ESP32-D0WD-V3 board
+
+The published firmware target is `esp32-d0wd-v3`, backed by PlatformIO's
+`esp32dev` definition for the locally verified ESP32-D0WD-V3 Revision 3.1 board.
+It uses the known-good ILI9341/XPT2046 wiring and touch controls: tap the footer
+controls, swipe vertically to turn the encoder, and swipe horizontally for
+previous/next. Build and flash it with:
+
+```bash
+.tools/bin/pio run -e esp32-d0wd-v3
+.tools/bin/pio run -e esp32-d0wd-v3 -t upload --upload-port /dev/ttyUSB1
+```
+
+On the headerless Now Playing screen, tap the footer controls directly. Tap the
+tiny top-right `LINK`/`RETRY` target to open the full action palette. A phone is controllable when
+it is exposed to the Linux desktop as an MPRIS player, such as through KDE
+Connect; otherwise the host has no phone media session to command.
 
 ## Quick start
 
@@ -117,19 +148,20 @@ The service listens on TCP port `8765` and advertises
 access to TCP 8765 and mDNS UDP 5353. Do not expose the service to the public
 internet.
 
-### 3. Build and flash the firmware
+### 3. Build and flash the ESP32-D0WD-V3 firmware
 
 ```bash
 python3 -m venv .tools
 .tools/bin/python -m pip install platformio==6.1.19
-.tools/bin/pio run -e esp32-s3-devkitc-1
+.tools/bin/pio run -e esp32-d0wd-v3
 .tools/bin/pio device list
-.tools/bin/pio run -e esp32-s3-devkitc-1 -t upload --upload-port /dev/ttyACM0
+.tools/bin/pio run -e esp32-d0wd-v3 -t upload --upload-port /dev/ttyUSB1
 ```
 
-Replace `/dev/ttyACM0` with the port reported for the board (often
-`/dev/ttyUSB0` on USB-to-UART boards). The initial release deliberately uses a
-recoverable wired update path; unsigned OTA updates are not implemented.
+Use the port reported for the connected ESP32-D0WD-V3 board; the Revision 3.1
+board is expected on `/dev/ttyUSB1` in the verified workstation setup. The
+initial release deliberately uses a recoverable wired update path; unsigned OTA
+updates are not implemented.
 
 ### 4. Provision Wi-Fi
 
@@ -164,28 +196,25 @@ Launch an MPRIS-compatible application and start playback. DeskWave selects an
 actively playing application deterministically. On the Device screen, turn the
 encoder and press it to choose another detected player manually.
 
-## Physical controls
+## Touch controls
 
-| Control | Short / rotate | Long press |
+| Touch gesture | Action |
 | --- | --- | --- |
-| Encoder turn | Volume ± configured step | — |
-| Encoder push | Play/pause | Mute/unmute |
-| Left | Previous track | Seek backward; repeats while held |
-| Right | Next track | Seek forward; repeats while held |
-| Menu | Next primary screen | Open/close Actions |
+| Tap Shuffle | Toggle shuffle | — |
+| Tap Previous / Next | Previous / next track | Hold to seek backward / forward |
+| Tap center Play | Play/pause | Hold to mute/unmute |
+| Tap More | Open/close Actions | — |
+| Vertical swipe | Volume ± configured step | — |
+| Horizontal swipe | Previous / next track | — |
 
-On the Actions screen, Left toggles shuffle and Right cycles repeat. Unsupported
+On the Actions screen, tap Shuffle or Repeat to change them. Unsupported
 MPRIS capabilities are shown as unavailable and are never fabricated.
 
 On the Settings screen:
 
-- Turn the encoder to select a row.
-- Use Left/Right to change brightness, idle dim timeout, volume step, or default
-  startup screen.
-- Select Factory reset, then hold the encoder to confirm.
-- As a recovery path from any screen, hold Left + Right + Menu together for five
-  seconds. The countdown must complete before Wi-Fi, pairing, and user settings
-  are erased.
+- Swipe vertically to select a row.
+- Tap a row to change brightness, volume step, or the default startup screen.
+- Select Factory reset, then hold the center Play area to confirm.
 
 ## Host CLI
 
@@ -204,7 +233,8 @@ Runtime locations follow the Linux XDG conventions:
 | Purpose | Default path |
 | --- | --- |
 | Configuration | `~/.config/deskwave/config.toml` |
-| Artwork cache | `~/.cache/deskwave/artwork/` |
+| Processed artwork and palette cache | `~/.cache/deskwave/artwork/` |
+| Synchronized lyrics cache | `~/.cache/deskwave/lyrics/` |
 | Pairing state | `~/.local/state/deskwave/devices.sqlite3` |
 
 See [`host/config.example.toml`](host/config.example.toml) and
@@ -214,23 +244,44 @@ See [`host/config.example.toml`](host/config.example.toml) and
 
 Host settings live in `~/.config/deskwave/config.toml`; the installer creates a
 documented starter file without overwriting an existing one. Bind address,
-port, log level, preferred player, artwork size limits, and private-artwork-host
-policy can be changed there. Environment overrides are listed in
+port, log level, preferred player, artwork size limits, lyrics lookup, and
+private-artwork-host policy can be changed there. Environment overrides are listed in
 [`host/config.example.toml`](host/config.example.toml).
 
+Artwork downloading, validation, SHA-256 hashing, 320x320 normalization, palette
+extraction, and content-addressed caching happen on the Linux host. The device
+receives only the normalized JPEG and four packed theme colors; it never
+extracts a palette or decodes JPEG data on animation frames.
+
+Playback metadata remains UTF-8 end to end. The firmware automatically selects
+its bundled proportional Japanese font for non-ASCII titles, artists, and lyric
+lines; long strings are shortened only at UTF-8 character boundaries, and long
+titles use the normal continuous marquee.
+
 Device settings are changed on the Settings screen and stored in versioned NVS.
-They include brightness, idle dim timeout, default screen, and volume step. A
-manual host override exists in the storage model for networks where mDNS is not
-available; ordinary users do not need to edit firmware source for Wi-Fi,
-pairing, display preferences, or player selection.
+They include brightness, default screen, and volume step. The selected
+brightness remains active until it is changed. The first-boot provisioning page
+also accepts an optional host address and port for
+networks where mDNS is not available; leave the address blank to use automatic
+discovery. Ordinary users do not need to edit firmware source for Wi-Fi, pairing,
+display preferences, or player selection.
+
+For a dedicated device that must join one known network on first boot, copy
+`firmware/include/config/device_secrets.example.h` to `device_secrets.h` and
+fill in the private values. The real file is ignored by Git; the firmware saves
+the profile to NVS. Ordinary builds retain the provisioning portal.
+
+Smart Shuffle is intentionally not fabricated. MPRIS and Spotify's supported
+playback-control API expose shuffle as on/off only, so the Actions screen marks
+Smart Shuffle unavailable while normal shuffle and repeat remain live controls.
 
 ## Development and verification
 
 Firmware:
 
 ```bash
-.tools/bin/pio run -e esp32-s3-devkitc-1 -t clean
-.tools/bin/pio run -e esp32-s3-devkitc-1
+.tools/bin/pio run -e esp32-d0wd-v3 -t clean
+.tools/bin/pio run -e esp32-d0wd-v3
 .tools/bin/pio test -e native
 ```
 
@@ -278,9 +329,12 @@ TLS, so network confidentiality depends on the trusted LAN. See
 
 - Linux/MPRIS is the only production host backend in `0.1.0`; Windows and macOS
   can be added behind the existing backend abstraction.
-- Portable MPRIS has no queue API, so DeskWave does not show a Queue/Next screen.
-- The reference firmware is configured for one ILI9341/ESP32-S3 wiring profile;
-  other displays require a hardware adapter in the centralized config layer.
+- Synchronized lyrics depend on LRCLIB coverage and a network lookup on the
+  first play. Results, including unavailable and instrumental states, are cached
+  locally; lyrics lookup can be disabled in the host configuration.
+- The published firmware targets the locally verified ILI9341/XPT2046
+  ESP32-D0WD-V3 Revision 3.1 wiring profile; other boards and displays require a
+  hardware adapter in the centralized config layer.
 - Firmware updates are wired through PlatformIO. Safe signed OTA is reserved for
   a later release.
 - Automated software verification does not prove display orientation, electrical
@@ -294,15 +348,16 @@ The first release intentionally keeps risky or provider-specific expansion out
 of the production path. Candidate follow-up work includes signed and
 rollback-safe OTA, additional centralized hardware profiles, native Windows and
 macOS host backends, optional provider plugins, and measured UI/control
-performance data from qualified hardware. Queue UI will be considered only for
-a backend that exposes real queue data.
+performance data from qualified hardware. Future lyrics work can add provider
+plugins while retaining the bounded, timestamped device protocol and local
+progress-driven highlighting.
 
 ## Repository layout
 
 ```text
 .github/workflows/  Firmware and host CI
 docs/               Architecture, protocol, wiring, recovery, and test guides
-firmware/           ESP32-S3 application and portable core tests
+firmware/           ESP32 application profiles and portable core tests
 host/               Linux package, systemd unit, installer, and tests
 scripts/            Version/build support
 platformio.ini      Reproducible firmware environments

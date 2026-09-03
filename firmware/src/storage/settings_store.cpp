@@ -38,18 +38,25 @@ bool SettingsStore::migrateLegacy(Preferences& preferences) {
     const String legacySsid = preferences.getString("wifi_ssid", "");
     const String legacyPassword = preferences.getString("wifi_pass", "");
     const String legacyToken = preferences.getString("host_token", "");
+    bool success = true;
     if (!legacySsid.isEmpty() && validSsid(legacySsid) && validPassword(legacyPassword)) {
-        preferences.putBool("wifi_valid", false);
-        preferences.putString("ssid", legacySsid);
-        preferences.putString("password", legacyPassword);
-        preferences.putBool("wifi_valid", true);
+        success = preferences.putBool("wifi_valid", false) == sizeof(bool);
+        if (success) {
+            success =
+                preferences.putString("ssid", legacySsid) == legacySsid.length() &&
+                preferences.putString("password", legacyPassword) == legacyPassword.length() &&
+                preferences.putBool("wifi_valid", true) == sizeof(bool);
+        }
     }
     if (!legacyToken.isEmpty() && validToken(legacyToken)) {
-        preferences.putBool("paired", false);
-        preferences.putString("token", legacyToken);
-        preferences.putBool("paired", true);
+        success = success && preferences.putBool("paired", false) == sizeof(bool);
+        if (success) {
+            success = preferences.putString("token", legacyToken) == legacyToken.length() &&
+                      preferences.putBool("paired", true) == sizeof(bool);
+        }
     }
-    return preferences.putUChar("schema", config::kSettingsSchemaVersion) == sizeof(std::uint8_t);
+    return success &&
+           preferences.putUChar("schema", config::kSettingsSchemaVersion) == sizeof(std::uint8_t);
 }
 
 SettingsLoadStatus SettingsStore::load(DeviceSettings& settings) {
@@ -82,10 +89,13 @@ SettingsLoadStatus SettingsStore::load(DeviceSettings& settings) {
         unlock();
         return SettingsLoadStatus::Unsupported;
     }
-    if (schema < config::kSettingsSchemaVersion && !migrateLegacy(preferences)) {
-        preferences.end();
-        unlock();
-        return SettingsLoadStatus::Corrupt;
+    if (schema < config::kSettingsSchemaVersion) {
+        if (!migrateLegacy(preferences)) {
+            preferences.end();
+            unlock();
+            return SettingsLoadStatus::Corrupt;
+        }
+        migrated = true;
     }
 
     settings = DeviceSettings{};
@@ -100,7 +110,6 @@ SettingsLoadStatus SettingsStore::load(DeviceSettings& settings) {
     settings.defaultScreen = preferences.getUChar("screen", 0);
     settings.volumeStepPercent =
         preferences.getUChar("volume_step", config::kDefaultVolumeStepPercent);
-    settings.dimTimeoutSeconds = preferences.getULong("dim_seconds", 300);
     preferences.end();
     unlock();
 
@@ -108,9 +117,7 @@ SettingsLoadStatus SettingsStore::load(DeviceSettings& settings) {
          (!validSsid(settings.wifiSsid) || !validPassword(settings.wifiPassword))) ||
         (settings.paired && !validToken(settings.hostToken)) || !validHost(settings.hostOverride) ||
         settings.hostPort == 0 || settings.brightness < 10 || settings.defaultScreen > 3 ||
-        settings.volumeStepPercent < 1 || settings.volumeStepPercent > 20 ||
-        (settings.dimTimeoutSeconds != 0 &&
-         (settings.dimTimeoutSeconds < 30 || settings.dimTimeoutSeconds > 86'400))) {
+        settings.volumeStepPercent < 1 || settings.volumeStepPercent > 20) {
         settings = DeviceSettings{};
         return SettingsLoadStatus::Corrupt;
     }
@@ -168,10 +175,8 @@ bool SettingsStore::clearToken() {
 }
 
 bool SettingsStore::saveDisplay(const std::uint8_t brightness, const std::uint8_t defaultScreen,
-                                const std::uint32_t dimTimeoutSeconds,
                                 const std::uint8_t volumeStepPercent) {
     if (brightness < 10 || defaultScreen > 3 || volumeStepPercent < 1 || volumeStepPercent > 20 ||
-        (dimTimeoutSeconds != 0 && (dimTimeoutSeconds < 30 || dimTimeoutSeconds > 86'400)) ||
         !lock()) {
         return false;
     }
@@ -182,8 +187,7 @@ bool SettingsStore::saveDisplay(const std::uint8_t brightness, const std::uint8_
         success =
             preferences.putUChar("brightness", brightness) == sizeof(brightness) &&
             preferences.putUChar("screen", defaultScreen) == sizeof(defaultScreen) &&
-            preferences.putUChar("volume_step", volumeStepPercent) == sizeof(volumeStepPercent) &&
-            preferences.putULong("dim_seconds", dimTimeoutSeconds) == sizeof(dimTimeoutSeconds);
+            preferences.putUChar("volume_step", volumeStepPercent) == sizeof(volumeStepPercent);
         preferences.end();
     }
     unlock();

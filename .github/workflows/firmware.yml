@@ -43,8 +43,8 @@ jobs:
           find firmware -type f \( -name '*.cpp' -o -name '*.h' \) -print0 |
           xargs -0 clang-format --dry-run --Werror
 
-      - name: Build ESP32-S3 firmware
-        run: pio run -e esp32-s3-devkitc-1
+      - name: Build ESP32-D0WD-V3 firmware
+        run: pio run -e esp32-d0wd-v3
 
       - name: Run hardware-independent firmware tests
         run: pio test -e native

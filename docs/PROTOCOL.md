@@ -16,7 +16,9 @@ Default TCP port: 8765
 ```
 
 The ESP32 first uses a configured host override when present, otherwise queries
-mDNS. Protocol 1 uses unencrypted `http://` and `ws://` on a trusted private LAN.
+mDNS. The provisioning page can store the override for networks that block
+multicast discovery. Protocol 1 uses unencrypted `http://` and `ws://` on a
+trusted private LAN.
 Authentication prevents unauthorised control but does not provide network
 confidentiality.
 
@@ -95,6 +97,7 @@ Every text message uses this top-level shape:
   "type": "playback_state",
   "sequence": 182,
   "timestamp_ms": 1770000000000,
+  "utc_offset_seconds": -14400,
   "payload": {}
 }
 ```
@@ -107,12 +110,23 @@ Rules:
   sequence space and wraps to zero.
 - `timestamp_ms` is optional and non-negative. Host timestamps are Unix epoch
   milliseconds; firmware timestamps are monotonic milliseconds since boot.
+- Host messages include `utc_offset_seconds`, bounded to plus or minus 24 hours,
+  so the display can derive host-local civil time without embedding timezone or
+  daylight-saving policy in firmware. Device messages may omit it.
 - `payload` must be a JSON object.
 - Device-to-host WebSocket messages are limited to 16,384 bytes by the host.
   Host state/player messages are deliberately kept below the firmware's 8,192
   byte receive limit.
 - Only UTF-8 text frames are valid application messages. Binary frames are
   rejected.
+
+Before serialization, the host shapes device-facing playback metadata to the
+firmware's fixed buffers: ordinary text and IDs are at most 128 UTF-8 bytes,
+player names are at most 64 bytes, at most three artists share one 128-byte
+joined budget, and at most five synchronized lyric lines are sent with 128-byte
+text fields. Truncation preserves UTF-8 character boundaries. Device frames use compact
+UTF-8 JSON rather than ASCII escaping, and the production encoder enforces the
+8,192-byte limit after escaping.
 
 Three consecutive malformed device messages close the session with a policy
 violation. A single malformed host message is ignored by firmware and logged;
@@ -133,6 +147,12 @@ Sent first after authentication:
 }
 ```
 
+### `clock_sync`
+
+Sent every 30 seconds while no playback update is pending. Its payload is empty;
+the authoritative Unix time and current host-local UTC offset are carried in the
+envelope. The ESP32 advances that sample with its monotonic clock between syncs.
+
 ### `playback_state`
 
 ```json
@@ -145,6 +165,13 @@ Sent first after authentication:
   "status": "playing",
   "artwork_id": "64-lowercase-hex-characters-or-null",
   "artwork_path": "/v1/artwork/<hash>.jpg",
+  "artwork_generation": 27,
+  "theme": {
+    "primary": 3718648,
+    "secondary": 10980346,
+    "background": 1054759,
+    "foreground": 16251644
+  },
   "volume": 0.72,
   "muted": false,
   "shuffle": true,
@@ -156,21 +183,63 @@ Sent first after authentication:
     "seek": true,
     "next": true,
     "previous": true,
-    "control": true,
-    "queue": false
+    "control": true
+  },
+  "lyrics": {
+    "status": "synced",
+    "lines": [
+      {"time_ms": 88000, "text": "Previous line"},
+      {"time_ms": 91000, "text": "Current synchronized line"},
+      {"time_ms": 95000, "text": "Next line"}
+    ]
   },
   "captured_at_ms": 1770000000000
 }
 ```
 
-Optional MPRIS properties use JSON `null`, never invented values. Firmware
-renders a capability as unavailable when it is null/false. `status` is one of
+Optional MPRIS properties use JSON `null`, never invented values. `lyrics.status`
+is `loading`, `synced`, `instrumental`, or `unavailable`. A synchronized payload
+contains at most five timestamped lines surrounding the current position; all
+other states carry an empty `lines` array. Firmware advances the active line
+from its locally extrapolated progress clock, so highlighting remains smooth
+between host updates. Lyrics fields are additive within protocol 1; older peers
+ignore them and newer firmware renders an explicit unavailable state when they
+are absent.
+`status` is one of
 `playing`, `paused`, or `stopped`; `repeat` is `off`, `track`, `playlist`, or
 null. Volume is normalized to 0.0–1.0. Duration and position are milliseconds.
 
 The host sends an immediate state when content changes and a periodic position
 resynchronization while stable. Firmware records local receipt time and advances
 position from its monotonic clock only while `status == "playing"`.
+
+`theme` and `artwork_generation` are additive protocol-1 fields. Each theme
+color is an integer from 0 through 16,777,215 representing packed sRGB
+`0xRRGGBB` with no alpha channel; JSON writes the value in decimal because JSON
+has no hexadecimal-number syntax. `primary` drives the dominant glow and
+progress accent, `secondary` supports secondary controls, `background` is the
+dark artwork-derived support color, and `foreground` is contrast-corrected for
+readable text and icons.
+
+`artwork_generation` is an unsigned 32-bit host-issued identity for one atomic
+artwork/theme publication; zero means no host visual tuple has been promoted.
+The `artwork_id`, `artwork_path`, and `theme` in a snapshot all belong to that
+generation. A new track/artwork intent receives a new nonzero generation, but
+pending snapshots continue carrying the previous validated tuple and its
+previous generation. Resolution promotes the new JPEG/theme or authoritative
+fallback atomically. Abandoned rapid-skip intents can leave gaps, so clients
+compare the value only for equality and must not infer timing from it.
+
+A downloaded result is committed only while its generation still matches the
+latest playback state, which prevents an old request from winning after rapid
+skips. Position updates, pause, short reconnects, and temporary metadata gaps do
+not clear the promoted tuple. When a track is confirmed to have no usable
+cover, `artwork_id` and `artwork_path` are null and the atomically promoted
+`theme` carries the deliberate fallback palette.
+
+Peers that omit or do not understand the additive fields remain compatible:
+firmware uses its fallback palette when `theme` is absent or invalid, and an
+older device ignores the extra members.
 
 ### `command_result`
 
@@ -271,17 +340,26 @@ not need to emit periodic application pings.
 
 ## Artwork contract
 
-The host accepts source artwork only through its bounded processor. It resizes
-and center-crops to 240×240 RGB, writes non-progressive JPEG at quality 82, and
-names the object by SHA-256 of the rendered bytes. Firmware accepts only:
+The host accepts `file://`, HTTP, and HTTPS source artwork only through its
+bounded processor. It retrieves with bounded retry/backoff for temporary
+failures, validates the complete transfer before use, resizes and center-crops
+to 320×320 RGB, writes a high-quality non-progressive JPEG with 4:4:4 chroma,
+extracts the four-color theme, and stores both as one content-addressed cache
+bundle. `artwork_id` is the SHA-256 of the exact rendered JPEG bytes. Firmware
+accepts only:
 
 - lowercase 64-character hexadecimal IDs;
-- paths beginning `/v1/artwork/` with no `..`;
+- a path exactly equal to `/v1/artwork/<artwork_id>.jpg`;
 - HTTP 200 `image/jpeg` responses with declared size 5–393,216 bytes;
-- JPEG SOI (`FF D8`) and EOI (`FF D9`) markers.
+- JPEG SOI (`FF D8`) and EOI (`FF D9`) markers;
+- completed files whose SHA-256 equals `artwork_id` and whose
+  `artwork_generation` is still current.
 
-Downloads use a temporary file and atomic rename. A malformed or unavailable
-image leaves the branded placeholder visible and cannot block controls.
+Downloads use a temporary file and atomic rename. The previously validated
+cover remains visible until a matching replacement commits. Malformed,
+incomplete, unavailable, or stale images are rejected without blocking
+controls; a branded placeholder is selected deliberately only after the host
+confirms that the current track has no usable artwork.
 
 ## Compatibility policy
 

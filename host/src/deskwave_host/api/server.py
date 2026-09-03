@@ -31,6 +31,7 @@ from deskwave_host.service import MediaService
 from deskwave_host.storage import DeviceStore, PairingError
 
 LOGGER = logging.getLogger("network")
+CLOCK_SYNC_SECONDS = 30
 CONFIG_KEY: web.AppKey[HostConfig] = web.AppKey("config", HostConfig)
 STORE_KEY: web.AppKey[DeviceStore] = web.AppKey("store", DeviceStore)
 SERVICE_KEY: web.AppKey[MediaService] = web.AppKey("service", MediaService)
@@ -38,6 +39,13 @@ ARTWORK_KEY: web.AppKey[ArtworkCache] = web.AppKey("artwork", ArtworkCache)
 RATE_LIMIT_KEY: web.AppKey[RateLimiter]  # assigned after class definition
 MAX_PAIRING_BODY = 2048
 MAX_DEVICE_PLAYERS = 6
+MAX_DEVICE_MESSAGE_BYTES = 8_192
+MAX_DEVICE_TEXT_BYTES = 128
+MAX_DEVICE_PLAYER_NAME_BYTES = 64
+MAX_DEVICE_FEEDBACK_BYTES = 96
+DEVICE_CONTROL_TRANSLATION = str.maketrans(
+    {codepoint: " " for codepoint in (*range(0x20), *range(0x7F, 0xA0))}
+)
 
 
 @dataclass(slots=True)
@@ -92,8 +100,77 @@ def _authenticate(request: web.Request) -> str | None:
     return request.app[STORE_KEY].authenticate(token) if token else None
 
 
+def _bounded_utf8(value: str, maximum_bytes: int) -> str:
+    """Return valid UTF-8 that fits the device's fixed-size text buffer."""
+
+    encoded = value.translate(DEVICE_CONTROL_TRANSLATION).encode("utf-8", errors="replace")
+    if len(encoded) <= maximum_bytes:
+        return encoded.decode("utf-8")
+    return encoded[:maximum_bytes].decode("utf-8", errors="ignore")
+
+
+def _device_artists(artists: tuple[str, ...]) -> list[str]:
+    """Bound the first three artists to the firmware's joined 128-byte field."""
+
+    result: list[str] = []
+    used = 0
+    for artist in artists[:3]:
+        separator_bytes = 2 if result else 0
+        available = MAX_DEVICE_TEXT_BYTES - used - separator_bytes
+        if available <= 0:
+            break
+        bounded = _bounded_utf8(artist, available)
+        if not bounded:
+            continue
+        result.append(bounded)
+        used += separator_bytes + len(bounded.encode("utf-8"))
+    return result
+
+
+def _encode_device_message(message: dict[str, Any]) -> str:
+    """Serialize one bounded firmware frame with deterministic UTF-8 JSON."""
+
+    encoded = json.dumps(
+        message,
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+    )
+    if len(encoded.encode("utf-8")) > MAX_DEVICE_MESSAGE_BYTES:
+        raise ValueError("outbound device message exceeds the firmware receive limit")
+    return encoded
+
+
 def _state_payload(state: PlaybackState) -> dict[str, Any]:
     payload = state.to_payload()
+    payload["title"] = _bounded_utf8(state.title, MAX_DEVICE_TEXT_BYTES)
+    payload["artists"] = _device_artists(state.artists)
+    payload["album"] = _bounded_utf8(state.album, MAX_DEVICE_TEXT_BYTES)
+    payload["player_name"] = (
+        None
+        if state.player_name is None
+        else _bounded_utf8(state.player_name, MAX_DEVICE_PLAYER_NAME_BYTES)
+    )
+    payload["player_id"] = (
+        None if state.player_id is None else _bounded_utf8(state.player_id, MAX_DEVICE_TEXT_BYTES)
+    )
+    payload["track_id"] = (
+        None if state.track_id is None else _bounded_utf8(state.track_id, MAX_DEVICE_TEXT_BYTES)
+    )
+    payload.pop("queue", None)
+    capabilities = payload.get("capabilities")
+    if isinstance(capabilities, dict):
+        capabilities.pop("queue", None)
+    payload["lyrics"] = {
+        "status": state.lyrics_status.value,
+        "lines": [
+            {
+                "time_ms": line.time_ms,
+                "text": _bounded_utf8(line.text, MAX_DEVICE_TEXT_BYTES),
+            }
+            for line in state.lyrics
+        ],
+    }
     payload["artwork_path"] = (
         f"/v1/artwork/{state.artwork_id}.jpg" if state.artwork_id is not None else None
     )
@@ -102,7 +179,11 @@ def _state_payload(state: PlaybackState) -> dict[str, Any]:
 
 def _players_payload(summaries: list[PlayerSummary]) -> list[dict[str, str]]:
     return [
-        {"id": player.player_id, "name": player.name, "status": player.status.value}
+        {
+            "id": _bounded_utf8(player.player_id, MAX_DEVICE_TEXT_BYTES),
+            "name": _bounded_utf8(player.name, MAX_DEVICE_PLAYER_NAME_BYTES),
+            "status": player.status.value,
+        }
         for player in summaries[:MAX_DEVICE_PLAYERS]
     ]
 
@@ -232,7 +313,7 @@ class DeviceSession:
 
     async def send(self, message_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         message = make_message(message_type, self._next_sequence(), payload)
-        await self.websocket.send_json(message)
+        await self.websocket.send_str(_encode_device_message(message))
         return message
 
     async def send_initial(self) -> None:
@@ -249,13 +330,22 @@ class DeviceSession:
 
     async def send_updates(self, queue: asyncio.Queue[PlaybackState]) -> None:
         while not self.websocket.closed:
-            state = await queue.get()
-            await self.send("playback_state", _state_payload(state))
+            try:
+                async with asyncio.timeout(CLOCK_SYNC_SECONDS):
+                    state = await queue.get()
+            except TimeoutError:
+                await self.send("clock_sync", {})
+            else:
+                await self.send("playback_state", _state_payload(state))
 
     async def handle(self, message: IncomingMessage) -> None:
         self.store.touch(self.device_id)
         if message.message_type == "ping":
             nonce = message.payload.get("nonce")
+            if isinstance(nonce, str):
+                nonce = _bounded_utf8(nonce, MAX_DEVICE_TEXT_BYTES)
+            elif isinstance(nonce, int) and not -(2**63) <= nonce <= 2**63 - 1:
+                nonce = None
             await self.send(
                 "pong",
                 {
@@ -278,7 +368,7 @@ class DeviceSession:
             return
         cached = self.results.get(message.sequence)
         if cached is not None:
-            await self.websocket.send_json(cached)
+            await self.websocket.send_str(_encode_device_message(cached))
             return
         command = str(message.payload["command"])
         arguments = {key: value for key, value in message.payload.items() if key != "command"}
@@ -289,7 +379,11 @@ class DeviceSession:
                 "request_sequence": message.sequence,
                 "command": command,
                 "success": result.success,
-                "error": result.error,
+                "error": (
+                    None
+                    if result.error is None
+                    else _bounded_utf8(result.error, MAX_DEVICE_FEEDBACK_BYTES)
+                ),
             },
         )
         self.results[message.sequence] = response

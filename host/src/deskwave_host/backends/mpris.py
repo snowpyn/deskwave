@@ -11,6 +11,7 @@ from typing import Any
 from dbus_next import DBusError, Variant  # type: ignore[attr-defined]
 from dbus_next.aio import MessageBus  # type: ignore[attr-defined]
 from dbus_next.constants import BusType
+from dbus_next.errors import InterfaceNotFoundError
 
 from deskwave_host.backends.base import MediaBackend, StateCallback
 from deskwave_host.models import (
@@ -18,6 +19,7 @@ from deskwave_host.models import (
     PlaybackState,
     PlaybackStatus,
     PlayerSummary,
+    QueueEntry,
     RepeatMode,
     select_active_player,
 )
@@ -27,11 +29,15 @@ MPRIS_PREFIX = "org.mpris.MediaPlayer2."
 MPRIS_PATH = "/org/mpris/MediaPlayer2"
 PLAYER_INTERFACE = "org.mpris.MediaPlayer2.Player"
 ROOT_INTERFACE = "org.mpris.MediaPlayer2"
+TRACKLIST_INTERFACE = "org.mpris.MediaPlayer2.TrackList"
 PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 POLL_SECONDS = 0.4
 PLAYER_SCAN_SECONDS = 2.0
 POSITION_SYNC_SECONDS = 2.0
 MAX_SNAPSHOT_FAILURES = 3
+MAX_TRACKLIST_ITEMS = 64
+MAX_QUEUE_ENTRIES = 4
+MPRIS_RECONNECT_STATE_GRACE_SECONDS = 5.0
 
 
 def _value(properties: dict[str, Any], key: str, default: Any = None) -> Any:
@@ -67,16 +73,80 @@ class _MPRISPlayer:
     player_id: str
     player: Any
     properties: Any
+    tracklist: Any | None
 
     @classmethod
     async def connect(cls, bus: MessageBus, player_id: str) -> _MPRISPlayer:
         introspection = await asyncio.wait_for(bus.introspect(player_id, MPRIS_PATH), timeout=1.5)
         proxy = bus.get_proxy_object(player_id, MPRIS_PATH, introspection)
+        try:
+            tracklist = proxy.get_interface(TRACKLIST_INTERFACE)
+        except InterfaceNotFoundError:
+            tracklist = None
         return cls(
             player_id=player_id,
             player=proxy.get_interface(PLAYER_INTERFACE),
             properties=proxy.get_interface(PROPERTIES_INTERFACE),
+            tracklist=tracklist,
         )
+
+    async def queue_snapshot(
+        self, current_track_id: str | None
+    ) -> tuple[tuple[QueueEntry, ...], bool]:
+        """Return bounded upcoming TrackList entries when the player exposes TrackList."""
+
+        if self.tracklist is None:
+            return (), False
+        try:
+            track_properties = await asyncio.wait_for(
+                self.properties.call_get_all(TRACKLIST_INTERFACE), timeout=1.0
+            )
+            if not isinstance(track_properties, dict):
+                return (), False
+            # MPRIS names this property Tracks; TrackList is the interface
+            # name, not the property name. Using the interface name here
+            # makes every compliant player look like it has an empty queue.
+            track_ids = _value(track_properties, "Tracks", [])
+            if not isinstance(track_ids, (list, tuple)):
+                return (), True
+            bounded_ids = [
+                track_id
+                for track_id in track_ids[:MAX_TRACKLIST_ITEMS]
+                if isinstance(track_id, str)
+            ]
+            if not bounded_ids:
+                return (), True
+            metadata = await asyncio.wait_for(
+                self.tracklist.call_get_tracks_metadata(bounded_ids), timeout=1.0
+            )
+        except (DBusError, OSError, RuntimeError, TimeoutError, TypeError, ValueError) as error:
+            LOGGER.debug("Could not refresh MPRIS queue for %s: %s", self.player_id, error)
+            return (), False
+
+        if not isinstance(metadata, (list, tuple)):
+            return (), False
+        entries: list[QueueEntry] = []
+        current_index: int | None = None
+        for track_id, values in zip(bounded_ids, metadata, strict=False):
+            if not isinstance(values, dict):
+                continue
+            entry_track_id = _safe_text(_value(values, "mpris:trackid", track_id), 512) or track_id
+            if current_track_id is not None and entry_track_id == current_track_id:
+                current_index = len(entries)
+            artists_value = _value(values, "xesam:artist", [])
+            if isinstance(artists_value, (list, tuple)):
+                artist = ", ".join(_safe_text(artist, 160) for artist in artists_value[:3])
+            else:
+                artist = _safe_text(artists_value, 160)
+            entries.append(
+                QueueEntry(
+                    title=_safe_text(_value(values, "xesam:title"), 256),
+                    artist=artist,
+                    track_id=entry_track_id,
+                ).normalized()
+            )
+        start = 0 if current_index is None else current_index + 1
+        return tuple(entries[start : start + MAX_QUEUE_ENTRIES]), True
 
     async def snapshot(self) -> PlaybackState:
         player_properties, root_properties = await asyncio.wait_for(
@@ -103,6 +173,7 @@ class _MPRISPlayer:
         volume = float(volume_value) if isinstance(volume_value, (int, float)) else None
         artwork = _safe_text(_value(metadata, "mpris:artUrl"), 2048) or None
         track_id = _safe_text(_value(metadata, "mpris:trackid"), 512) or None
+        queue, queue_available = await self.queue_snapshot(track_id)
         return PlaybackState(
             title=_safe_text(_value(metadata, "xesam:title"), 256),
             artists=artists,
@@ -127,6 +198,8 @@ class _MPRISPlayer:
             can_next=bool(_value(player_properties, "CanGoNext", False)),
             can_previous=bool(_value(player_properties, "CanGoPrevious", False)),
             can_control=bool(_value(player_properties, "CanControl", False)),
+            queue=queue,
+            queue_available=queue_available,
             captured_at_ms=int(time() * 1000),
         ).normalized()
 
@@ -149,6 +222,7 @@ class MPRISBackend(MediaBackend):
         self._last_scan = 0.0
         self._last_publish = 0.0
         self._muted_restore_volume = 0.5
+        self._connection_failure_since: float | None = None
 
     async def start(self, callback: StateCallback) -> None:
         if self._poll_task is not None:
@@ -291,6 +365,7 @@ class MPRISBackend(MediaBackend):
                     await self._connect_bus()
                     reconnect_delay = 1.0
                 await self._poll_once()
+                self._connection_failure_since = None
             except asyncio.CancelledError:
                 raise
             except Exception as error:  # boundary: D-Bus library exposes varied connection errors
@@ -302,11 +377,27 @@ class MPRISBackend(MediaBackend):
                 self._players.clear()
                 self._snapshots.clear()
                 self._snapshot_failures.clear()
-                await self._set_empty_state()
+                await self._hold_state_during_reconnect()
                 await self._wait(reconnect_delay)
                 reconnect_delay = min(30.0, reconnect_delay * 2)
                 continue
             await self._wait(POLL_SECONDS)
+
+    async def _hold_state_during_reconnect(self) -> None:
+        """Keep the last real snapshot through a short session-bus interruption."""
+
+        now = monotonic()
+        if self._connection_failure_since is None:
+            self._connection_failure_since = now
+        elapsed = now - self._connection_failure_since
+        if elapsed < MPRIS_RECONNECT_STATE_GRACE_SECONDS:
+            LOGGER.debug(
+                "Retaining the last MPRIS state during reconnect (%.1fs/%.1fs)",
+                elapsed,
+                MPRIS_RECONNECT_STATE_GRACE_SECONDS,
+            )
+            return
+        await self._set_empty_state()
 
     async def _wait(self, delay: float) -> None:
         self._wake_event.clear()
@@ -328,7 +419,13 @@ class MPRISBackend(MediaBackend):
                 try:
                     self._players[new_player] = await _MPRISPlayer.connect(self._bus, new_player)  # type: ignore[arg-type]
                     LOGGER.info("Detected MPRIS player %s", new_player)
-                except (DBusError, OSError, RuntimeError, TimeoutError) as error:
+                except (
+                    DBusError,
+                    InterfaceNotFoundError,
+                    OSError,
+                    RuntimeError,
+                    TimeoutError,
+                ) as error:
                     LOGGER.debug("Could not inspect MPRIS player %s: %s", new_player, error)
             self._last_scan = now
         for player_id, player in list(self._players.items()):

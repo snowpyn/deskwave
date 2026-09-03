@@ -15,6 +15,7 @@ dist/
 build/
 .venv/
 venv/
+.superdesign/tmp/
 
 # Local configuration and secrets
 .env
@@ -22,6 +23,7 @@ venv/
 !.env.example
 config.local.*
 secrets.*
+firmware/include/config/device_secrets.h
 
 # Editors and operating systems
 .idea/

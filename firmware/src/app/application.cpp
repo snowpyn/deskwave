@@ -6,7 +6,6 @@
 #include <esp_system.h>
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstring>
 
@@ -17,12 +16,23 @@
 namespace deskwave::app {
 namespace {
 
-constexpr std::uint8_t kSettingsItemCount = 5;
+constexpr std::uint8_t kSettingsItemCount = 4;
 constexpr std::uint32_t kSettingsWriteDelayMs = 1'500;
 constexpr std::uint32_t kHealthRefreshMs = 2'000;
 constexpr std::uint32_t kHealthLogMs = 60'000;
 constexpr std::uint32_t kPlayerRefreshMs = 5'000;
 constexpr std::int32_t kSeekStepMs = 10'000;
+
+#if defined(DESKWAVE_ESP32_D0WD_V3)
+constexpr std::uint8_t kRgbLightFullScale = 255;
+
+void writeRgbStatusLed(const std::uint8_t red, const std::uint8_t green, const std::uint8_t blue) {
+    // The CYD RGB LED is common-anode, so PWM values are inverted.
+    analogWrite(hardware::kStatusLedRed, 255U - red);
+    analogWrite(hardware::kStatusLedGreen, 255U - green);
+    analogWrite(hardware::kStatusLedBlue, 255U - blue);
+}
+#endif
 
 }  // namespace
 
@@ -31,9 +41,9 @@ Application::Application(storage::SettingsStore& settingsStore,
                          network::NetworkManager& networkManager,
                          network::ArtworkManager& artworkManager, ui::UiController& ui,
                          const QueueHandle_t inputQueue, const QueueHandle_t playbackQueue,
-                         const QueueHandle_t noticeQueue, const QueueHandle_t commandQueue,
-                         const QueueHandle_t feedbackQueue, const QueueHandle_t artworkResultQueue,
-                         const QueueHandle_t playerQueue)
+                         const QueueHandle_t clockQueue, const QueueHandle_t noticeQueue,
+                         const QueueHandle_t commandQueue, const QueueHandle_t feedbackQueue,
+                         const QueueHandle_t artworkResultQueue, const QueueHandle_t playerQueue)
     : settingsStore_(settingsStore),
       inputManager_(inputManager),
       networkManager_(networkManager),
@@ -41,6 +51,7 @@ Application::Application(storage::SettingsStore& settingsStore,
       ui_(ui),
       inputQueue_(inputQueue),
       playbackQueue_(playbackQueue),
+      clockQueue_(clockQueue),
       noticeQueue_(noticeQueue),
       commandQueue_(commandQueue),
       feedbackQueue_(feedbackQueue),
@@ -51,14 +62,20 @@ bool Application::begin() {
     if (begun_) {
         return true;
     }
+#if defined(DESKWAVE_ESP32_D0WD_V3)
+    pinMode(hardware::kStatusLedRed, OUTPUT);
+    pinMode(hardware::kStatusLedGreen, OUTPUT);
+    pinMode(hardware::kStatusLedBlue, OUTPUT);
+    writeRgbStatusLed(0, 0, 0);
+#else
     pinMode(hardware::kStatusLed, OUTPUT);
     digitalWrite(hardware::kStatusLed, LOW);
+#endif
 
     storage::DeviceSettings loaded;
     const auto loadStatus = settingsStore_.load(loaded);
     settings_.brightness = loaded.brightness;
     settings_.defaultScreen = loaded.defaultScreen;
-    settings_.dimTimeoutSeconds = loaded.dimTimeoutSeconds;
     settings_.volumeStepPercent = loaded.volumeStepPercent;
     loaded.wifiPassword.clear();
     loaded.hostToken.clear();
@@ -95,7 +112,6 @@ bool Application::begin() {
         DW_LOG_ERROR("network", "Network task could not be created");
         return false;
     }
-    lastActivityAtMs_ = now;
     lastHealthUpdateMs_ = now - kHealthRefreshMs;
     begun_ = true;
     DW_LOG_INFO("system", "Application tasks started");
@@ -110,6 +126,7 @@ bool Application::hostState(const core::SystemState state) noexcept {
 void Application::loop() {
     const auto now = millis();
     consumeQueues(now);
+    inputManager_.setControlContext(ui_.controlContext());
     if (!handleFactoryResetChord(now)) {
         consumeInput(now);
     }
@@ -119,23 +136,55 @@ void Application::loop() {
     }
     persistSettingsIfDue(now);
     updateHealth(now);
-    if (settings_.dimTimeoutSeconds != 0 && static_cast<std::uint32_t>(now - lastActivityAtMs_) >=
-                                                settings_.dimTimeoutSeconds * 1'000U) {
-        if (!dimmed_) {
-            dimmed_ = true;
-            ui_.setDimmed(true, settings_.brightness);
-        }
-    }
-    updateStatusLed(now);
     ui_.tick(now);
+    // Render/transition the authoritative theme first so the physical RGB LED
+    // samples the exact canvas background shown in this same frame.
+    updateStatusLed(now);
+    syncArtworkProtection();
     vTaskDelay(pdMS_TO_TICKS(2));
 }
 
+void Application::syncArtworkProtection() {
+    const char* activeArtworkId = ui_.activeArtworkId();
+    const char* stagedArtworkId = ui_.stagedArtworkId();
+    if (std::strcmp(reportedActiveArtworkId_, activeArtworkId) == 0 &&
+        std::strcmp(reportedStagedArtworkId_, stagedArtworkId) == 0) {
+        return;
+    }
+    copyText(reportedActiveArtworkId_, activeArtworkId);
+    copyText(reportedStagedArtworkId_, stagedArtworkId);
+    artworkManager_.setArtworkProtection(reportedActiveArtworkId_, reportedStagedArtworkId_);
+    DW_LOG_DEBUG("artwork", "Protected active %.12s staged %.12s",
+                 reportedActiveArtworkId_[0] == '\0' ? "fallback" : reportedActiveArtworkId_,
+                 reportedStagedArtworkId_[0] == '\0' ? "none" : reportedStagedArtworkId_);
+}
+
+void Application::acknowledgeArtworkResult(const ArtworkResult& result) {
+    const char* activeArtworkId = ui_.activeArtworkId();
+    const char* stagedArtworkId = ui_.stagedArtworkId();
+    if (!artworkManager_.acknowledgeResult(result, activeArtworkId, stagedArtworkId)) {
+        DW_LOG_ERROR("artwork", "Could not acknowledge published %.12s generation %lu",
+                     result.artworkId, static_cast<unsigned long>(result.artworkGeneration));
+        return;
+    }
+    copyText(reportedActiveArtworkId_, activeArtworkId);
+    copyText(reportedStagedArtworkId_, stagedArtworkId);
+}
+
 void Application::consumeQueues(const std::uint32_t nowMs) {
+    ClockSync clock;
+    if (xQueueReceive(clockQueue_, &clock, 0) == pdTRUE) {
+        ui_.setClock(clock, nowMs);
+    }
+
     SystemNotice notice;
     while (xQueueReceive(noticeQueue_, &notice, 0) == pdTRUE) {
         deviceStatus_.state = notice.state;
         deviceStatus_.hostConnected = hostState(notice.state);
+        if (notice.state == core::SystemState::Offline ||
+            notice.state == core::SystemState::ConnectingWifi) {
+            deviceStatus_.wifiConnected = false;
+        }
         if (notice.type == SystemNoticeType::NetworkDetails) {
             copyText(deviceStatus_.ipAddress, notice.primary);
             copyText(deviceStatus_.ssid, notice.secondary);
@@ -156,11 +205,17 @@ void Application::consumeQueues(const std::uint32_t nowMs) {
         hasPlayback_ = true;
         optimisticVolumePercent_ = snapshot.volumePercent;
         ui_.setPlayback(snapshot, nowMs);
+        syncArtworkProtection();
     }
 
     ArtworkResult artwork;
     if (xQueueReceive(artworkResultQueue_, &artwork, 0) == pdTRUE) {
         ui_.setArtwork(artwork, nowMs);
+        if (artwork.success) {
+            acknowledgeArtworkResult(artwork);
+        } else {
+            syncArtworkProtection();
+        }
     }
 
     CommandFeedback feedback;
@@ -189,11 +244,6 @@ void Application::consumeInput(const std::uint32_t nowMs) {
     controls::InputEvent event;
     std::uint8_t processed = 0;
     while (processed < 16 && xQueueReceive(inputQueue_, &event, 0) == pdTRUE) {
-        lastActivityAtMs_ = nowMs;
-        if (dimmed_) {
-            dimmed_ = false;
-            ui_.setDimmed(false, settings_.brightness);
-        }
         handleInput(event, nowMs);
         ++processed;
     }
@@ -410,39 +460,17 @@ void Application::adjustSetting(const std::int8_t direction, const std::uint32_t
             const auto brightness = std::clamp<int>(settings_.brightness + direction * 10, 10, 255);
             settings_.brightness = static_cast<std::uint8_t>(brightness);
             ui_.setBrightness(settings_.brightness);
-            dimmed_ = false;
             break;
         }
-        case 1: {
-            constexpr std::array<std::uint32_t, 7> options{0, 30, 60, 300, 900, 1'800, 3'600};
-            std::size_t index = 0;
-            std::uint32_t bestDistance = UINT32_MAX;
-            for (std::size_t candidate = 0; candidate < options.size(); ++candidate) {
-                const auto distance = options[candidate] > settings_.dimTimeoutSeconds
-                                          ? options[candidate] - settings_.dimTimeoutSeconds
-                                          : settings_.dimTimeoutSeconds - options[candidate];
-                if (distance < bestDistance) {
-                    bestDistance = distance;
-                    index = candidate;
-                }
-            }
-            if (direction > 0 && index + 1 < options.size()) {
-                ++index;
-            } else if (direction < 0 && index > 0) {
-                --index;
-            }
-            settings_.dimTimeoutSeconds = options[index];
-            break;
-        }
-        case 2:
+        case 1:
             settings_.volumeStepPercent = static_cast<std::uint8_t>(
                 std::clamp<int>(settings_.volumeStepPercent + direction, 1, 20));
             break;
-        case 3:
+        case 2:
             settings_.defaultScreen =
                 static_cast<std::uint8_t>((settings_.defaultScreen + 4 + direction) % 4);
             break;
-        case 4:
+        case 3:
             requestFactoryResetConfirmation(nowMs);
             return;
         default:
@@ -454,7 +482,7 @@ void Application::adjustSetting(const std::int8_t direction, const std::uint32_t
 }
 
 void Application::activateSetting(const std::uint32_t nowMs) {
-    if (settings_.selectedItem == 4) {
+    if (settings_.selectedItem == 3) {
         requestFactoryResetConfirmation(nowMs);
     } else {
         adjustSetting(1, nowMs);
@@ -532,7 +560,11 @@ bool Application::handleFactoryResetChord(const std::uint32_t nowMs) {
 
 void Application::performFactoryReset() {
     ui_.showResetting();
+#if defined(DESKWAVE_ESP32_D0WD_V3)
+    writeRgbStatusLed(150, 150, 150);
+#else
     digitalWrite(hardware::kStatusLed, HIGH);
+#endif
     if (!settingsStore_.factoryReset()) {
         ui_.showToast("Factory reset failed; settings were not changed", millis(), true);
         factoryResetChordTiming_ = false;
@@ -551,7 +583,7 @@ void Application::persistSettingsIfDue(const std::uint32_t nowMs) {
         return;
     }
     if (settingsStore_.saveDisplay(settings_.brightness, settings_.defaultScreen,
-                                   settings_.dimTimeoutSeconds, settings_.volumeStepPercent)) {
+                                   settings_.volumeStepPercent)) {
         settingsDirty_ = false;
         DW_LOG_INFO("storage", "Display and control preferences saved");
     } else {
@@ -596,6 +628,27 @@ void Application::updateHealth(const std::uint32_t nowMs) {
 }
 
 void Application::updateStatusLed(const std::uint32_t nowMs) {
+#if defined(DESKWAVE_ESP32_D0WD_V3)
+    if (static_cast<std::uint32_t>(nowMs - lastStatusLedUpdateMs_) < 32U) {
+        return;
+    }
+    lastStatusLedUpdateMs_ = nowMs;
+    if (deviceStatus_.state == core::SystemState::Error) {
+        writeRgbStatusLed((nowMs / 150U) % 2U == 0 ? 180 : 0, 0, 0);
+        return;
+    }
+    // Active song lighting uses the complete calibrated PWM range. The TFT's saved
+    // backlight setting controls only the panel, and automatic inactivity dimming is disabled.
+    const core::Rgb888 calibration{hardware::kStatusLedRedCalibration,
+                                   hardware::kStatusLedGreenCalibration,
+                                   hardware::kStatusLedBlueCalibration};
+    // The rendered canvas is intentionally dark. Preserve its channel ratios while
+    // lifting its peak before gamma conversion so low PWM quantization and differing
+    // LED thresholds cannot collapse every song to the most efficient blue die.
+    const auto light = core::rgbLedPwm(core::normalizeColor(ui_.lightColor(nowMs)),
+                                       kRgbLightFullScale, calibration);
+    writeRgbStatusLed(light.red, light.green, light.blue);
+#else
     bool enabled = false;
     if (deviceStatus_.hostConnected) {
         enabled = true;
@@ -605,6 +658,7 @@ void Application::updateStatusLed(const std::uint32_t nowMs) {
         enabled = (nowMs / 600U) % 4U == 0;
     }
     digitalWrite(hardware::kStatusLed, enabled ? HIGH : LOW);
+#endif
 }
 
 }  // namespace deskwave::app
