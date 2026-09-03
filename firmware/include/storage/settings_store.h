@@ -18,7 +18,6 @@ struct DeviceSettings {
     std::uint8_t brightness{180};
     std::uint8_t defaultScreen{0};
     std::uint8_t volumeStepPercent{5};
-    std::uint32_t dimTimeoutSeconds{300};
     bool wifiConfigured{false};
     bool paired{false};
 };
@@ -35,7 +34,7 @@ class SettingsStore {
     [[nodiscard]] bool saveToken(const String& token);
     [[nodiscard]] bool clearToken();
     [[nodiscard]] bool saveDisplay(std::uint8_t brightness, std::uint8_t defaultScreen,
-                                   std::uint32_t dimTimeoutSeconds, std::uint8_t volumeStepPercent);
+                                   std::uint8_t volumeStepPercent);
     [[nodiscard]] bool saveHostOverride(const String& host, std::uint16_t port);
     [[nodiscard]] bool factoryReset();
 

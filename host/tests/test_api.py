@@ -15,10 +15,11 @@ from deskwave_host.api.server import (
     _state_payload,
 )
 from deskwave_host.models import (
+    LyricLine,
+    LyricsStatus,
     PlaybackState,
     PlaybackStatus,
     PlayerSummary,
-    QueueEntry,
     ThemePalette,
 )
 from deskwave_host.protocol import make_message
@@ -90,15 +91,8 @@ def test_maximum_production_state_with_theme_fits_firmware_frame_limit(
         player_id=character * 255,
         player_name=character * 128,
         track_id=character * 512,
-        queue=tuple(
-            QueueEntry(
-                title=character * 256,
-                artist=character * 160,
-                track_id=character * 512,
-            )
-            for _ in range(4)
-        ),
-        queue_available=True,
+        lyrics_status=LyricsStatus.SYNCED,
+        lyrics=tuple(LyricLine(index * 10_000, character * 512) for index in range(5)),
     )
     message = make_message("playback_state", 1, _state_payload(state))
 
@@ -112,10 +106,12 @@ def test_maximum_production_state_with_theme_fits_firmware_frame_limit(
         for value in decoded["payload"]["title"]
     )
     assert len(", ".join(decoded["payload"]["artists"]).encode("utf-8")) <= MAX_DEVICE_TEXT_BYTES
+    assert "queue" not in decoded["payload"]
+    assert "queue" not in decoded["payload"]["capabilities"]
+    assert len(decoded["payload"]["lyrics"]["lines"]) == 5
     assert all(
-        len(value.encode("utf-8")) <= MAX_DEVICE_TEXT_BYTES
-        for entry in decoded["payload"]["queue"]
-        for value in (entry["title"], entry["artist"], entry["track_id"])
+        len(line["text"].encode("utf-8")) <= MAX_DEVICE_TEXT_BYTES
+        for line in decoded["payload"]["lyrics"]["lines"]
     )
 
 

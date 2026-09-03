@@ -123,8 +123,8 @@ Rules:
 Before serialization, the host shapes device-facing playback metadata to the
 firmware's fixed buffers: ordinary text and IDs are at most 128 UTF-8 bytes,
 player names are at most 64 bytes, at most three artists share one 128-byte
-joined budget, and at most four queue entries are sent with 128-byte fields.
-Truncation preserves UTF-8 character boundaries. Device frames use compact
+joined budget, and at most five synchronized lyric lines are sent with 128-byte
+text fields. Truncation preserves UTF-8 character boundaries. Device frames use compact
 UTF-8 JSON rather than ASCII escaping, and the production encoder enforces the
 8,192-byte limit after escaping.
 
@@ -183,30 +183,28 @@ envelope. The ESP32 advances that sample with its monotonic clock between syncs.
     "seek": true,
     "next": true,
     "previous": true,
-    "control": true,
-    "queue": true
+    "control": true
   },
-  "queue": [
-    {
-      "title": "Next track",
-      "artist": "Artist two",
-      "track_id": "/org/mpris/MediaPlayer2/Track/124"
-    },
-    {
-      "title": "Following track",
-      "artist": "Artist three",
-      "track_id": "/org/mpris/MediaPlayer2/Track/125"
-    }
-  ],
+  "lyrics": {
+    "status": "synced",
+    "lines": [
+      {"time_ms": 88000, "text": "Previous line"},
+      {"time_ms": 91000, "text": "Current synchronized line"},
+      {"time_ms": 95000, "text": "Next line"}
+    ]
+  },
   "captured_at_ms": 1770000000000
 }
 ```
 
-Optional MPRIS properties use JSON `null`, never invented values. The `queue`
-array contains at most four upcoming tracks when the active player exposes the
-standard MPRIS TrackList interface; `capabilities.queue` is false when that
-interface is unavailable and the array is empty when the queue is currently
-empty. Firmware renders a capability as unavailable when it is null/false.
+Optional MPRIS properties use JSON `null`, never invented values. `lyrics.status`
+is `loading`, `synced`, `instrumental`, or `unavailable`. A synchronized payload
+contains at most five timestamped lines surrounding the current position; all
+other states carry an empty `lines` array. Firmware advances the active line
+from its locally extrapolated progress clock, so highlighting remains smooth
+between host updates. Lyrics fields are additive within protocol 1; older peers
+ignore them and newer firmware renders an explicit unavailable state when they
+are absent.
 `status` is one of
 `playing`, `paused`, or `stopped`; `repeat` is `off`, `track`, `playlist`, or
 null. Volume is normalized to 0.0–1.0. Duration and position are milliseconds.

@@ -191,8 +191,8 @@ snapshots and local actions from the application coordinator.
   canvas remains visible across all three LED dies, then converts the result to
   linear LED PWM and applies per-die balance across the complete calibrated PWM
   range. The panel's saved brightness does not attenuate this separate RGB
-  output. Display idle dimming explicitly reduces light intensity to one fifth;
-  Error retains its red semantic override.
+  output. Neither output is reduced automatically after inactivity; Error
+  retains its red semantic override.
 - UTF-8 metadata containing non-ASCII characters selects LovyanGFX's complete
   proportional Japanese font. The title renderer measures and scrolls with that
   font, while fitted labels remove whole UTF-8 code points before adding an
@@ -218,24 +218,26 @@ snapshots and local actions from the application coordinator.
   idle ambient motion, artwork glow, progress, and connection updates use bounded dirty regions.
   JPEG decode occurs once when a verified cover is installed, never on a
   transition animation frame.
-- Idle dimming changes PWM brightness without changing the saved value. Any
-  physical input wakes the panel and is still processed.
+- The saved manual brightness applies continuously; inactivity does not change
+  TFT or rear RGB intensity. Physical input remains immediately responsive.
 
 The reference build is USB-flashed and has no OTA implementation. It therefore
 uses Espressif's standard no-OTA table: a 2 MiB app partition accommodates the
 complete Japanese font, while a 1.875 MiB LittleFS partition remains available
 for the disposable artwork cache.
 
-The Now Playing screen displays the first two upcoming entries from the
-bounded MPRIS TrackList snapshot when the backend exposes queue data. The
-unavailable state remains explicit for players without TrackList support. The
-Device screen requests a bounded player list only while visible.
+The host resolves LRCLIB synchronized lyrics once per track and keeps a
+permission-restricted XDG cache. Each playback snapshot contains only a bounded
+five-line window around the current position. The ESP32 selects the active line
+from local progress and redraws only when that selection changes. Loading,
+instrumental, and unavailable states remain explicit. The Device screen
+requests a bounded player list only while visible.
 
 ## Persistence
 
 Firmware settings live in the `deskwave` Preferences/NVS namespace. The schema
-contains Wi-Fi credentials, pairing token, brightness, default screen, idle-dim
-timeout, volume step, and optional host override. Writes use validity flags so a
+contains Wi-Fi credentials, pairing token, brightness, default screen, volume
+step, and optional host override. Writes use validity flags so a
 partially written credential/token is not treated as committed. Older schema
 values are migrated and future unsupported schemas enter a controlled Error
 state with the reset chord still available.

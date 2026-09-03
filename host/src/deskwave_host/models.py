@@ -8,6 +8,7 @@ from time import time
 from typing import Any
 
 MAX_ARTWORK_GENERATION = 0xFFFF_FFFF
+MAX_LYRIC_WINDOW_LINES = 5
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +49,28 @@ class RepeatMode(StrEnum):
     OFF = "off"
     TRACK = "track"
     PLAYLIST = "playlist"
+
+
+class LyricsStatus(StrEnum):
+    LOADING = "loading"
+    SYNCED = "synced"
+    INSTRUMENTAL = "instrumental"
+    UNAVAILABLE = "unavailable"
+
+
+@dataclass(frozen=True, slots=True)
+class LyricLine:
+    """One timestamped lyric line selected for the device's rolling window."""
+
+    time_ms: int
+    text: str
+
+    def normalized(self) -> LyricLine:
+        return replace(
+            self,
+            time_ms=max(0, min(self.time_ms, 7 * 24 * 60 * 60 * 1000)),
+            text=self.text.replace("\x00", "").strip()[:512],
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +117,8 @@ class PlaybackState:
     can_control: bool = False
     queue: tuple[QueueEntry, ...] = ()
     queue_available: bool = False
+    lyrics_status: LyricsStatus = LyricsStatus.UNAVAILABLE
+    lyrics: tuple[LyricLine, ...] = ()
     captured_at_ms: int = field(default_factory=lambda: int(time() * 1000))
 
     def __post_init__(self) -> None:
@@ -113,6 +138,9 @@ class PlaybackState:
         if volume is not None:
             volume = min(1.0, max(0.0, volume))
         queue = tuple(entry.normalized() for entry in self.queue[:4])
+        lyrics = tuple(
+            line.normalized() for line in self.lyrics[:MAX_LYRIC_WINDOW_LINES] if line.text.strip()
+        )
         return replace(
             self,
             duration_ms=duration,
@@ -120,6 +148,7 @@ class PlaybackState:
             volume=volume,
             queue=queue,
             queue_available=bool(self.queue_available),
+            lyrics=lyrics,
         )
 
     def content_key(self) -> tuple[Any, ...]:
@@ -148,6 +177,8 @@ class PlaybackState:
             self.can_control,
             self.queue,
             self.queue_available,
+            self.lyrics_status,
+            self.lyrics,
         )
 
     def with_artwork(
@@ -164,6 +195,15 @@ class PlaybackState:
             theme=theme,
             artwork_generation=artwork_generation,
         )
+
+    def with_lyrics(
+        self,
+        status: LyricsStatus,
+        lines: tuple[LyricLine, ...],
+    ) -> PlaybackState:
+        """Return a state with the bounded lyric window for its current position."""
+
+        return replace(self, lyrics_status=status, lyrics=lines).normalized()
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -194,6 +234,10 @@ class PlaybackState:
                 {"title": entry.title, "artist": entry.artist, "track_id": entry.track_id}
                 for entry in self.queue
             ],
+            "lyrics": {
+                "status": self.lyrics_status.value,
+                "lines": [{"time_ms": line.time_ms, "text": line.text} for line in self.lyrics],
+            },
             "captured_at_ms": self.captured_at_ms,
         }
 

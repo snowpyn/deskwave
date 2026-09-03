@@ -75,14 +75,14 @@ converts it to linear PWM, and applies the channel-balance constants in
 `hardware_config.h` for the verified board. This keeps red and green above the
 LED's useful PWM range instead of allowing the most efficient blue die to
 dominate. Active song lighting uses the complete calibrated PWM range and is
-independent of the TFT's saved brightness; idle dimming deliberately reduces it
-to one fifth. The RGB light may flash red for a semantic Error state. The TFT
+independent of the TFT's saved brightness; inactivity does not reduce either
+output. The RGB light may flash red for a semantic Error state. The TFT
 backlight remains a steady single-color brightness channel; "RGB sync" refers to
 the separate rear RGB LED.
 
 The footer's visible boundaries and touch hitboxes are identical: Shuffle
 0–63, Previous 64–117, Play/Pause 118–201, Next 202–255, and More 256–319.
-The headerless Now Playing artwork and queue card are informational. The tiny
+The headerless Now Playing artwork and lyrics card are informational. The tiny
 upper-right `LINK`/`RETRY` status target opens the Actions screen; the footer
 More target also opens or closes Actions.
 

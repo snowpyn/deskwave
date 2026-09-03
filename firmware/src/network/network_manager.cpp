@@ -596,19 +596,35 @@ void NetworkManager::handlePlaybackState(const JsonObjectConst payload) {
     snapshot.canNext = capabilities["next"] | false;
     snapshot.canPrevious = capabilities["previous"] | false;
     snapshot.canControl = capabilities["control"] | false;
-    snapshot.queueAvailable = capabilities["queue"] | false;
-    if (payload["queue"].is<JsonArrayConst>()) {
-        const JsonArrayConst queue = payload["queue"].as<JsonArrayConst>();
-        for (const JsonObjectConst entry : queue) {
-            if (snapshot.queueCount >= app::kMaximumQueueItems ||
-                !entry["title"].is<const char*>() || !entry["artist"].is<const char*>()) {
-                continue;
+    if (payload["lyrics"].is<JsonObjectConst>()) {
+        const JsonObjectConst lyrics = payload["lyrics"].as<JsonObjectConst>();
+        const String lyricsStatus = lyrics["status"] | "unavailable";
+        if (lyricsStatus == "loading") {
+            snapshot.lyricsStatus = app::LyricsStatus::Loading;
+        } else if (lyricsStatus == "synced") {
+            snapshot.lyricsStatus = app::LyricsStatus::Synced;
+        } else if (lyricsStatus == "instrumental") {
+            snapshot.lyricsStatus = app::LyricsStatus::Instrumental;
+        } else {
+            snapshot.lyricsStatus = app::LyricsStatus::Unavailable;
+        }
+        if (snapshot.lyricsStatus == app::LyricsStatus::Synced &&
+            lyrics["lines"].is<JsonArrayConst>()) {
+            for (const JsonObjectConst line : lyrics["lines"].as<JsonArrayConst>()) {
+                if (snapshot.lyricCount >= app::kMaximumLyricLines ||
+                    !line["time_ms"].is<std::uint64_t>() || !line["text"].is<const char*>()) {
+                    continue;
+                }
+                const char* text = line["text"].as<const char*>();
+                if (text[0] == '\0') {
+                    continue;
+                }
+                auto& destination = snapshot.lyrics[snapshot.lyricCount];
+                destination.timeMs = boundedMilliseconds(
+                    line["time_ms"], 7ULL * 24 * 60 * 60 * 1000);
+                app::copyText(destination.text, text);
+                ++snapshot.lyricCount;
             }
-            auto& destination = snapshot.queue[snapshot.queueCount];
-            app::copyText(destination.title, entry["title"].as<const char*>());
-            app::copyText(destination.artist, entry["artist"].as<const char*>());
-            app::copyText(destination.trackId, entry["track_id"] | "");
-            ++snapshot.queueCount;
         }
     }
 

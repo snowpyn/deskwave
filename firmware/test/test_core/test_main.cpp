@@ -268,6 +268,24 @@ void test_theme_and_generation_survive_artwork_messages() {
     TEST_ASSERT_FALSE(deskwave::app::artworkIdentityMatches("", 41, artworkA, 41));
 }
 
+void test_playback_snapshot_carries_bounded_synced_lyrics() {
+    deskwave::app::PlaybackSnapshot snapshot;
+    snapshot.lyricsStatus = deskwave::app::LyricsStatus::Synced;
+    snapshot.lyricCount = 3;
+    snapshot.lyrics[0].timeMs = 1'250;
+    snapshot.lyrics[1].timeMs = 4'500;
+    snapshot.lyrics[2].timeMs = 8'000;
+    deskwave::app::copyText(snapshot.lyrics[0].text, "Previous line");
+    deskwave::app::copyText(snapshot.lyrics[1].text, "Current line");
+    deskwave::app::copyText(snapshot.lyrics[2].text, "Next line");
+
+    TEST_ASSERT_EQUAL(deskwave::app::LyricsStatus::Synced, snapshot.lyricsStatus);
+    TEST_ASSERT_EQUAL_UINT8(3, snapshot.lyricCount);
+    TEST_ASSERT_EQUAL_UINT64(4'500, snapshot.lyrics[1].timeMs);
+    TEST_ASSERT_EQUAL_STRING("Current line", snapshot.lyrics[1].text);
+    TEST_ASSERT_EQUAL_UINT8(5, deskwave::app::kMaximumLyricLines);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_state_machine_happy_path_and_recovery);
@@ -283,5 +301,6 @@ int main(int, char**) {
     RUN_TEST(test_theme_interruption_is_continuous_and_eased);
     RUN_TEST(test_theme_softening_desaturates_and_dims);
     RUN_TEST(test_theme_and_generation_survive_artwork_messages);
+    RUN_TEST(test_playback_snapshot_carries_bounded_synced_lyrics);
     return UNITY_END();
 }

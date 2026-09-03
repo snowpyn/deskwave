@@ -24,6 +24,7 @@ from deskwave_host.artwork import ArtworkCache
 from deskwave_host.backends import MPRISBackend
 from deskwave_host.config import ConfigError, HostConfig
 from deskwave_host.discovery import discover_lan_address
+from deskwave_host.lyrics import LyricsCache
 from deskwave_host.service import MediaService
 from deskwave_host.storage import DeviceStore, PairingError
 
@@ -51,8 +52,9 @@ async def _run_daemon(config: HostConfig) -> int:
     _configure_logging(config.log_level)
     store = _store(config)
     artwork = ArtworkCache(config)
+    lyrics = LyricsCache(config)
     backend = MPRISBackend(config.preferred_player)
-    service = MediaService(backend, artwork)
+    service = MediaService(backend, artwork, lyrics)
     stop_event = asyncio.Event()
     loop = asyncio.get_running_loop()
     for signum in (signal.SIGINT, signal.SIGTERM):

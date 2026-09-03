@@ -67,7 +67,6 @@ class Application {
     PlayerListSnapshot players_{};
     ui::DeviceStatus deviceStatus_{};
     ui::SettingsView settings_{};
-    std::uint32_t lastActivityAtMs_{0};
     std::uint32_t settingsChangedAtMs_{0};
     std::uint32_t lastHealthUpdateMs_{0};
     std::uint32_t lastHealthLogMs_{0};
@@ -81,7 +80,6 @@ class Application {
     bool hasPlayback_{false};
     bool settingsDirty_{false};
     bool factoryResetChordTiming_{false};
-    bool dimmed_{false};
     bool begun_{false};
 };
 

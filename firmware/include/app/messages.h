@@ -25,6 +25,7 @@ void copyText(char (&destination)[Size], const char* source) noexcept {
 
 enum class PlaybackStatus : std::uint8_t { Stopped, Playing, Paused };
 enum class RepeatMode : std::uint8_t { Unknown, Off, Track, Playlist };
+enum class LyricsStatus : std::uint8_t { Unavailable, Loading, Synced, Instrumental };
 
 struct ClockSync {
     std::uint64_t unixMs{0};
@@ -33,12 +34,11 @@ struct ClockSync {
     bool valid{false};
 };
 
-inline constexpr std::size_t kMaximumQueueItems = 4;
+inline constexpr std::size_t kMaximumLyricLines = 5;
 
-struct QueueEntry {
-    char title[129]{};
-    char artist[129]{};
-    char trackId[129]{};
+struct LyricLine {
+    std::uint64_t timeMs{0};
+    char text[129]{};
 };
 
 struct PlaybackSnapshot {
@@ -68,9 +68,9 @@ struct PlaybackSnapshot {
     bool canPrevious{false};
     bool canControl{false};
     bool hasTheme{false};
-    std::array<QueueEntry, kMaximumQueueItems> queue{};
-    std::uint8_t queueCount{0};
-    bool queueAvailable{false};
+    std::array<LyricLine, kMaximumLyricLines> lyrics{};
+    std::uint8_t lyricCount{0};
+    LyricsStatus lyricsStatus{LyricsStatus::Unavailable};
 };
 
 enum class SystemNoticeType : std::uint8_t {

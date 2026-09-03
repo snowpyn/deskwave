@@ -12,3 +12,7 @@ log_level = "INFO"
 allow_private_artwork_hosts = false
 artwork_max_bytes = 8388608
 artwork_cache_bytes = 134217728
+
+# Fetch synchronized lyrics from LRCLIB using title, artist, album, and duration.
+# Results are cached under the DeskWave XDG cache directory.
+lyrics_enabled = true

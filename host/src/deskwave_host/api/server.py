@@ -157,18 +157,20 @@ def _state_payload(state: PlaybackState) -> dict[str, Any]:
     payload["track_id"] = (
         None if state.track_id is None else _bounded_utf8(state.track_id, MAX_DEVICE_TEXT_BYTES)
     )
-    payload["queue"] = [
-        {
-            "title": _bounded_utf8(entry.title, MAX_DEVICE_TEXT_BYTES),
-            "artist": _bounded_utf8(entry.artist, MAX_DEVICE_TEXT_BYTES),
-            "track_id": (
-                None
-                if entry.track_id is None
-                else _bounded_utf8(entry.track_id, MAX_DEVICE_TEXT_BYTES)
-            ),
-        }
-        for entry in state.queue[:4]
-    ]
+    payload.pop("queue", None)
+    capabilities = payload.get("capabilities")
+    if isinstance(capabilities, dict):
+        capabilities.pop("queue", None)
+    payload["lyrics"] = {
+        "status": state.lyrics_status.value,
+        "lines": [
+            {
+                "time_ms": line.time_ms,
+                "text": _bounded_utf8(line.text, MAX_DEVICE_TEXT_BYTES),
+            }
+            for line in state.lyrics
+        ],
+    }
     payload["artwork_path"] = (
         f"/v1/artwork/{state.artwork_id}.jpg" if state.artwork_id is not None else None
     )

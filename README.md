@@ -37,7 +37,9 @@ the automated checks.
 - Provides Now Playing, Device, Settings, Actions, About, provisioning, pairing,
   reconnecting, and error screens. With no active media, the idle state becomes
   an animated Spotify clock using the host's local time and date. Now Playing
-  shows the next two tracks when the active MPRIS player exposes its standard TrackList.
+  shows synchronized lyrics when LRCLIB has timestamped lines for the track.
+- Keeps the panel and song-reactive rear RGB light at their selected active
+  brightness; inactivity never dims either output automatically.
 - Acts only as a remote control and display. Audio continues playing on the
   selected PC or phone; DeskWave never receives or outputs the audio stream.
 
@@ -64,9 +66,11 @@ render, or claim of physical-device verification:
 +------------+--------------------------------+
 |            | TRACK TITLE                    |
 |  ARTWORK   | Artist                         |
-|            | Album                          |
-|            |                                |
 |            | 01:42  ========-----  03:58    |
+|            | LYRICS                         |
+|            |   previous line                |
+|            | > current synchronized line    |
+|            |   next line                    |
 +------------+--------------------------------+
 | Host connected     PREV   PLAY   NEXT   72% |
 +---------------------------------------------+
@@ -209,8 +213,7 @@ MPRIS capabilities are shown as unavailable and are never fabricated.
 On the Settings screen:
 
 - Swipe vertically to select a row.
-- Tap a row to change brightness, idle dim timeout, volume step, or default startup
-  screen.
+- Tap a row to change brightness, volume step, or the default startup screen.
 - Select Factory reset, then hold the center Play area to confirm.
 
 ## Host CLI
@@ -231,6 +234,7 @@ Runtime locations follow the Linux XDG conventions:
 | --- | --- |
 | Configuration | `~/.config/deskwave/config.toml` |
 | Processed artwork and palette cache | `~/.cache/deskwave/artwork/` |
+| Synchronized lyrics cache | `~/.cache/deskwave/lyrics/` |
 | Pairing state | `~/.local/state/deskwave/devices.sqlite3` |
 
 See [`host/config.example.toml`](host/config.example.toml) and
@@ -240,8 +244,8 @@ See [`host/config.example.toml`](host/config.example.toml) and
 
 Host settings live in `~/.config/deskwave/config.toml`; the installer creates a
 documented starter file without overwriting an existing one. Bind address,
-port, log level, preferred player, artwork size limits, and private-artwork-host
-policy can be changed there. Environment overrides are listed in
+port, log level, preferred player, artwork size limits, lyrics lookup, and
+private-artwork-host policy can be changed there. Environment overrides are listed in
 [`host/config.example.toml`](host/config.example.toml).
 
 Artwork downloading, validation, SHA-256 hashing, 320x320 normalization, palette
@@ -250,13 +254,14 @@ receives only the normalized JPEG and four packed theme colors; it never
 extracts a palette or decodes JPEG data on animation frames.
 
 Playback metadata remains UTF-8 end to end. The firmware automatically selects
-its bundled proportional Japanese font for non-ASCII titles, artists, and queue
-entries; long strings are shortened only at UTF-8 character boundaries, and
-long titles use the normal continuous marquee.
+its bundled proportional Japanese font for non-ASCII titles, artists, and lyric
+lines; long strings are shortened only at UTF-8 character boundaries, and long
+titles use the normal continuous marquee.
 
 Device settings are changed on the Settings screen and stored in versioned NVS.
-They include brightness, idle dim timeout, default screen, and volume step. The
-first-boot provisioning page also accepts an optional host address and port for
+They include brightness, default screen, and volume step. The selected
+brightness remains active until it is changed. The first-boot provisioning page
+also accepts an optional host address and port for
 networks where mDNS is not available; leave the address blank to use automatic
 discovery. Ordinary users do not need to edit firmware source for Wi-Fi, pairing,
 display preferences, or player selection.
@@ -324,8 +329,9 @@ TLS, so network confidentiality depends on the trusted LAN. See
 
 - Linux/MPRIS is the only production host backend in `0.1.0`; Windows and macOS
   can be added behind the existing backend abstraction.
-- Queue display depends on the active player's standard MPRIS TrackList support;
-  players without it show an explicit unavailable state.
+- Synchronized lyrics depend on LRCLIB coverage and a network lookup on the
+  first play. Results, including unavailable and instrumental states, are cached
+  locally; lyrics lookup can be disabled in the host configuration.
 - The published firmware targets the locally verified ILI9341/XPT2046
   ESP32-D0WD-V3 Revision 3.1 wiring profile; other boards and displays require a
   hardware adapter in the centralized config layer.
@@ -342,9 +348,9 @@ The first release intentionally keeps risky or provider-specific expansion out
 of the production path. Candidate follow-up work includes signed and
 rollback-safe OTA, additional centralized hardware profiles, native Windows and
 macOS host backends, optional provider plugins, and measured UI/control
-performance data from qualified hardware. Future queue work can expand the
-compact Now Playing view for backends that expose richer queue data; the current
-MPRIS TrackList path already provides the first two entries when available.
+performance data from qualified hardware. Future lyrics work can add provider
+plugins while retaining the bounded, timestamped device protocol and local
+progress-driven highlighting.
 
 ## Repository layout
 

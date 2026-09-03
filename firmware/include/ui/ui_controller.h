@@ -28,7 +28,6 @@ struct DeviceStatus {
 };
 
 struct SettingsView {
-    std::uint32_t dimTimeoutSeconds{300};
     std::uint8_t brightness{180};
     std::uint8_t defaultScreen{0};
     std::uint8_t volumeStepPercent{5};
@@ -60,7 +59,6 @@ class UiController {
     void nextScreen();
     void toggleActions();
     void setBrightness(std::uint8_t brightness);
-    void setDimmed(bool dimmed, std::uint8_t normalBrightness);
 
     void showVolume(std::int16_t percent, bool muted, std::uint32_t nowMs);
     void showTransport(app::PlaybackStatus status, std::uint32_t nowMs);
@@ -100,6 +98,8 @@ class UiController {
     void renderThemeLabels(const RenderTheme& theme);
     void renderActionAccents(const RenderTheme& theme, bool clear);
     void renderMetadata(std::uint32_t nowMs, std::uint16_t color, std::int16_t xOffset = 0);
+    void renderLyricsCard(std::uint32_t nowMs, std::uint16_t color,
+                          std::int16_t xOffset = 0);
     void renderTitle(std::uint32_t nowMs, std::uint16_t color, std::int16_t xOffset = 0);
     void resetTitleScroll(std::uint32_t nowMs);
     void renderFooter(std::uint32_t nowMs);
@@ -139,7 +139,8 @@ class UiController {
                            std::uint8_t pulse = 0);
     [[nodiscard]] bool connectionScreenActive() const noexcept;
     [[nodiscard]] bool trackChanged(const app::PlaybackSnapshot& snapshot) const noexcept;
-    [[nodiscard]] bool queueChanged(const app::PlaybackSnapshot& snapshot) const noexcept;
+    [[nodiscard]] bool lyricsChanged(const app::PlaybackSnapshot& snapshot) const noexcept;
+    [[nodiscard]] std::int8_t activeLyricIndex(std::uint32_t nowMs) const noexcept;
     [[nodiscard]] static const char* screenName(Screen screen) noexcept;
 
     display::DisplayDriver& display_;
@@ -171,6 +172,7 @@ class UiController {
     std::uint32_t lastTitleFrameMs_{0};
     std::int16_t volumeOverlayPercent_{-1};
     std::int16_t titleTextWidth_{0};
+    std::int8_t renderedLyricIndex_{-2};
     std::int32_t renderedProgressWidth_{0};
     std::uint32_t artworkGeneration_{0};
     std::uint32_t themeTransitionStartedAtMs_{0};
@@ -192,7 +194,6 @@ class UiController {
     bool toastError_{false};
     bool factoryResetChordVisible_{false};
     bool bootRendered_{false};
-    bool dimmed_{false};
     bool titleScrollActive_{false};
     bool progressPainted_{false};
     bool clockRendered_{false};

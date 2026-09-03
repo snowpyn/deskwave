@@ -8,9 +8,12 @@ import logging
 
 from deskwave_host.artwork import FALLBACK_THEME, ArtworkCache
 from deskwave_host.backends.base import MediaBackend
+from deskwave_host.lyrics import LyricsCache, LyricsDocument
 from deskwave_host.models import (
     MAX_ARTWORK_GENERATION,
     CommandResult,
+    LyricLine,
+    LyricsStatus,
     PlaybackState,
     PlayerSummary,
     ThemePalette,
@@ -27,7 +30,12 @@ TrackMetadata = tuple[str, tuple[str, ...], str]
 
 
 class MediaService:
-    def __init__(self, backend: MediaBackend, artwork: ArtworkCache) -> None:
+    def __init__(
+        self,
+        backend: MediaBackend,
+        artwork: ArtworkCache,
+        lyrics: LyricsCache | None = None,
+    ) -> None:
         self._backend = backend
         self._artwork = artwork
         self._state = PlaybackState()
@@ -35,6 +43,11 @@ class MediaService:
         self._artwork_task: asyncio.Task[None] | None = None
         self._artwork_grace_task: asyncio.Task[None] | None = None
         self._artwork_context: ArtworkContext | None = None
+        self._lyrics = lyrics
+        self._lyrics_task: asyncio.Task[None] | None = None
+        self._lyrics_track_key: str | None = None
+        self._lyrics_document = LyricsDocument(LyricsStatus.UNAVAILABLE)
+        self._lyrics_generation = 0
         self._track_key: str | None = None
         self._state_track_key: str | None = None
         self._identified_track_base: str | None = None
@@ -54,7 +67,9 @@ class MediaService:
             return
         self._started = False
         pending = [
-            task for task in (self._artwork_task, self._artwork_grace_task) if task is not None
+            task
+            for task in (self._artwork_task, self._artwork_grace_task, self._lyrics_task)
+            if task is not None
         ]
         for task in pending:
             task.cancel()
@@ -62,6 +77,7 @@ class MediaService:
             await asyncio.gather(*pending, return_exceptions=True)
         self._artwork_task = None
         self._artwork_grace_task = None
+        self._lyrics_task = None
         await self._backend.stop()
 
     @property
@@ -110,13 +126,17 @@ class MediaService:
                 self._begin_artwork_intent(track_key, state.artwork_url)
                 new_intent = True
 
+        if track_key is not None and track_key != self._lyrics_track_key:
+            self._begin_lyrics_intent(track_key, state)
+
         # Metadata is always current, but the validated visual tuple remains in
         # place until this intent resolves or authoritatively falls back.
+        lyrics_status, lyric_lines = self._lyrics_snapshot(state.position_ms)
         self._state = state.with_artwork(
             self._state.artwork_id,
             self._state.theme,
             self._state.artwork_generation,
-        )
+        ).with_lyrics(lyrics_status, lyric_lines)
         self._broadcast(self._state)
 
         if track_key is None:
@@ -147,6 +167,58 @@ class MediaService:
             self._resolve_artwork(state.artwork_url, artwork_context, generation),
             name=f"artwork-resolve-{generation}",
         )
+
+    def _begin_lyrics_intent(self, track_key: str, state: PlaybackState) -> None:
+        if self._lyrics_task is not None and not self._lyrics_task.done():
+            self._lyrics_task.cancel()
+        self._lyrics_task = None
+        self._lyrics_track_key = track_key
+        self._lyrics_generation = (
+            1 if self._lyrics_generation >= MAX_ARTWORK_GENERATION else self._lyrics_generation + 1
+        )
+        if (
+            self._lyrics is None
+            or not state.title.strip()
+            or not any(artist.strip() for artist in state.artists)
+        ):
+            self._lyrics_document = LyricsDocument(LyricsStatus.UNAVAILABLE)
+            return
+        self._lyrics_document = LyricsDocument(LyricsStatus.LOADING)
+        generation = self._lyrics_generation
+        self._lyrics_task = asyncio.create_task(
+            self._resolve_lyrics(track_key, generation, state),
+            name=f"lyrics-resolve-{generation}",
+        )
+
+    def _lyrics_snapshot(self, position_ms: int) -> tuple[LyricsStatus, tuple[LyricLine, ...]]:
+        return self._lyrics_document.status, self._lyrics_document.window(position_ms)
+
+    async def _resolve_lyrics(
+        self,
+        track_key: str,
+        generation: int,
+        state: PlaybackState,
+    ) -> None:
+        try:
+            if self._lyrics is None:
+                return
+            result = await self._lyrics.resolve(state)
+            if (
+                generation != self._lyrics_generation
+                or track_key != self._lyrics_track_key
+                or track_key != self._state_track_key
+            ):
+                LOGGER.debug("Rejected stale lyrics generation %d", generation)
+                return
+            self._lyrics_document = result
+            status, lines = self._lyrics_snapshot(self._state.position_ms)
+            self._state = self._state.with_lyrics(status, lines)
+            self._broadcast(self._state)
+        except asyncio.CancelledError:
+            raise
+        finally:
+            if self._lyrics_task is asyncio.current_task():
+                self._lyrics_task = None
 
     def _begin_artwork_intent(self, track_key: str, artwork_url: str | None) -> None:
         self._cancel_artwork_task()

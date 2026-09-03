@@ -296,3 +296,16 @@ These names are design-level recommendations for a maintainable implementation:
 - Footer visuals remain aligned with the exact touch hitboxes.
 - No queue, capability, connection, or control state is invented for visual symmetry.
 - The design remains feasible with LovyanGFX primitives and bounded redraws on the checked-in ILI9341 hardware profile.
+
+## Synchronized lyrics and no-auto-dim target
+
+This target supersedes the queue-specific and automatic-idle-dimming requirements above while preserving every unrelated geometry, palette, typography, transition, touch, artwork, and ambient-clock contract.
+
+- Replace the active Now Playing queue card at approximately `x 187`, `y 88`, `120 x 76` with a synchronized lyrics card. Do not add a separate lyrics screen or displace artwork, title, artist, progress, or transport controls.
+- Label the card `LYRICS` in the runtime secondary accent.
+- Show a compact three-line window: previous lyric in subdued muted text, current lyric in foreground text with a slim runtime-primary accent marker, and next lyric in subdued muted text.
+- Fit or truncate each lyric line inside the existing 106 px inner width. The firmware renderer remains single-line and allocation-free; do not introduce a scrolling paragraph or tiny wrapped copy.
+- Use short honest states: `FINDING LYRICS`, `INSTRUMENTAL`, and `LYRICS UNAVAILABLE`. Never fabricate lyric text.
+- Advance the current-line highlight from the authoritative playback position, respecting pause and seek. Redraw only the bounded lyrics-card region when the active line changes.
+- Disable automatic TFT and rear-RGB idle dimming. Manual brightness remains available, and playback-status theme softening remains separate from inactivity dimming.
+- Remove the Idle dim row from Settings once the behavior is disabled; preserve Brightness, Volume step, Default screen, and Factory reset.

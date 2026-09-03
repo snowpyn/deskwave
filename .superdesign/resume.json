@@ -20,13 +20,13 @@
         "firmware/src/app/application.cpp:640:689"
       ],
       "fingerprints": {
-        ".superdesign/design-system.md": "a7c912c14ad108e6c49a2fd7ea4ef2a012a17ed1a76f23659f029e1e1a957e49",
+        ".superdesign/design-system.md": "86b5f0f2ace72ad62c531c91b9706ed9c891ea3ff86c351cca13025f4c984697",
         ".superdesign/init/theme.md": "d61516bcdd1d94b4016c7cf19098ff6abc2ec41199a21692491231cf6684f0b5",
-        "firmware/include/ui/ui_controller.h": "90e7a7d48436154892535dbf916cbd54b91a8ab417cacaf5a0ae64885a30c3a3",
-        "firmware/include/app/messages.h": "868025026e754f5b05f60b76b68779096916d14998e9db3c04f6b86c183a3ea9",
+        "firmware/include/ui/ui_controller.h": "0757029f1453a025e35dbf5f79c6a449ca6a3f8c5155799c09ab595a1b69fb2a",
+        "firmware/include/app/messages.h": "ea35b8be46b8f782e2b9364b40568ef6e53877e4d387985a9360c08712757780",
         "firmware/lib/deskwave_core/src/deskwave/core/theme.h": "a63575b2e897efcb281e602eca4a7bd8bbde04fda0bd54d2690e036e73b86e23",
-        "firmware/src/ui/ui_controller.cpp": "07f7d8590b419f5a03ce5befbcd0523ea5c2b424d31499210f408b85bcfcbdca",
-        "firmware/src/app/application.cpp": "ddca224ee0381e08ad082e2e135d667eff2a684ede5d3b81cdcfa1bd0885be6a"
+        "firmware/src/ui/ui_controller.cpp": "b9acfa1ae17dbcbcc2833f8efda305af94e50ee9f4c75b49465df2a7f4143bef",
+        "firmware/src/app/application.cpp": "92892b9960751a2eb66809233f990bde527c863b12685528228398eefe8312d8"
       },
       "components": [
         {
@@ -42,12 +42,12 @@
       ],
       "drafts": {
         "d9d79005-836a-4075-ae23-798633bc98de": {
-          "title": "DeskWave Immersive Reactive Now Playing",
-          "visualDirection": "headerless artwork-derived full-canvas backdrop with compact link status and RGB light sync",
-          "currentVersion": 4
+          "title": "DeskWave Synchronized Lyrics Now Playing",
+          "visualDirection": "headerless artwork-derived full-canvas backdrop with synchronized lyrics replacing the queue card",
+          "currentVersion": 5
         }
       },
-      "updatedAt": "2026-08-24T18:15:10Z"
+      "updatedAt": "2026-09-02T21:47:33-04:00"
     },
     "/now-playing/idle": {
       "targetKind": "existing-ui",
@@ -65,12 +65,12 @@
         "firmware/src/ui/ui_controller.cpp:690:1215"
       ],
       "fingerprints": {
-        ".superdesign/design-system.md": "a7c912c14ad108e6c49a2fd7ea4ef2a012a17ed1a76f23659f029e1e1a957e49",
+        ".superdesign/design-system.md": "86b5f0f2ace72ad62c531c91b9706ed9c891ea3ff86c351cca13025f4c984697",
         ".superdesign/init/theme.md": "d61516bcdd1d94b4016c7cf19098ff6abc2ec41199a21692491231cf6684f0b5",
-        "firmware/include/ui/ui_controller.h": "90e7a7d48436154892535dbf916cbd54b91a8ab417cacaf5a0ae64885a30c3a3",
-        "firmware/include/app/messages.h": "868025026e754f5b05f60b76b68779096916d14998e9db3c04f6b86c183a3ea9",
+        "firmware/include/ui/ui_controller.h": "0757029f1453a025e35dbf5f79c6a449ca6a3f8c5155799c09ab595a1b69fb2a",
+        "firmware/include/app/messages.h": "ea35b8be46b8f782e2b9364b40568ef6e53877e4d387985a9360c08712757780",
         "firmware/lib/deskwave_core/src/deskwave/core/theme.h": "a63575b2e897efcb281e602eca4a7bd8bbde04fda0bd54d2690e036e73b86e23",
-        "firmware/src/ui/ui_controller.cpp": "07f7d8590b419f5a03ce5befbcd0523ea5c2b424d31499210f408b85bcfcbdca"
+        "firmware/src/ui/ui_controller.cpp": "b9acfa1ae17dbcbcc2833f8efda305af94e50ee9f4c75b49465df2a7f4143bef"
       },
       "drafts": {
         "649f78ec-31b1-4398-8125-f9708e61c5e0": {

@@ -47,8 +47,8 @@ constexpr std::int32_t kTitleWidth = 118;
 constexpr std::int32_t kTitleHeight = 25;
 constexpr std::int32_t kTrackLabelY = 12;
 constexpr std::int32_t kArtistY = 57;
-constexpr std::int32_t kQueueY = 88;
-constexpr std::int32_t kQueueHeight = 76;
+constexpr std::int32_t kLyricsY = 88;
+constexpr std::int32_t kLyricsHeight = 76;
 constexpr std::int32_t kMainBottomY = 178;
 constexpr std::int32_t kProgressY = 184;
 constexpr std::int32_t kProgressHeight = 21;
@@ -375,17 +375,7 @@ void UiController::toggleActions() {
 }
 
 void UiController::setBrightness(const std::uint8_t brightness) {
-    dimmed_ = false;
     display_.setBrightness(brightness);
-}
-
-void UiController::setDimmed(const bool dimmed, const std::uint8_t normalBrightness) {
-    if (dimmed_ == dimmed) {
-        return;
-    }
-    dimmed_ = dimmed;
-    const auto dimBrightness = static_cast<std::uint8_t>(std::max<int>(10, normalBrightness / 5));
-    display_.setBrightness(dimmed ? dimBrightness : normalBrightness);
 }
 
 bool UiController::sameTrack(const app::PlaybackSnapshot& left,
@@ -414,17 +404,15 @@ bool UiController::artworkMatches(const app::PlaybackSnapshot& snapshot,
            (!snapshot.hasTheme || core::themesEqual(snapshot.theme, result.theme));
 }
 
-bool UiController::queueChanged(const app::PlaybackSnapshot& snapshot) const noexcept {
-    if (!hasPlayback_ || playback_.queueAvailable != snapshot.queueAvailable ||
-        playback_.queueCount != snapshot.queueCount) {
+bool UiController::lyricsChanged(const app::PlaybackSnapshot& snapshot) const noexcept {
+    if (!hasPlayback_ || playback_.lyricsStatus != snapshot.lyricsStatus ||
+        playback_.lyricCount != snapshot.lyricCount) {
         return true;
     }
-    for (std::uint8_t index = 0; index < snapshot.queueCount; ++index) {
-        const auto& current = playback_.queue[index];
-        const auto& next = snapshot.queue[index];
-        if (std::strcmp(current.title, next.title) != 0 ||
-            std::strcmp(current.artist, next.artist) != 0 ||
-            std::strcmp(current.trackId, next.trackId) != 0) {
+    for (std::uint8_t index = 0; index < snapshot.lyricCount; ++index) {
+        const auto& current = playback_.lyrics[index];
+        const auto& next = snapshot.lyrics[index];
+        if (current.timeMs != next.timeMs || std::strcmp(current.text, next.text) != 0) {
             return true;
         }
     }
@@ -480,7 +468,7 @@ void UiController::setPlayback(const app::PlaybackSnapshot& snapshot, const std:
     }
     const bool metadataChanged =
         !hasPlayback_ || std::strcmp(playback_.title, snapshot.title) != 0 ||
-        std::strcmp(playback_.artist, snapshot.artist) != 0 || queueChanged(snapshot);
+        std::strcmp(playback_.artist, snapshot.artist) != 0 || lyricsChanged(snapshot);
     const bool footerChanged = !hasPlayback_ || playback_.status != snapshot.status ||
                                playback_.shuffleKnown != snapshot.shuffleKnown ||
                                playback_.shuffle != snapshot.shuffle ||
@@ -813,6 +801,9 @@ void UiController::tick(const std::uint32_t nowMs) {
         if (!idlePlayback(playback_) &&
             static_cast<std::uint32_t>(nowMs - lastProgressFrameMs_) >= kProgressFrameMs) {
             renderProgress(nowMs);
+            if (activeLyricIndex(nowMs) != renderedLyricIndex_) {
+                renderLyricsCard(nowMs, kText);
+            }
             lastProgressFrameMs_ = nowMs;
             animatedUi = true;
         }
@@ -1337,37 +1328,97 @@ void UiController::renderMetadata(const std::uint32_t nowMs, const std::uint16_t
     drawFitted(playback_.artist[0] == '\0' ? "Unknown artist" : playback_.artist, x, kArtistY,
                kTitleWidth, &fonts::Font2, fadedArtist);
 
-    const auto queueX = kMetadataX + 7;
-    const auto queueWidth = kMetadataWidth - 14;
-    display_.fillRoundRect(queueX, kQueueY, queueWidth, kQueueHeight, 7,
-                           blend565(raisedPanelBackground(theme), metadataBackground, 155));
-    display_.drawRoundRect(queueX, kQueueY, queueWidth, kQueueHeight, 7,
+    renderLyricsCard(nowMs, color, xOffset);
+    renderCompactLinkStatus(theme);
+}
+
+std::int8_t UiController::activeLyricIndex(const std::uint32_t nowMs) const noexcept {
+    if (playback_.lyricsStatus != app::LyricsStatus::Synced || playback_.lyricCount == 0) {
+        return -1;
+    }
+    const auto position = progress_.position(nowMs);
+    std::int8_t active = -1;
+    for (std::uint8_t index = 0; index < playback_.lyricCount; ++index) {
+        if (playback_.lyrics[index].timeMs > position) {
+            break;
+        }
+        active = static_cast<std::int8_t>(index);
+    }
+    return active;
+}
+
+void UiController::renderLyricsCard(const std::uint32_t nowMs, const std::uint16_t color,
+                                    const std::int16_t xOffset) {
+    const auto theme = renderTheme(nowMs);
+    const auto canvas = canvasBackground(theme);
+    const auto metadataBackground = panelBackground(theme);
+    const auto lyricsX = kMetadataX + 7;
+    const auto lyricsWidth = kMetadataWidth - 14;
+    const auto lyricsBackground =
+        blend565(raisedPanelBackground(theme), metadataBackground, 155);
+    const auto muted = color == kText ? kTextMuted : blend565(kTextMuted, canvas, 105);
+    const auto accent = color == kText ? theme.secondary : blend565(theme.secondary, canvas, 100);
+    display_.fillRoundRect(lyricsX, kLyricsY, lyricsWidth, kLyricsHeight, 7, lyricsBackground);
+    display_.drawRoundRect(lyricsX, kLyricsY, lyricsWidth, kLyricsHeight, 7,
                            blend565(theme.secondary, metadataBackground, 88));
-    drawFitted("UP NEXT", queueX + 7 + xOffset, kQueueY + 5, queueWidth - 14, &fonts::Font0,
-               color == kText ? theme.secondary : blend565(theme.secondary, canvas, 100));
-    if (!playback_.queueAvailable) {
-        drawFitted("QUEUE UNAVAILABLE", queueX + 7 + xOffset, kQueueY + 31, queueWidth - 14,
-                   &fonts::Font0, fadedArtist);
-    } else if (playback_.queueCount == 0) {
-        drawFitted("QUEUE EMPTY", queueX + 7 + xOffset, kQueueY + 31, queueWidth - 14,
-                   &fonts::Font0, fadedArtist);
-    } else {
-        for (std::uint8_t index = 0; index < std::min<std::uint8_t>(2, playback_.queueCount);
-             ++index) {
-            const auto& entry = playback_.queue[index];
-            char label[290];
-            if (entry.artist[0] == '\0') {
-                std::snprintf(label, sizeof(label), "%u  %s", static_cast<unsigned>(index + 1),
-                              entry.title[0] == '\0' ? "Untitled" : entry.title);
-            } else {
-                std::snprintf(label, sizeof(label), "%u  %s - %s", static_cast<unsigned>(index + 1),
-                              entry.title[0] == '\0' ? "Untitled" : entry.title, entry.artist);
+    drawFitted("LYRICS", lyricsX + 7 + xOffset, kLyricsY + 5, lyricsWidth - 14, &fonts::Font0,
+               accent);
+
+    const char* stateText = nullptr;
+    switch (playback_.lyricsStatus) {
+        case app::LyricsStatus::Loading:
+            stateText = "FINDING LYRICS";
+            break;
+        case app::LyricsStatus::Instrumental:
+            stateText = "INSTRUMENTAL";
+            break;
+        case app::LyricsStatus::Unavailable:
+            stateText = "LYRICS UNAVAILABLE";
+            break;
+        case app::LyricsStatus::Synced:
+            if (playback_.lyricCount == 0) {
+                stateText = "LYRICS UNAVAILABLE";
             }
-            drawFitted(label, queueX + 7 + xOffset, kQueueY + 23 + index * 17, queueWidth - 14,
-                       &fonts::Font0, fadedArtist);
+            break;
+    }
+    if (stateText != nullptr) {
+        drawFitted(stateText, lyricsX + 7 + xOffset, kLyricsY + 31, lyricsWidth - 14,
+                   &fonts::Font0, muted);
+        if (xOffset == 0) {
+            renderedLyricIndex_ = -1;
+        }
+        return;
+    }
+
+    const auto active = activeLyricIndex(nowMs);
+    if (active < 0) {
+        const auto& next = playback_.lyrics[0];
+        drawFitted(next.text, lyricsX + 7 + xOffset, kLyricsY + 32, lyricsWidth - 14,
+                   fontForText(next.text, &fonts::Font0), muted);
+    } else {
+        const std::array<std::int8_t, 3> indices{
+            static_cast<std::int8_t>(active - 1), active, static_cast<std::int8_t>(active + 1)};
+        constexpr std::array<std::int32_t, 3> yPositions{kLyricsY + 22, kLyricsY + 39,
+                                                        kLyricsY + 56};
+        for (std::size_t row = 0; row < indices.size(); ++row) {
+            const auto index = indices[row];
+            if (index < 0 || index >= static_cast<std::int8_t>(playback_.lyricCount)) {
+                continue;
+            }
+            const auto& line = playback_.lyrics[static_cast<std::size_t>(index)];
+            const bool current = index == active;
+            const auto textX = lyricsX + (current ? 12 : 7) + xOffset;
+            if (current) {
+                display_.fillRoundRect(lyricsX + 7 + xOffset, yPositions[row], 2, 10, 1,
+                                       theme.primary);
+            }
+            drawFitted(line.text, textX, yPositions[row], lyricsWidth - (current ? 19 : 14),
+                       fontForText(line.text, &fonts::Font0), current ? color : muted);
         }
     }
-    renderCompactLinkStatus(theme);
+    if (xOffset == 0) {
+        renderedLyricIndex_ = active;
+    }
 }
 
 void UiController::renderCompactLinkStatus(const RenderTheme& theme) {
@@ -1381,17 +1432,17 @@ void UiController::renderCompactLinkStatus(const RenderTheme& theme) {
 
 void UiController::renderThemeLabels(const RenderTheme& theme) {
     const auto metadataBackground = panelBackground(theme);
-    const auto queueX = kMetadataX + 7;
-    const auto queueWidth = kMetadataWidth - 14;
-    const auto queueBackground = blend565(raisedPanelBackground(theme), metadataBackground, 155);
+    const auto lyricsX = kMetadataX + 7;
+    const auto lyricsWidth = kMetadataWidth - 14;
+    const auto lyricsBackground = blend565(raisedPanelBackground(theme), metadataBackground, 155);
     display_.drawRoundRect(kMetadataX, kMetadataY, kMetadataWidth, kMetadataHeight, 8,
                            blend565(theme.secondary, kBackground, 78));
     display_.fillRect(kMetadataX + 8, kMetadataY + 4, 50, 10, metadataBackground);
     drawFitted("TRACK", kTitleX, kTrackLabelY, 48, &fonts::Font0, theme.primary);
-    display_.drawRoundRect(queueX, kQueueY, queueWidth, kQueueHeight, 7,
+    display_.drawRoundRect(lyricsX, kLyricsY, lyricsWidth, kLyricsHeight, 7,
                            blend565(theme.secondary, metadataBackground, 88));
-    display_.fillRect(queueX + 6, kQueueY + 3, 86, 11, queueBackground);
-    drawFitted("UP NEXT", queueX + 7, kQueueY + 5, 84, &fonts::Font0, theme.secondary);
+    display_.fillRect(lyricsX + 6, kLyricsY + 3, 86, 11, lyricsBackground);
+    drawFitted("LYRICS", lyricsX + 7, kLyricsY + 5, 84, &fonts::Font0, theme.secondary);
     renderCompactLinkStatus(theme);
 }
 
@@ -1649,29 +1700,20 @@ void UiController::renderActionAccents(const RenderTheme& theme, const bool clea
 }
 
 void UiController::renderSettings() {
-    constexpr std::uint8_t kItemCount = 5;
-    const char* labels[kItemCount] = {"Brightness", "Idle dim", "Volume step", "Default screen",
+    constexpr std::uint8_t kItemCount = 4;
+    const char* labels[kItemCount] = {"Brightness", "Volume step", "Default screen",
                                       "Factory reset"};
     char values[kItemCount][24]{};
     std::snprintf(values[0], sizeof(values[0]), "%u%%",
                   static_cast<unsigned>((settings_.brightness * 100U) / 255U));
-    if (settings_.dimTimeoutSeconds == 0) {
-        std::snprintf(values[1], sizeof(values[1]), "Off");
-    } else if (settings_.dimTimeoutSeconds < 60) {
-        std::snprintf(values[1], sizeof(values[1]), "%lu sec",
-                      static_cast<unsigned long>(settings_.dimTimeoutSeconds));
-    } else {
-        std::snprintf(values[1], sizeof(values[1]), "%lu min",
-                      static_cast<unsigned long>(settings_.dimTimeoutSeconds / 60));
-    }
-    std::snprintf(values[2], sizeof(values[2]), "%u%%",
+    std::snprintf(values[1], sizeof(values[1]), "%u%%",
                   static_cast<unsigned>(settings_.volumeStepPercent));
-    std::snprintf(values[3], sizeof(values[3]), "%s", defaultScreenName(settings_.defaultScreen));
-    std::snprintf(values[4], sizeof(values[4]), "%s",
+    std::snprintf(values[2], sizeof(values[2]), "%s", defaultScreenName(settings_.defaultScreen));
+    std::snprintf(values[3], sizeof(values[3]), "%s",
                   settings_.factoryResetConfirmation ? "Hold knob" : "Select");
 
     for (std::uint8_t index = 0; index < kItemCount; ++index) {
-        const auto y = 36 + index * 35;
+        const auto y = 48 + index * 38;
         const bool selected = index == settings_.selectedItem;
         display_.fillRoundRect(10, y, 300, 30, 7, selected ? kAccentDim : kPanel);
         if (selected) {
@@ -1679,7 +1721,7 @@ void UiController::renderSettings() {
         }
         drawFitted(labels[index], 23, y + 8, 145, &fonts::Font2, selected ? kText : kTextMuted);
         drawFitted(values[index], 296, y + 8, 130, &fonts::Font2,
-                   index == 4 && settings_.factoryResetConfirmation
+                   index == 3 && settings_.factoryResetConfirmation
                        ? kWarning
                        : (selected ? kAccent : kTextMuted),
                    lgfx::textdatum_t::top_right);
@@ -1770,9 +1812,8 @@ void UiController::renderFactoryResetOverlay() {
 void UiController::drawFitted(const char* text, const std::int32_t x, const std::int32_t y,
                               const std::int32_t maxWidth, const lgfx::IFont* font,
                               const std::uint16_t color, const lgfx::textdatum_t datum) {
-    // A queue label can contain two maximum-sized metadata fields plus its
-    // prefix. Keep the whole UTF-8 source until width fitting removes complete
-    // code points below.
+    // Keep enough UTF-8 source for a maximum-sized lyric or metadata label until
+    // width fitting removes complete code points below.
     char buffer[300];
     app::copyText(buffer, text == nullptr ? "" : text);
     display_.setFont(fontForText(buffer, font));

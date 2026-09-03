@@ -10,7 +10,14 @@ from conftest import FakeBackend
 import deskwave_host.service.media as media_module
 from deskwave_host.artwork import FALLBACK_THEME, ArtworkCache, ResolvedArtwork
 from deskwave_host.config import HostConfig
-from deskwave_host.models import PlaybackState, PlaybackStatus, ThemePalette
+from deskwave_host.lyrics import LyricsCache, LyricsDocument
+from deskwave_host.models import (
+    LyricLine,
+    LyricsStatus,
+    PlaybackState,
+    PlaybackStatus,
+    ThemePalette,
+)
 from deskwave_host.service import MediaService
 
 THEME_A = ThemePalette(0x336699, 0x7799BB, 0x07111A, 0xF1F4F2)
@@ -41,6 +48,58 @@ class CountingArtworkCache(ArtworkCache):
     ) -> ResolvedArtwork | None:
         self.calls.append((url, cache_variant, force_refresh))
         return self.result
+
+
+class DelayedLyricsCache(LyricsCache):
+    def __init__(self, config: HostConfig, result: LyricsDocument) -> None:
+        super().__init__(config)
+        self.result = result
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def resolve(self, state: PlaybackState) -> LyricsDocument:
+        self.started.set()
+        await self.release.wait()
+        return self.result
+
+
+async def test_lyrics_publish_loading_then_positioned_window(host_config: HostConfig) -> None:
+    state = PlaybackState(
+        title="Window Test",
+        artists=("DeskWave",),
+        track_id="lyrics-track",
+        duration_ms=60_000,
+        position_ms=15_500,
+        status=PlaybackStatus.PLAYING,
+    )
+    lyrics = DelayedLyricsCache(
+        host_config,
+        LyricsDocument(
+            LyricsStatus.SYNCED,
+            tuple(LyricLine(index * 5_000, f"Line {index}") for index in range(10)),
+        ),
+    )
+    backend = FakeBackend(state)
+    service = MediaService(backend, CountingArtworkCache(host_config), lyrics)
+    updates = service.subscribe()
+
+    await service.start()
+    loading = await asyncio.wait_for(updates.get(), timeout=1)
+    assert loading.lyrics_status is LyricsStatus.LOADING
+    await asyncio.wait_for(lyrics.started.wait(), timeout=1)
+    lyrics.release.set()
+    await settle()
+    resolved = await asyncio.wait_for(updates.get(), timeout=1)
+
+    assert resolved.lyrics_status is LyricsStatus.SYNCED
+    assert [line.text for line in resolved.lyrics] == [
+        "Line 1",
+        "Line 2",
+        "Line 3",
+        "Line 4",
+        "Line 5",
+    ]
+    await service.stop()
 
 
 async def test_position_and_pause_updates_retain_atomic_visual_tuple(

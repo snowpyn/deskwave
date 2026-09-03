@@ -1,6 +1,8 @@
 import pytest
 
 from deskwave_host.models import (
+    LyricLine,
+    LyricsStatus,
     PlaybackState,
     PlaybackStatus,
     PlayerSummary,
@@ -47,6 +49,20 @@ def test_state_payload_contains_bounded_upcoming_queue() -> None:
         "Track 1",
         "Track 2",
         "Track 3",
+    ]
+
+
+def test_state_payload_contains_bounded_synchronized_lyric_window() -> None:
+    state = PlaybackState(
+        lyrics_status=LyricsStatus.SYNCED,
+        lyrics=tuple(LyricLine(index * 1_000, f"Line {index}") for index in range(8)),
+    ).normalized()
+
+    payload = state.to_payload()
+
+    assert payload["lyrics"]["status"] == "synced"
+    assert payload["lyrics"]["lines"] == [
+        {"time_ms": index * 1_000, "text": f"Line {index}"} for index in range(5)
     ]
 
 

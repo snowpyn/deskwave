@@ -105,7 +105,7 @@ to confirm.
 - [ ] Valid 2.4 GHz credentials commit and the temporary AP stops.
 - [ ] Device obtains IP, displays SSID/RSSI, and survives an ESP32 reboot without
       reprovisioning.
-- [ ] Saved brightness, dim timeout, volume step, and default screen survive reboot.
+- [ ] Saved brightness, volume step, and default screen survive reboot.
 - [ ] Factory reset clears Wi-Fi, pairing, and user settings, then returns to
       provisioning.
 
@@ -157,7 +157,7 @@ responses. Do not expose the fixture outside the trusted test LAN.
 - [ ] The complete exposed canvas is a deep, readable artwork-derived tone rather
       than the fixed neutral gray fallback.
 - [ ] The rear RGB light visibly matches the current song-reactive canvas
-      background through a track transition, scales down with idle dimming, and
+      background through a track transition, remains unchanged after inactivity, and
       does not continue an unrelated rainbow cycle. Triggering Error still
       produces its red override.
 - [ ] Red-, green-, blue-, and neutral-dominant covers exercise all three RGB
@@ -168,11 +168,17 @@ responses. Do not expose the fixture outside the trusted test LAN.
       red-on-GPIO-4 mapping is not used for this profile.
 - [ ] While active, song lighting uses the complete calibrated PWM range and
       remains at full intensity when the independent TFT brightness setting is
-      changed. Idle dimming alone reduces the RGB intensity to one fifth.
+      changed. Leaving the device untouched does not reduce TFT or RGB intensity.
 - [ ] Play tracks with Japanese-only and mixed Japanese/Latin titles, artists,
-      and queue entries (for example `夜に駆ける` / `YOASOBI`). Japanese glyphs
+      and synchronized lyric lines (for example `夜に駆ける` / `YOASOBI`). Japanese glyphs
       render instead of boxes or mojibake, fitted rows end with a clean ellipsis,
       and a long Japanese title scrolls continuously without clipped UTF-8.
+- [ ] The former Up Next card is absent. The same area shows `LYRICS`, with the
+      current timestamped line clearly highlighted and adjacent lines subdued.
+- [ ] The lyric highlight advances with playback, pauses in place, follows a
+      seek, and changes tracks without briefly showing the prior track's words.
+- [ ] Loading, instrumental, and unavailable lyric states are explicit and do
+      not displace artwork, transport controls, or the progress bar.
 - [ ] Artwork has no hard frame; its restrained edge glow uses the active
       primary accent without obscuring the cover.
 - [ ] Play/pause, previous, next, shuffle, repeat, mute, and progress roles use

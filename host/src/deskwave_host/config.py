@@ -48,6 +48,7 @@ class HostConfig:
     allow_private_artwork_hosts: bool = False
     artwork_max_bytes: int = 8 * 1024 * 1024
     artwork_cache_bytes: int = 128 * 1024 * 1024
+    lyrics_enabled: bool = True
     paths: HostPaths = HostPaths(Path(), Path(), Path())
 
     @classmethod
@@ -78,6 +79,7 @@ class HostConfig:
             "allow_private_artwork_hosts",
             "artwork_max_bytes",
             "artwork_cache_bytes",
+            "lyrics_enabled",
         }
         unknown = set(values) - allowed
         if unknown:
@@ -117,3 +119,5 @@ class HostConfig:
             raise ConfigError("host.artwork_max_bytes is outside the safe range")
         if not 1_000_000 <= self.artwork_cache_bytes <= 2_000_000_000:
             raise ConfigError("host.artwork_cache_bytes is outside the safe range")
+        if not isinstance(self.lyrics_enabled, bool):
+            raise ConfigError("host.lyrics_enabled must be a boolean")
