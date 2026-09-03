@@ -98,8 +98,7 @@ class UiController {
     void renderThemeLabels(const RenderTheme& theme);
     void renderActionAccents(const RenderTheme& theme, bool clear);
     void renderMetadata(std::uint32_t nowMs, std::uint16_t color, std::int16_t xOffset = 0);
-    void renderLyricsCard(std::uint32_t nowMs, std::uint16_t color,
-                          std::int16_t xOffset = 0);
+    void renderLyricsCard(std::uint32_t nowMs, std::uint16_t color, std::int16_t xOffset = 0);
     void renderTitle(std::uint32_t nowMs, std::uint16_t color, std::int16_t xOffset = 0);
     void resetTitleScroll(std::uint32_t nowMs);
     void renderFooter(std::uint32_t nowMs);

@@ -176,8 +176,8 @@ bool SettingsStore::clearToken() {
 
 bool SettingsStore::saveDisplay(const std::uint8_t brightness, const std::uint8_t defaultScreen,
                                 const std::uint8_t volumeStepPercent) {
-    if (brightness < 10 || defaultScreen > 3 || volumeStepPercent < 1 ||
-        volumeStepPercent > 20 || !lock()) {
+    if (brightness < 10 || defaultScreen > 3 || volumeStepPercent < 1 || volumeStepPercent > 20 ||
+        !lock()) {
         return false;
     }
     Preferences preferences;

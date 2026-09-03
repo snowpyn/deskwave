@@ -645,9 +645,8 @@ void Application::updateStatusLed(const std::uint32_t nowMs) {
     // The rendered canvas is intentionally dark. Preserve its channel ratios while
     // lifting its peak before gamma conversion so low PWM quantization and differing
     // LED thresholds cannot collapse every song to the most efficient blue die.
-    const auto light =
-        core::rgbLedPwm(core::normalizeColor(ui_.lightColor(nowMs)), kRgbLightFullScale,
-                        calibration);
+    const auto light = core::rgbLedPwm(core::normalizeColor(ui_.lightColor(nowMs)),
+                                       kRgbLightFullScale, calibration);
     writeRgbStatusLed(light.red, light.green, light.blue);
 #else
     bool enabled = false;

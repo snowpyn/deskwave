@@ -620,8 +620,8 @@ void NetworkManager::handlePlaybackState(const JsonObjectConst payload) {
                     continue;
                 }
                 auto& destination = snapshot.lyrics[snapshot.lyricCount];
-                destination.timeMs = boundedMilliseconds(
-                    line["time_ms"], 7ULL * 24 * 60 * 60 * 1000);
+                destination.timeMs =
+                    boundedMilliseconds(line["time_ms"], 7ULL * 24 * 60 * 60 * 1000);
                 app::copyText(destination.text, text);
                 ++snapshot.lyricCount;
             }

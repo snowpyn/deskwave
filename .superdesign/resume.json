@@ -22,11 +22,11 @@
       "fingerprints": {
         ".superdesign/design-system.md": "86b5f0f2ace72ad62c531c91b9706ed9c891ea3ff86c351cca13025f4c984697",
         ".superdesign/init/theme.md": "d61516bcdd1d94b4016c7cf19098ff6abc2ec41199a21692491231cf6684f0b5",
-        "firmware/include/ui/ui_controller.h": "0757029f1453a025e35dbf5f79c6a449ca6a3f8c5155799c09ab595a1b69fb2a",
+        "firmware/include/ui/ui_controller.h": "09b7e03dd08f114ee380efdf20d92ff9be53e2867c11f25831da5a53c8297835",
         "firmware/include/app/messages.h": "ea35b8be46b8f782e2b9364b40568ef6e53877e4d387985a9360c08712757780",
         "firmware/lib/deskwave_core/src/deskwave/core/theme.h": "a63575b2e897efcb281e602eca4a7bd8bbde04fda0bd54d2690e036e73b86e23",
-        "firmware/src/ui/ui_controller.cpp": "b9acfa1ae17dbcbcc2833f8efda305af94e50ee9f4c75b49465df2a7f4143bef",
-        "firmware/src/app/application.cpp": "92892b9960751a2eb66809233f990bde527c863b12685528228398eefe8312d8"
+        "firmware/src/ui/ui_controller.cpp": "05f98cffbae48f5d6cb9c3c060225e3ddfac21786dedad2c622603303419b2f3",
+        "firmware/src/app/application.cpp": "a72e8c0e1ed13c38dacc8c02f366320eb855ab66fd951eda78bb136999bbc5ec"
       },
       "components": [
         {
@@ -67,10 +67,10 @@
       "fingerprints": {
         ".superdesign/design-system.md": "86b5f0f2ace72ad62c531c91b9706ed9c891ea3ff86c351cca13025f4c984697",
         ".superdesign/init/theme.md": "d61516bcdd1d94b4016c7cf19098ff6abc2ec41199a21692491231cf6684f0b5",
-        "firmware/include/ui/ui_controller.h": "0757029f1453a025e35dbf5f79c6a449ca6a3f8c5155799c09ab595a1b69fb2a",
+        "firmware/include/ui/ui_controller.h": "09b7e03dd08f114ee380efdf20d92ff9be53e2867c11f25831da5a53c8297835",
         "firmware/include/app/messages.h": "ea35b8be46b8f782e2b9364b40568ef6e53877e4d387985a9360c08712757780",
         "firmware/lib/deskwave_core/src/deskwave/core/theme.h": "a63575b2e897efcb281e602eca4a7bd8bbde04fda0bd54d2690e036e73b86e23",
-        "firmware/src/ui/ui_controller.cpp": "b9acfa1ae17dbcbcc2833f8efda305af94e50ee9f4c75b49465df2a7f4143bef"
+        "firmware/src/ui/ui_controller.cpp": "05f98cffbae48f5d6cb9c3c060225e3ddfac21786dedad2c622603303419b2f3"
       },
       "drafts": {
         "649f78ec-31b1-4398-8125-f9708e61c5e0": {

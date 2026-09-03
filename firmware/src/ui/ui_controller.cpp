@@ -1354,8 +1354,7 @@ void UiController::renderLyricsCard(const std::uint32_t nowMs, const std::uint16
     const auto metadataBackground = panelBackground(theme);
     const auto lyricsX = kMetadataX + 7;
     const auto lyricsWidth = kMetadataWidth - 14;
-    const auto lyricsBackground =
-        blend565(raisedPanelBackground(theme), metadataBackground, 155);
+    const auto lyricsBackground = blend565(raisedPanelBackground(theme), metadataBackground, 155);
     const auto muted = color == kText ? kTextMuted : blend565(kTextMuted, canvas, 105);
     const auto accent = color == kText ? theme.secondary : blend565(theme.secondary, canvas, 100);
     display_.fillRoundRect(lyricsX, kLyricsY, lyricsWidth, kLyricsHeight, 7, lyricsBackground);
@@ -1382,8 +1381,8 @@ void UiController::renderLyricsCard(const std::uint32_t nowMs, const std::uint16
             break;
     }
     if (stateText != nullptr) {
-        drawFitted(stateText, lyricsX + 7 + xOffset, kLyricsY + 31, lyricsWidth - 14,
-                   &fonts::Font0, muted);
+        drawFitted(stateText, lyricsX + 7 + xOffset, kLyricsY + 31, lyricsWidth - 14, &fonts::Font0,
+                   muted);
         if (xOffset == 0) {
             renderedLyricIndex_ = -1;
         }
@@ -1396,10 +1395,10 @@ void UiController::renderLyricsCard(const std::uint32_t nowMs, const std::uint16
         drawFitted(next.text, lyricsX + 7 + xOffset, kLyricsY + 32, lyricsWidth - 14,
                    fontForText(next.text, &fonts::Font0), muted);
     } else {
-        const std::array<std::int8_t, 3> indices{
-            static_cast<std::int8_t>(active - 1), active, static_cast<std::int8_t>(active + 1)};
+        const std::array<std::int8_t, 3> indices{static_cast<std::int8_t>(active - 1), active,
+                                                 static_cast<std::int8_t>(active + 1)};
         constexpr std::array<std::int32_t, 3> yPositions{kLyricsY + 22, kLyricsY + 39,
-                                                        kLyricsY + 56};
+                                                         kLyricsY + 56};
         for (std::size_t row = 0; row < indices.size(); ++row) {
             const auto index = indices[row];
             if (index < 0 || index >= static_cast<std::int8_t>(playback_.lyricCount)) {
