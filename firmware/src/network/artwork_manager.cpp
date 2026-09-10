@@ -272,13 +272,20 @@ app::ArtworkResult ArtworkManager::download(const app::ArtworkRequest& request) 
     http.addHeader("Accept", "image/jpeg");
     const int code = http.GET();
     const int contentLength = http.getSize();
-    if (code != HTTP_CODE_OK || contentLength <= 4 ||
+    // HTTPClient reports -1 when the server uses chunked transfer encoding or
+    // omits Content-Length. The old <= 4 check rejected that valid response
+    // before the body could be read, and some ESP32 HTTPClient versions expose
+    // the host's FileResponse this way intermittently.
+    if (code != HTTP_CODE_OK || contentLength == 0 || contentLength < -1 ||
         contentLength > static_cast<int>(config::kMaximumArtworkBytes) ||
         !http.header("Content-Type").startsWith("image/jpeg")) {
         http.end();
         app::copyText(result.error, "Artwork response was rejected");
         return result;
     }
+    const bool lengthKnown = contentLength > 0;
+    const auto expectedBytes =
+        lengthKnown ? static_cast<std::size_t>(contentLength) : std::size_t{0};
 
     // A corrupt target that is not active or staged has no remaining reader.
     // Remove it before allocating the temp file; protected destinations stay
@@ -299,8 +306,8 @@ app::ArtworkResult ArtworkManager::download(const app::ArtworkRequest& request) 
     const auto filesystemBytes = LittleFS.totalBytes();
     const auto usedBytes = LittleFS.usedBytes();
     const auto freeBytes = filesystemBytes > usedBytes ? filesystemBytes - usedBytes : 0;
-    const auto requiredBytes =
-        static_cast<std::size_t>(contentLength) + kArtworkFilesystemReserveBytes;
+    const auto reservationBytes = lengthKnown ? expectedBytes : config::kMaximumArtworkBytes;
+    const auto requiredBytes = reservationBytes + kArtworkFilesystemReserveBytes;
     if (freeBytes < requiredBytes) {
         http.end();
         app::copyText(result.error, "Artwork cache has insufficient space");
@@ -331,17 +338,29 @@ app::ArtworkResult ArtworkManager::download(const app::ArtworkRequest& request) 
     }
     bool hashValid = true;
     const auto deadline = millis() + 8'000;
-    while (total < static_cast<std::size_t>(contentLength) &&
+    while ((!lengthKnown || total < expectedBytes) &&
            static_cast<std::int32_t>(millis() - deadline) < 0) {
-        const int available = stream->available();
-        if (available <= 0) {
+        const auto wanted = lengthKnown
+                                ? std::min<std::size_t>(sizeof(buffer), expectedBytes - total)
+                                : sizeof(buffer);
+        // Read the requested chunk directly instead of using available() as a
+        // second length limit. On ESP32, available() can briefly expose zero
+        // between the response headers and the first body packet; treating that
+        // as an empty transfer was the source of frequent truncated covers.
+        const auto count = stream->readBytes(buffer, wanted);
+        if (count == 0) {
+            if (!stream->connected()) {
+                break;
+            }
             vTaskDelay(pdMS_TO_TICKS(5));
             continue;
         }
-        const auto wanted =
-            std::min<std::size_t>(sizeof(buffer), static_cast<std::size_t>(contentLength) - total);
-        const auto count = stream->readBytes(buffer, std::min<std::size_t>(wanted, available));
-        if (count == 0 || output.write(buffer, count) != count ||
+        if (total + count > config::kMaximumArtworkBytes ||
+            (lengthKnown && total + count > expectedBytes)) {
+            hashValid = false;
+            break;
+        }
+        if (output.write(buffer, count) != count ||
             mbedtls_sha256_update_ret(&hash, buffer, count) != 0) {
             hashValid = false;
             break;
@@ -364,9 +383,12 @@ app::ArtworkResult ArtworkManager::download(const app::ArtworkRequest& request) 
     std::array<std::uint8_t, 32> digest{};
     hashValid = hashValid && mbedtls_sha256_finish_ret(&hash, digest.data()) == 0;
     mbedtls_sha256_free(&hash);
-    if (!hashValid || total != static_cast<std::size_t>(contentLength) || first[0] != 0xFF ||
-        first[1] != 0xD8 || last[0] != 0xFF || last[1] != 0xD9) {
+    if (!hashValid || (lengthKnown && total != expectedBytes) || total <= 4 ||
+        first[0] != 0xFF || first[1] != 0xD8 || last[0] != 0xFF || last[1] != 0xD9) {
         LittleFS.remove(kTemporaryPath);
+        DW_LOG_WARN(
+            "artwork", "Artwork response incomplete (%u/%s)", static_cast<unsigned>(total),
+            lengthKnown ? String(expectedBytes).c_str() : "unknown");
         app::copyText(result.error, "Artwork download was incomplete");
         return result;
     }

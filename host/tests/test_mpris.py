@@ -5,7 +5,7 @@ from dbus_next.errors import InterfaceNotFoundError
 
 from deskwave_host.backends import mpris as mpris_module
 from deskwave_host.backends.mpris import MAX_SNAPSHOT_FAILURES, MPRISBackend
-from deskwave_host.models import PlaybackState
+from deskwave_host.models import LyricsStatus, MediaKind, PlaybackState
 
 
 class FailingPlayer:
@@ -42,6 +42,51 @@ class QueueTrackList:
         ]
 
 
+class SnapshotProperties:
+    async def call_get_all(self, interface: str) -> dict[str, object]:
+        if interface == mpris_module.PLAYER_INTERFACE:
+            return {
+                "Metadata": {
+                    "xesam:title": "Current",
+                    "xesam:artist": ["Artist"],
+                    "mpris:length": 180_000_000,
+                    "mpris:trackid": "/track/current",
+                },
+                "PlaybackStatus": "Playing",
+                "Position": 1_000_000,
+                "Volume": 0.5,
+            }
+        assert interface == mpris_module.ROOT_INTERFACE
+        return {"Identity": "Test Player"}
+
+
+class UnexpectedQueueAccess:
+    async def call_get_tracks_metadata(self, _track_ids: list[str]) -> list[dict[str, object]]:
+        raise AssertionError("snapshot must not query the retired queue")
+
+
+class PodcastSnapshotProperties:
+    async def call_get_all(self, interface: str) -> dict[str, object]:
+        if interface == mpris_module.PLAYER_INTERFACE:
+            return {
+                "Metadata": {
+                    "xesam:title": "Episode 42",
+                    "xesam:artist": ["The Show"],
+                    "xesam:genre": ["Podcast"],
+                    "mpris:length": 600_000_000,
+                    "mpris:trackid": "/track/episode-42",
+                    "deskwave:videoFrameUrl": "https://example.test/frame-42.jpg",
+                    "deskwave:transcript": [
+                        {"time_ms": 0, "text": "Welcome back."},
+                    ],
+                },
+                "PlaybackStatus": "Playing",
+                "Position": 1_000_000,
+            }
+        assert interface == mpris_module.ROOT_INTERFACE
+        return {"Identity": "Test Podcast"}
+
+
 async def test_tracklist_returns_entries_after_current_track() -> None:
     player = mpris_module._MPRISPlayer(
         player_id="org.mpris.MediaPlayer2.test",
@@ -57,6 +102,59 @@ async def test_tracklist_returns_entries_after_current_track() -> None:
         ("Next", "Artist two"),
         ("Following", "Artist three"),
     ]
+
+
+async def test_snapshot_does_not_refresh_retired_queue() -> None:
+    player = mpris_module._MPRISPlayer(
+        player_id="org.mpris.MediaPlayer2.test",
+        player=object(),
+        properties=SnapshotProperties(),
+        tracklist=UnexpectedQueueAccess(),
+    )
+
+    snapshot = await player.snapshot()
+
+    assert snapshot.title == "Current"
+    assert snapshot.queue == ()
+    assert snapshot.queue_available is False
+
+
+async def test_snapshot_publishes_podcast_kind_and_optional_transcript() -> None:
+    player = mpris_module._MPRISPlayer(
+        player_id="org.mpris.MediaPlayer2.test",
+        player=object(),
+        properties=PodcastSnapshotProperties(),
+        tracklist=None,
+    )
+
+    snapshot = await player.snapshot()
+
+    assert snapshot.media_kind is MediaKind.PODCAST
+    assert snapshot.artwork_url == "https://example.test/frame-42.jpg"
+    assert snapshot.lyrics_status is LyricsStatus.SYNCED
+    assert [(line.time_ms, line.text) for line in snapshot.lyrics] == [(0, "Welcome back.")]
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"deskwave:mediaType": "podcast"},
+        {"xesam:genre": ["Podcast"]},
+        {"mpris:trackid": "spotify:episode:abc123"},
+        {"xesam:url": "https://example.test/podcast/episode-42"},
+    ],
+)
+def test_media_kind_detects_explicit_and_strong_podcast_signals(
+    metadata: dict[str, object],
+) -> None:
+    assert mpris_module._media_kind(metadata) is MediaKind.PODCAST
+
+
+def test_media_kind_does_not_guess_from_episode_title() -> None:
+    assert (
+        mpris_module._media_kind({"xesam:title": "Episode 42: A conversation"})
+        is MediaKind.MUSIC
+    )
 
 
 async def test_player_missing_mpris_interface_is_skipped(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -24,6 +24,7 @@ void copyText(char (&destination)[Size], const char* source) noexcept {
 }
 
 enum class PlaybackStatus : std::uint8_t { Stopped, Playing, Paused };
+enum class MediaKind : std::uint8_t { Music, Podcast };
 enum class RepeatMode : std::uint8_t { Unknown, Off, Track, Playlist };
 enum class LyricsStatus : std::uint8_t { Unavailable, Loading, Synced, Instrumental };
 
@@ -57,6 +58,7 @@ struct PlaybackSnapshot {
     std::uint32_t artworkGeneration{0};
     std::int16_t volumePercent{-1};
     PlaybackStatus status{PlaybackStatus::Stopped};
+    MediaKind mediaKind{MediaKind::Music};
     RepeatMode repeat{RepeatMode::Unknown};
     bool hasDuration{false};
     bool mutedKnown{false};

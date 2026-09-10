@@ -17,6 +17,7 @@ from deskwave_host.api.server import (
 from deskwave_host.models import (
     LyricLine,
     LyricsStatus,
+    MediaKind,
     PlaybackState,
     PlaybackStatus,
     PlayerSummary,
@@ -71,6 +72,19 @@ def test_state_payload_keeps_artwork_theme_and_generation_together() -> None:
     assert payload["artwork_path"] == f"/v1/artwork/{artwork_id}.jpg"
     assert payload["theme"] == theme.to_payload()
     assert payload["artwork_generation"] == 9
+
+
+def test_podcast_state_payload_uses_transcript_caption_key() -> None:
+    payload = _state_payload(
+        PlaybackState(
+            media_kind=MediaKind.PODCAST,
+            lyrics_status=LyricsStatus.SYNCED,
+            lyrics=(LyricLine(1_000, "Caption"),),
+        )
+    )
+
+    assert "lyrics" not in payload
+    assert payload["transcript"]["lines"] == [{"time_ms": 1_000, "text": "Caption"}]
 
 
 @pytest.mark.parametrize(

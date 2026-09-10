@@ -163,6 +163,7 @@ envelope. The ESP32 advances that sample with its monotonic clock between syncs.
   "duration_ms": 245000,
   "position_ms": 91250,
   "status": "playing",
+  "media_kind": "music",
   "artwork_id": "64-lowercase-hex-characters-or-null",
   "artwork_path": "/v1/artwork/<hash>.jpg",
   "artwork_generation": 27,
@@ -212,6 +213,24 @@ null. Volume is normalized to 0.0–1.0. Duration and position are milliseconds.
 The host sends an immediate state when content changes and a periodic position
 resynchronization while stable. Firmware records local receipt time and advances
 position from its monotonic clock only while `status == "playing"`.
+
+`media_kind` is `music` or `podcast` and defaults to `music` for older host
+messages. The MPRIS backend marks a snapshot as a podcast only when it receives
+an explicit `deskwave:mediaType`/`mpris:mediaType`, a podcast genre/content type,
+an episode track URI, or a URL with a podcast/episode path marker. An arbitrary
+title containing the word "episode" is not enough. Podcast snapshots use the
+same bounded five-line wire shape under `transcript` instead of `lyrics`; the
+ESP32 renders a synced line as an in-picture caption and never creates a
+dedicated transcript/lyrics panel.
+
+The optional MPRIS `deskwave:transcript` extension accepts a JSON or native
+D-Bus array of `{ "time_ms": number, "text": string }` objects. Without that
+extension, podcast captions are unavailable and the device keeps the video
+area clear of transcript chrome. A player-specific
+`deskwave:videoFrameUrl` may provide a bounded low-resolution JPEG frame; it
+uses the existing authenticated artwork cache and refreshes when the URL
+changes. If absent or unavailable, the validated episode artwork remains on
+screen as the poster/frame fallback.
 
 `theme` and `artwork_generation` are additive protocol-1 fields. Each theme
 color is an integer from 0 through 16,777,215 representing packed sRGB

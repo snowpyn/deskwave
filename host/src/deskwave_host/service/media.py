@@ -8,12 +8,13 @@ import logging
 
 from deskwave_host.artwork import FALLBACK_THEME, ArtworkCache
 from deskwave_host.backends.base import MediaBackend
-from deskwave_host.lyrics import LyricsCache, LyricsDocument
+from deskwave_host.lyrics import LyricsCache, LyricsDocument, LyricsError
 from deskwave_host.models import (
     MAX_ARTWORK_GENERATION,
     CommandResult,
     LyricLine,
     LyricsStatus,
+    MediaKind,
     PlaybackState,
     PlayerSummary,
     ThemePalette,
@@ -23,6 +24,10 @@ LOGGER = logging.getLogger("service")
 ARTWORK_METADATA_GRACE_SECONDS = 1.0
 ARTWORK_MAX_ATTEMPTS = 3
 ARTWORK_RETRY_BACKOFF_SECONDS = (0.25, 0.75)
+# One quick retry is enough to recover from a transient LRCLIB response. Longer
+# retry chains made every failed lookup hold the UI in FINDING LYRICS for many
+# seconds while also competing with the next track's lookup.
+LYRICS_RETRY_BACKOFF_SECONDS = (0.25,)
 
 
 ArtworkContext = tuple[str, str]
@@ -127,11 +132,24 @@ class MediaService:
                 new_intent = True
 
         if track_key is not None and track_key != self._lyrics_track_key:
-            self._begin_lyrics_intent(track_key, state)
+            if state.media_kind is MediaKind.PODCAST:
+                # Podcast captions come from the backend's optional transcript
+                # metadata. Never send an episode title to the LRCLIB lyrics
+                # resolver or render a dedicated lyrics card for this mode.
+                if self._lyrics_task is not None and not self._lyrics_task.done():
+                    self._lyrics_task.cancel()
+                self._lyrics_task = None
+                self._lyrics_track_key = track_key
+                self._lyrics_document = LyricsDocument(LyricsStatus.UNAVAILABLE)
+            else:
+                self._begin_lyrics_intent(track_key, state)
 
         # Metadata is always current, but the validated visual tuple remains in
         # place until this intent resolves or authoritatively falls back.
-        lyrics_status, lyric_lines = self._lyrics_snapshot(state.position_ms)
+        if state.media_kind is MediaKind.PODCAST:
+            lyrics_status, lyric_lines = state.lyrics_status, state.lyrics
+        else:
+            lyrics_status, lyric_lines = self._lyrics_snapshot(state.position_ms)
         self._state = state.with_artwork(
             self._state.artwork_id,
             self._state.theme,
@@ -202,7 +220,38 @@ class MediaService:
         try:
             if self._lyrics is None:
                 return
-            result = await self._lyrics.resolve(state)
+            attempt = 0
+            while True:
+                try:
+                    result = await self._lyrics.resolve(state)
+                    break
+                except LyricsError as error:
+                    if (
+                        generation != self._lyrics_generation
+                        or track_key != self._lyrics_track_key
+                        or track_key != self._state_track_key
+                    ):
+                        LOGGER.debug("Stopped stale lyrics retry generation %d", generation)
+                        return
+                    if attempt >= len(LYRICS_RETRY_BACKOFF_SECONDS):
+                        # A transport or malformed-response failure is not proof that
+                        # lyrics do not exist. Preserve LOADING/FINDING rather than
+                        # publishing a false terminal UNAVAILABLE state.
+                        LOGGER.warning(
+                            "Lyrics lookup retries exhausted for generation %d: %s",
+                            generation,
+                            error,
+                        )
+                        return
+                    delay = LYRICS_RETRY_BACKOFF_SECONDS[attempt]
+                    attempt += 1
+                    LOGGER.info(
+                        "Retrying lyrics generation %d in %.2fs after: %s",
+                        generation,
+                        delay,
+                        error,
+                    )
+                    await asyncio.sleep(delay)
             if (
                 generation != self._lyrics_generation
                 or track_key != self._lyrics_track_key

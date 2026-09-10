@@ -21,8 +21,12 @@ constexpr std::uint16_t rgb565(const std::uint8_t red, const std::uint8_t green,
 
 constexpr std::uint16_t kBackground = rgb565(7, 10, 18);
 constexpr std::uint16_t kBackgroundLift = rgb565(16, 25, 38);
-constexpr std::uint16_t kPanel = rgb565(18, 29, 41);
-constexpr std::uint16_t kPanelRaised = rgb565(28, 42, 57);
+// Keep controls and information cards visibly lifted from the artwork-derived
+// field. These are still deep enough for the light text palette, but the former
+// near-black surfaces made the buttons and metadata feel heavier than the rest
+// of the composition on the small TFT.
+constexpr std::uint16_t kPanel = rgb565(34, 47, 60);
+constexpr std::uint16_t kPanelRaised = rgb565(52, 64, 78);
 constexpr std::uint16_t kText = rgb565(241, 244, 242);
 constexpr std::uint16_t kTextMuted = rgb565(169, 181, 190);
 constexpr std::uint16_t kAccent = rgb565(111, 218, 194);
@@ -33,25 +37,42 @@ constexpr std::uint16_t kMagenta = rgb565(224, 152, 178);
 constexpr std::uint16_t kWarning = rgb565(232, 192, 119);
 constexpr std::uint16_t kError = rgb565(246, 105, 105);
 constexpr std::uint16_t kLine = rgb565(55, 62, 105);
+// Podcast mode is deliberately a separate monochrome visual family. The
+// caption surface is a pre-blended mid-gray because the ESP32 renderer has no
+// alpha framebuffer; it reads as a light-opacity scrim without a hard outline.
+constexpr std::uint16_t kPodcastBlack = rgb565(0, 0, 0);
+constexpr std::uint16_t kPodcastSurface = rgb565(26, 26, 26);
+constexpr std::uint16_t kPodcastCaption = rgb565(72, 72, 72);
+constexpr std::uint16_t kPodcastWhite = rgb565(248, 248, 248);
+constexpr std::uint16_t kPodcastMuted = rgb565(164, 164, 164);
+constexpr std::uint16_t kPodcastTrack = rgb565(66, 66, 66);
 
 constexpr std::int32_t kArtworkX = 6;
-constexpr std::int32_t kArtworkY = 7;
-constexpr std::int32_t kArtworkSize = 166;
-constexpr std::int32_t kMetadataX = 180;
-constexpr std::int32_t kMetadataY = 7;
-constexpr std::int32_t kMetadataWidth = 134;
-constexpr std::int32_t kMetadataHeight = 166;
-constexpr std::int32_t kTitleX = 188;
-constexpr std::int32_t kTitleY = 24;
-constexpr std::int32_t kTitleWidth = 118;
-constexpr std::int32_t kTitleHeight = 25;
-constexpr std::int32_t kTrackLabelY = 12;
-constexpr std::int32_t kArtistY = 57;
-constexpr std::int32_t kLyricsY = 88;
-constexpr std::int32_t kLyricsHeight = 76;
+constexpr std::int32_t kArtworkY = 40;
+constexpr std::int32_t kArtworkSize = 136;
+constexpr std::int32_t kMetadataX = 0;
+constexpr std::int32_t kMetadataY = 0;
+constexpr std::int32_t kMetadataWidth = 320;
+constexpr std::int32_t kMetadataHeight = 34;
+constexpr std::int32_t kTitleX = 8;
+// Keep one shared, full-width metadata row. The final 16px are reserved for the
+// compact connection dot so title and artist never compete with a status label.
+constexpr std::int32_t kTitleY = 7;
+constexpr std::int32_t kTitleWidth = 294;
+constexpr std::int32_t kTitleHeight = 20;
+constexpr std::int32_t kLinkIndicatorX = 312;
+constexpr std::int32_t kLinkIndicatorY = 17;
+constexpr std::int32_t kLyricsX = 148;
+constexpr std::int32_t kLyricsY = 39;
+constexpr std::int32_t kLyricsWidth = 166;
+constexpr std::int32_t kLyricsHeight = 138;
 constexpr std::int32_t kMainBottomY = 178;
 constexpr std::int32_t kProgressY = 184;
 constexpr std::int32_t kProgressHeight = 21;
+constexpr std::int32_t kProgressIslandX = 4;
+constexpr std::int32_t kProgressIslandY = 185;
+constexpr std::int32_t kProgressIslandWidth = 312;
+constexpr std::int32_t kProgressIslandHeight = 19;
 constexpr std::int32_t kControlsY = 205;
 constexpr std::int32_t kControlsHeight = 35;
 constexpr std::int32_t kTransportCenterY = 222;
@@ -59,12 +80,18 @@ constexpr std::uint32_t kTrackTransitionMs = 220;
 constexpr std::uint32_t kOverlayDurationMs = 1'600;
 constexpr std::uint32_t kToastDurationMs = 2'200;
 constexpr std::uint32_t kProgressFrameMs = 500;
+constexpr std::uint32_t kLyricsCheckMs = 64;
+constexpr std::uint32_t kLyricsFrameMs = 34;
+constexpr std::uint32_t kLyricsTransitionMs = 260;
+constexpr std::uint64_t kLyricsAnticipationMs = 24;
+constexpr std::int16_t kLyricsSlidePixels = 34;
 constexpr std::uint32_t kTitleFrameMs = 33;
 constexpr std::uint32_t kTitlePixelsPerSecond = 34;
 constexpr std::int32_t kTitleRepeatGap = 16;
 constexpr std::uint32_t kThemeTransitionMs = 750;
 constexpr std::uint32_t kRestTransitionMs = 600;
-constexpr std::uint32_t kThemeFrameMs = 50;
+constexpr std::uint32_t kThemeFrameMs = 100;
+constexpr std::uint32_t kAmbientFrameMs = 50;
 constexpr std::uint32_t kIdleFrameMs = 50;
 constexpr std::uint32_t kIdleHaloPeriodMs = 2'400;
 constexpr std::int32_t kIdleTopBandHeight = 80;
@@ -73,6 +100,10 @@ constexpr std::uint8_t kArtworkGlowStrength = 112;
 constexpr std::uint8_t kRestGlowScale = 128;
 constexpr std::uint8_t kRestDesaturation = 58;
 constexpr std::uint8_t kRestBackgroundBlend = 42;
+constexpr std::uint8_t kPanelBlend = 160;
+constexpr std::uint8_t kRaisedPanelBlend = 180;
+constexpr std::uint8_t kMetadataSurfaceBlend = 174;
+constexpr std::uint8_t kLyricsSurfaceBlend = 170;
 
 constexpr core::ThemePalette kFallbackTheme{
     {111, 218, 194},
@@ -182,11 +213,39 @@ void formatDuration(const std::uint64_t milliseconds, char (&buffer)[16]) {
                   static_cast<unsigned long>(seconds));
 }
 
+void drawFittedOn(lgfx::LGFXBase& canvas, const char* text, const std::int32_t x,
+                  const std::int32_t y, const std::int32_t maxWidth, const lgfx::IFont* font,
+                  const std::uint16_t color, const lgfx::textdatum_t datum) {
+    char buffer[300];
+    app::copyText(buffer, text == nullptr ? "" : text);
+    canvas.setFont(fontForText(buffer, font));
+    canvas.setTextSize(1);
+    canvas.setTextColor(color);
+    canvas.setTextDatum(datum);
+    auto length = std::strlen(buffer);
+    if (canvas.textWidth(buffer) > maxWidth) {
+        constexpr char kEllipsis[] = "...";
+        const auto ellipsisWidth = canvas.textWidth(kEllipsis);
+        while (length > 0 && canvas.textWidth(buffer) + ellipsisWidth > maxWidth) {
+            do {
+                --length;
+            } while (length > 0 && (static_cast<unsigned char>(buffer[length]) & 0xC0U) == 0x80U);
+            buffer[length] = '\0';
+        }
+        if (ellipsisWidth <= maxWidth && length + sizeof(kEllipsis) <= sizeof(buffer)) {
+            std::memcpy(buffer + length, kEllipsis, sizeof(kEllipsis));
+        }
+    }
+    canvas.drawString(buffer, x, y);
+}
+
 }  // namespace
 
 UiController::UiController(display::DisplayDriver& display)
     : display_(display),
       idleBand_(&display),
+      metadataBand_(&display),
+      lyricsBand_(&display),
       themeFrom_(kFallbackTheme),
       themeTarget_(kFallbackTheme) {}
 
@@ -229,11 +288,14 @@ core::Rgb888 UiController::lightColor(const std::uint32_t nowMs) const noexcept 
     if (!hasPlayback_) {
         return {};
     }
-    // Sample the final RGB565 canvas rather than the palette's brighter primary role.
-    // This includes the same track interpolation and resting-state softening that the
-    // display renders, and expanding that actual panel value avoids a second color path
-    // drifting from the visible song background through rounding or blend changes.
-    return rgb888(canvasBackground(renderTheme(nowMs)));
+    if (podcastPlayback(playback_)) {
+        return rgb888(kPodcastWhite);
+    }
+    // The rear LED is a color accent, not a second dim display. Follow the same
+    // album-derived primary role used by the progress head and transport control;
+    // sampling the near-black canvas can let a tiny residual blue channel dominate
+    // after normalization and gamma conversion even when the screen reads as red.
+    return rgb888(renderTheme(nowMs).primary);
 }
 
 std::uint16_t UiController::canvasBackground(const RenderTheme& theme) const noexcept {
@@ -245,11 +307,11 @@ std::uint16_t UiController::canvasBackground(const RenderTheme& theme) const noe
 }
 
 std::uint16_t UiController::panelBackground(const RenderTheme& theme) const noexcept {
-    return blend565(kPanel, canvasBackground(theme), 42);
+    return blend565(kPanel, canvasBackground(theme), kPanelBlend);
 }
 
 std::uint16_t UiController::raisedPanelBackground(const RenderTheme& theme) const noexcept {
-    return blend565(kPanelRaised, canvasBackground(theme), 58);
+    return blend565(kPanelRaised, canvasBackground(theme), kRaisedPanelBlend);
 }
 
 bool UiController::themeAnimating(const std::uint32_t nowMs) const noexcept {
@@ -287,6 +349,19 @@ bool UiController::begin(const std::uint8_t brightness, const std::uint8_t defau
                          const std::uint32_t nowMs) {
     if (!display_.initialize(brightness)) {
         return false;
+    }
+    // Allocate the two user-visible Now Playing buffers before the optional idle
+    // animation. A fragmented heap must never force live lyrics back to direct SPI
+    // drawing, where clear and glyph writes become separately visible on the panel.
+    lyricsBand_.setColorDepth(16);
+    lyricsBand_.setPsram(false);
+    lyricsBandReady_ = lyricsBand_.createSprite(kLyricsWidth, kLyricsHeight) != nullptr;
+    metadataBand_.setColorDepth(16);
+    metadataBand_.setPsram(false);
+    metadataBandReady_ =
+        metadataBand_.createSprite(kMetadataWidth, kMetadataHeight) != nullptr;
+    if (!metadataBandReady_ || !lyricsBandReady_) {
+        DW_LOG_WARN("ui", "Now Playing animation buffers unavailable; using bounded direct redraws");
     }
     idleBand_.setColorDepth(16);
     idleBand_.setPsram(false);
@@ -380,6 +455,9 @@ void UiController::setBrightness(const std::uint8_t brightness) {
 
 bool UiController::sameTrack(const app::PlaybackSnapshot& left,
                              const app::PlaybackSnapshot& right) noexcept {
+    if (left.mediaKind != right.mediaKind) {
+        return false;
+    }
     if (left.trackId[0] != '\0' && right.trackId[0] != '\0') {
         return std::strcmp(left.trackId, right.trackId) == 0;
     }
@@ -390,6 +468,11 @@ bool UiController::sameTrack(const app::PlaybackSnapshot& left,
 bool UiController::idlePlayback(const app::PlaybackSnapshot& snapshot) noexcept {
     return snapshot.title[0] == '\0' &&
            (snapshot.playerId[0] == '\0' || snapshot.status == app::PlaybackStatus::Stopped);
+}
+
+bool UiController::podcastPlayback(const app::PlaybackSnapshot& snapshot) noexcept {
+    return snapshot.mediaKind == app::MediaKind::Podcast && snapshot.title[0] != '\0' &&
+           snapshot.status != app::PlaybackStatus::Stopped;
 }
 
 bool UiController::trackChanged(const app::PlaybackSnapshot& snapshot) const noexcept {
@@ -417,6 +500,15 @@ bool UiController::lyricsChanged(const app::PlaybackSnapshot& snapshot) const no
         }
     }
     return false;
+}
+
+void UiController::resetLyricTransition(const std::uint32_t nowMs) noexcept {
+    renderedLyricTimeKnown_ = false;
+    lyricTransitionActive_ = false;
+    renderedLyricTimeMs_ = 0;
+    lyricTransitionTargetTimeMs_ = 0;
+    lyricTransitionStartedAtMs_ = nowMs;
+    lastLyricFrameMs_ = nowMs;
 }
 
 void UiController::setPlayback(const app::PlaybackSnapshot& snapshot, const std::uint32_t nowMs) {
@@ -458,6 +550,14 @@ void UiController::setPlayback(const app::PlaybackSnapshot& snapshot, const std:
         dirty_ = true;
         return;
     }
+    if (trackChanged(snapshot) && (podcastPlayback(snapshot) || podcastPlayback(playback_))) {
+        applyPlayback(snapshot, nowMs);
+        hasPendingPlayback_ = false;
+        hasStagedArtwork_ = false;
+        transitionSwapped_ = false;
+        dirty_ = true;
+        return;
+    }
     if (trackChanged(snapshot) && screen_ == Screen::NowPlaying && !connectionScreenActive()) {
         pendingPlayback_ = snapshot;
         hasPendingPlayback_ = true;
@@ -468,8 +568,10 @@ void UiController::setPlayback(const app::PlaybackSnapshot& snapshot, const std:
     }
     const bool metadataChanged =
         !hasPlayback_ || std::strcmp(playback_.title, snapshot.title) != 0 ||
-        std::strcmp(playback_.artist, snapshot.artist) != 0 || lyricsChanged(snapshot);
+        std::strcmp(playback_.artist, snapshot.artist) != 0 ||
+        playback_.mediaKind != snapshot.mediaKind || lyricsChanged(snapshot);
     const bool footerChanged = !hasPlayback_ || playback_.status != snapshot.status ||
+                               playback_.mediaKind != snapshot.mediaKind ||
                                playback_.shuffleKnown != snapshot.shuffleKnown ||
                                playback_.shuffle != snapshot.shuffle ||
                                playback_.hasDuration != snapshot.hasDuration ||
@@ -485,16 +587,24 @@ void UiController::setPlayback(const app::PlaybackSnapshot& snapshot, const std:
     if (screen_ == Screen::NowPlaying && !connectionScreenActive() && volumeOverlayUntilMs_ == 0 &&
         toastUntilMs_ == 0 && !factoryResetChordVisible_ && !bootRendered_ &&
         !hasPendingPlayback_) {
-        if (fallbackChanged) {
-            renderArtwork(nowMs);
-        }
-        if (metadataChanged) {
-            renderMetadata(nowMs, kText);
-        }
-        if (footerChanged) {
-            renderFooter(nowMs);
+        if (podcastPlayback(playback_)) {
+            if (fallbackChanged || metadataChanged || footerChanged) {
+                renderPodcastPlaying(nowMs);
+            } else {
+                renderPodcastProgress(nowMs);
+            }
         } else {
-            renderProgress(nowMs);
+            if (fallbackChanged) {
+                renderArtwork(nowMs);
+            }
+            if (metadataChanged) {
+                renderMetadata(nowMs, kText);
+            }
+            if (footerChanged) {
+                renderFooter(nowMs);
+            } else {
+                renderProgress(nowMs);
+            }
         }
     } else if (bootRendered_ || fallbackChanged || (screen_ == Screen::Actions && actionsChanged)) {
         dirty_ = true;
@@ -502,10 +612,18 @@ void UiController::setPlayback(const app::PlaybackSnapshot& snapshot, const std:
 }
 
 void UiController::applyPlayback(const app::PlaybackSnapshot& snapshot, const std::uint32_t nowMs) {
-    const bool titleChanged = !hasPlayback_ || std::strcmp(playback_.title, snapshot.title) != 0;
+    const bool metadataTextChanged =
+        !hasPlayback_ || std::strcmp(playback_.title, snapshot.title) != 0 ||
+        std::strcmp(playback_.artist, snapshot.artist) != 0;
+    const bool resetLyrics = !hasPlayback_ || !sameTrack(playback_, snapshot) ||
+                             playback_.lyricsStatus != snapshot.lyricsStatus ||
+                             playback_.mediaKind != snapshot.mediaKind;
     playback_ = snapshot;
     hasPlayback_ = true;
-    if (titleChanged) {
+    if (resetLyrics) {
+        resetLyricTransition(nowMs);
+    }
+    if (metadataTextChanged) {
         resetTitleScroll(nowMs);
     }
     progress_.synchronize(snapshot.positionMs, snapshot.hasDuration ? snapshot.durationMs : 0,
@@ -592,7 +710,11 @@ void UiController::setArtwork(const app::ArtworkResult& result, const std::uint3
     if (coverChanged && screen_ == Screen::NowPlaying && !connectionScreenActive() &&
         volumeOverlayUntilMs_ == 0 && toastUntilMs_ == 0 && !factoryResetChordVisible_ &&
         !bootRendered_) {
-        renderArtwork(nowMs);
+        if (podcastPlayback(playback_)) {
+            renderPodcastPlaying(nowMs);
+        } else {
+            renderArtwork(nowMs);
+        }
     } else if (screen_ == Screen::Actions) {
         dirty_ = true;
     }
@@ -760,7 +882,9 @@ void UiController::tick(const std::uint32_t nowMs) {
         dirty_ = false;
         lastAnimationFrameMs_ = nowMs;
         lastThemeFrameMs_ = nowMs;
+        lastAmbientFrameMs_ = nowMs;
         lastProgressFrameMs_ = nowMs;
+        lastLyricFrameMs_ = nowMs;
         return;
     }
     if ((volumeOverlayUntilMs_ != 0 || toastUntilMs_ != 0) &&
@@ -774,6 +898,7 @@ void UiController::tick(const std::uint32_t nowMs) {
         return;
     }
     bool animatedUi = false;
+    bool composedTextFrame = false;
     if ((screen_ == Screen::NowPlaying || screen_ == Screen::Actions) &&
         !connectionScreenActive() && volumeOverlayUntilMs_ == 0 && toastUntilMs_ == 0 &&
         !factoryResetChordVisible_) {
@@ -782,17 +907,27 @@ void UiController::tick(const std::uint32_t nowMs) {
             renderThemeAccents(nowMs);
             lastThemeFrameMs_ = nowMs;
             animatedUi = true;
+            composedTextFrame = screen_ == Screen::NowPlaying;
         }
     }
     if (screen_ == Screen::NowPlaying && !connectionScreenActive() && !hasPendingPlayback_ &&
         volumeOverlayUntilMs_ == 0 && toastUntilMs_ == 0 && !factoryResetChordVisible_) {
+        if (!composedTextFrame && !idlePlayback(playback_) && !podcastPlayback(playback_) &&
+            playback_.status == app::PlaybackStatus::Playing &&
+            static_cast<std::uint32_t>(nowMs - lastAmbientFrameMs_) >= kAmbientFrameMs) {
+            renderAnimatedBackdrop(nowMs);
+            lastAmbientFrameMs_ = nowMs;
+            animatedUi = true;
+            composedTextFrame = true;
+        }
         if (idleBandReady_ && idlePlayback(playback_) &&
             static_cast<std::uint32_t>(nowMs - lastIdleFrameMs_) >= kIdleFrameMs) {
             renderIdleAnimation(nowMs);
             lastIdleFrameMs_ = nowMs;
             animatedUi = true;
         }
-        if (!idlePlayback(playback_) && titleScrollActive_ &&
+        if (!composedTextFrame && !idlePlayback(playback_) && !podcastPlayback(playback_) &&
+            titleScrollActive_ &&
             static_cast<std::uint32_t>(nowMs - lastTitleFrameMs_) >= kTitleFrameMs) {
             renderTitle(nowMs, kText);
             lastTitleFrameMs_ = nowMs;
@@ -800,12 +935,55 @@ void UiController::tick(const std::uint32_t nowMs) {
         }
         if (!idlePlayback(playback_) &&
             static_cast<std::uint32_t>(nowMs - lastProgressFrameMs_) >= kProgressFrameMs) {
-            renderProgress(nowMs);
-            if (activeLyricIndex(nowMs) != renderedLyricIndex_) {
-                renderLyricsCard(nowMs, kText);
+            if (podcastPlayback(playback_)) {
+                renderPodcastProgress(nowMs);
+            } else {
+                renderProgress(nowMs);
             }
             lastProgressFrameMs_ = nowMs;
             animatedUi = true;
+        }
+        if (!composedTextFrame && !idlePlayback(playback_) && !podcastPlayback(playback_)) {
+            const auto lyricInterval = lyricTransitionActive_ ? kLyricsFrameMs : kLyricsCheckMs;
+            if (static_cast<std::uint32_t>(nowMs - lastLyricFrameMs_) >= lyricInterval) {
+                const auto active = activeLyricIndex(nowMs);
+                const bool selectionChanged =
+                    active >= 0 && (!renderedLyricTimeKnown_ ||
+                                    playback_.lyrics[static_cast<std::size_t>(active)].timeMs !=
+                                        (lyricTransitionActive_ ? lyricTransitionTargetTimeMs_
+                                                                : renderedLyricTimeMs_));
+                if (lyricTransitionActive_ || selectionChanged) {
+                    renderLyricsCard(nowMs, kText);
+                    animatedUi = true;
+                }
+                lastLyricFrameMs_ = nowMs;
+            }
+        }
+        if (!composedTextFrame && podcastPlayback(playback_)) {
+            if (static_cast<std::uint32_t>(nowMs - lastLyricFrameMs_) >= kLyricsCheckMs) {
+                const auto active = activeLyricIndex(nowMs);
+                const auto activeTime = active >= 0
+                                            ? playback_.lyrics[static_cast<std::size_t>(active)].timeMs
+                                            : 0;
+                const bool captionChanged = active >= 0
+                                                ? (!renderedLyricTimeKnown_ ||
+                                                   activeTime != renderedLyricTimeMs_)
+                                                : renderedLyricTimeKnown_;
+                if (captionChanged) {
+                    if (active >= 0) {
+                        renderPodcastCaptions(nowMs);
+                    } else {
+                        // Recompose the bounded frame when seeking before the
+                        // first caption so an old in-picture caption cannot
+                        // remain painted over the video.
+                        renderPodcastPlaying(nowMs);
+                    }
+                    renderedLyricTimeMs_ = activeTime;
+                    renderedLyricTimeKnown_ = active >= 0;
+                    animatedUi = true;
+                }
+                lastLyricFrameMs_ = nowMs;
+            }
         }
     }
     if (animatedUi) {
@@ -923,6 +1101,10 @@ void UiController::render(const std::uint32_t nowMs) {
 void UiController::renderAtmosphere() {
     const bool themed = screen_ == Screen::NowPlaying && hasPlayback_ && !idlePlayback(playback_) &&
                         !connectionScreenActive();
+    if (screen_ == Screen::NowPlaying && podcastPlayback(playback_)) {
+        display_.fillScreen(kPodcastBlack);
+        return;
+    }
     const auto theme = renderTheme(millis());
     const auto canvas = themed ? canvasBackground(theme) : kBackground;
     const auto lift = themed ? blend565(theme.secondary, canvas, 28) : kBackgroundLift;
@@ -932,8 +1114,8 @@ void UiController::renderAtmosphere() {
         // lyrics backdrop. Keep it opaque and RGB565-friendly rather than sprinkling
         // the reclaimed header space with the generic star field.
         display_.fillRect(0, 0, 320, kProgressY, blend565(lift, canvas, 54));
-        display_.fillRect(kMetadataX - 4, 0, 320 - (kMetadataX - 4), kProgressY,
-                          blend565(theme.secondary, canvas, 22));
+        display_.fillRect(kLyricsX - 4, kMetadataHeight, 320 - (kLyricsX - 4),
+                          kProgressY - kMetadataHeight, blend565(theme.secondary, canvas, 22));
         return;
     }
     for (std::int32_t y = 0; y < 240; y += 8) {
@@ -1055,12 +1237,127 @@ void UiController::renderNowPlaying(const std::uint32_t nowMs) {
         renderIdle(nowMs);
         return;
     }
+    if (podcastPlayback(playback_)) {
+        renderPodcastPlaying(nowMs);
+        return;
+    }
     if (titleTextWidth_ == 0) {
         resetTitleScroll(nowMs);
     }
     renderArtwork(nowMs);
     renderMetadata(nowMs, kText);
     renderFooter(nowMs);
+}
+
+void UiController::renderPodcastPlaying(const std::uint32_t nowMs) {
+    // MPRIS exposes artwork consistently, while it does not expose a portable
+    // video-frame stream. Use the validated episode artwork as the bounded
+    // poster/frame surface until a player supplies a frame extension; the
+    // podcast-only composition and protocol path are ready for that source.
+    bool renderedFrame = false;
+    if (artworkId_[0] != '\0' && artworkPath_[0] != '\0' && LittleFS.exists(artworkPath_)) {
+        renderedFrame = display_.drawJpgFile(
+            LittleFS, artworkPath_, 7, 6, 306, 170, 0, 0, -1.0F, -1.0F,
+            lgfx::textdatum_t::top_left);
+    }
+    if (!renderedFrame) {
+        display_.fillRect(7, 6, 306, 170, kPodcastSurface);
+        for (std::int32_t row = 0; row < 5; ++row) {
+            const auto y = 48 + row * 21;
+            display_.drawBezier(16, y, 84, y - 22, 142, y + 18, 198, y - 4,
+                                blend565(kPodcastWhite, kPodcastSurface, 75));
+            display_.drawBezier(198, y - 4, 244, y - 19, 279, y + 13, 304, y - 2,
+                                blend565(kPodcastMuted, kPodcastSurface, 65));
+        }
+    }
+
+    // Tiny connection mark only; there is intentionally no PODCAST label in
+    // the top-left corner and no border around the video surface.
+    display_.fillCircle(311, 11, 1, status_.hostConnected ? kPodcastWhite : kPodcastMuted);
+
+    drawFitted(playback_.title, 12, 111, 286, &fonts::Font2, kPodcastWhite);
+    const char* show = playback_.album[0] != '\0' ? playback_.album : playback_.artist;
+    drawFitted(show, 12, 128, 286, &fonts::Font0, kPodcastMuted);
+    renderPodcastCaptions(nowMs);
+    renderPodcastFooter(nowMs);
+}
+
+void UiController::renderPodcastCaptions(const std::uint32_t nowMs) {
+    const auto active = activeLyricIndex(nowMs);
+    if (active < 0) {
+        return;
+    }
+    const auto& line = playback_.lyrics[static_cast<std::size_t>(active)];
+    if (line.text[0] == '\0') {
+        return;
+    }
+    // Pre-blended gray is the hardware equivalent of a light-opacity caption
+    // scrim. It is intentionally borderless and lighter than the black footer.
+    display_.fillRoundRect(8, 138, 304, 29, 5, kPodcastCaption);
+    drawWrappedLyric(display_, line.text, 14, 145, 292, 20, &fonts::Font0,
+                     needsJapaneseFont(line.text) ? 13 : 10, kPodcastWhite);
+}
+
+void UiController::renderPodcastFooter(const std::uint32_t nowMs) {
+    display_.fillRect(0, kControlsY, 320, kControlsHeight, kPodcastBlack);
+    renderPodcastProgress(nowMs);
+
+    const auto secondary = kPodcastMuted;
+    const auto shuffle = playback_.shuffleKnown && playback_.shuffle ? kPodcastWhite : secondary;
+    // Keep the existing five touch zones, but use only compact filled glyphs.
+    display_.drawLine(18, 216, 23, 216, shuffle);
+    display_.drawLine(23, 216, 37, 228, shuffle);
+    display_.drawLine(37, 228, 42, 228, shuffle);
+    display_.fillTriangle(42, 224, 42, 232, 47, 228, shuffle);
+    display_.drawLine(18, 228, 23, 228, shuffle);
+    display_.drawLine(23, 228, 37, 216, shuffle);
+    display_.drawLine(37, 216, 42, 216, shuffle);
+    display_.fillTriangle(42, 212, 42, 220, 47, 216, shuffle);
+
+    display_.drawFastVLine(85, 216, 12, secondary);
+    display_.fillTriangle(99, 215, 99, 229, 87, 222, secondary);
+
+    display_.fillCircle(160, kTransportCenterY, 12, kPodcastWhite);
+    if (playback_.status == app::PlaybackStatus::Playing) {
+        display_.fillRect(156, 216, 3, 12, kPodcastBlack);
+        display_.fillRect(162, 216, 3, 12, kPodcastBlack);
+    } else {
+        display_.fillTriangle(157, 215, 157, 229, 167, 222, kPodcastBlack);
+    }
+
+    display_.drawFastVLine(235, 216, 12, secondary);
+    display_.fillTriangle(221, 215, 221, 229, 233, 222, secondary);
+    display_.fillCircle(281, kTransportCenterY, 2, secondary);
+    display_.fillCircle(289, kTransportCenterY, 2, secondary);
+    display_.fillCircle(297, kTransportCenterY, 2, secondary);
+}
+
+void UiController::renderPodcastProgress(const std::uint32_t nowMs) {
+    char position[16];
+    char duration[16];
+    formatDuration(progress_.position(nowMs), position);
+    formatDuration(progress_.duration(), duration);
+    if (!playback_.hasDuration) {
+        app::copyText(duration, "--:--");
+    }
+
+    // Video ends at y=176 and the footer begins at y=205. This 19px island at
+    // y=181 is centered in that 29px free-space gap (5px above and below).
+    display_.fillRect(0, kProgressY, 320, kControlsY - kProgressY, kPodcastBlack);
+    display_.fillRoundRect(8, 181, 304, 19, 4, kPodcastSurface);
+    const auto progressWidth = static_cast<std::int32_t>(progress_.fraction(nowMs) * 288.0F);
+    display_.fillRoundRect(16, 187, 288, 3, 1, kPodcastTrack);
+    if (progressWidth > 0) {
+        display_.fillRoundRect(16, 187, progressWidth, 3, 1, kPodcastWhite);
+        display_.fillCircle(16 + progressWidth, 188, 3, kPodcastWhite);
+    }
+    drawFitted(position, 10, 196, 54, &fonts::Font0, kPodcastMuted);
+    drawFitted(duration, 310, 196, 54, &fonts::Font0, kPodcastMuted,
+               lgfx::textdatum_t::top_right);
+    renderedProgressWidth_ = progressWidth;
+    app::copyText(renderedPosition_, position);
+    app::copyText(renderedDuration_, duration);
+    progressPainted_ = true;
 }
 
 void UiController::renderIdle(const std::uint32_t nowMs) {
@@ -1242,30 +1539,36 @@ void UiController::renderArtwork(const std::uint32_t nowMs) {
         const auto fallbackBackground = raisedPanelBackground(theme);
         display_.fillRect(kArtworkX, kArtworkY, kArtworkSize, kArtworkSize, fallbackBackground);
         for (std::int32_t row = 0; row < 4; ++row) {
-            const auto y = kArtworkY + 45 + row * 19;
+            const auto y = kArtworkY + 37 + row * 15;
             const auto color =
                 blend565(row % 2 == 0 ? theme.primary : theme.secondary, fallbackBackground,
                          static_cast<std::uint8_t>(185 - row * 25));
-            display_.drawBezier(kArtworkX + 19, y, kArtworkX + 52, y - 17, kArtworkX + 84, y + 15,
-                                kArtworkX + 112, y - 2, color);
-            display_.drawBezier(kArtworkX + 112, y - 2, kArtworkX + 131, y - 13, kArtworkX + 143,
-                                y + 9, kArtworkX + 153, y, color);
+            display_.drawBezier(kArtworkX + 16, y, kArtworkX + 43, y - 14, kArtworkX + 69, y + 12,
+                                kArtworkX + 91, y - 2, color);
+            display_.drawBezier(kArtworkX + 91, y - 2, kArtworkX + 107, y - 11, kArtworkX + 119,
+                                y + 7, kArtworkX + 128, y, color);
         }
-        display_.fillCircle(kArtworkX + 82, kArtworkY + 96, 7, theme.foreground);
-        display_.drawLine(kArtworkX + 89, kArtworkY + 95, kArtworkX + 89, kArtworkY + 58,
+        display_.fillCircle(kArtworkX + 68, kArtworkY + 79, 6, theme.foreground);
+        display_.drawLine(kArtworkX + 74, kArtworkY + 78, kArtworkX + 74, kArtworkY + 48,
                           theme.foreground);
-        display_.drawLine(kArtworkX + 89, kArtworkY + 58, kArtworkX + 113, kArtworkY + 52,
+        display_.drawLine(kArtworkX + 74, kArtworkY + 48, kArtworkX + 96, kArtworkY + 43,
                           theme.foreground);
     }
 }
 
 void UiController::resetTitleScroll(const std::uint32_t nowMs) {
     const char* title = playback_.title[0] == '\0' ? "Untitled" : playback_.title;
-    const bool japanese = needsJapaneseFont(title);
-    display_.setFont(fontForText(title, &fonts::Font4));
-    display_.setTextSize(japanese ? 2 : 1);
-    titleTextWidth_ = static_cast<std::int16_t>(display_.textWidth(title));
+    const char* artist = playback_.artist[0] == '\0' ? "Unknown artist" : playback_.artist;
+    constexpr char kMetadataSeparator[] = " - ";
+    display_.setFont(fontForText(title, &fonts::Font2));
     display_.setTextSize(1);
+    const auto titleWidth = display_.textWidth(title);
+    display_.setFont(&fonts::Font2);
+    const auto separatorWidth = display_.textWidth(kMetadataSeparator);
+    display_.setFont(fontForText(artist, &fonts::Font2));
+    const auto artistWidth = display_.textWidth(artist);
+    titleTextWidth_ = static_cast<std::int16_t>(
+        std::min<std::int32_t>(titleWidth + separatorWidth + artistWidth, 32'000));
     titleScrollActive_ = titleTextWidth_ > kTitleWidth;
     titleScrollStartedAtMs_ = nowMs;
     lastTitleFrameMs_ = 0;
@@ -1274,6 +1577,8 @@ void UiController::resetTitleScroll(const std::uint32_t nowMs) {
 void UiController::renderTitle(const std::uint32_t nowMs, const std::uint16_t color,
                                const std::int16_t xOffset) {
     const char* title = playback_.title[0] == '\0' ? "Untitled" : playback_.title;
+    const char* artist = playback_.artist[0] == '\0' ? "Unknown artist" : playback_.artist;
+    constexpr char kMetadataSeparator[] = " - ";
     if (titleTextWidth_ <= 0) {
         resetTitleScroll(nowMs);
     }
@@ -1289,45 +1594,74 @@ void UiController::renderTitle(const std::uint32_t nowMs, const std::uint16_t co
         scrollOffset = -static_cast<std::int32_t>(phase);
     }
 
-    const auto metadataBackground = panelBackground(renderTheme(nowMs));
-    display_.setClipRect(kTitleX, kTitleY, kTitleWidth, kTitleHeight);
-    display_.fillRect(kTitleX, kTitleY, kTitleWidth, kTitleHeight, metadataBackground);
-    const bool japanese = needsJapaneseFont(title);
-    display_.setFont(fontForText(title, &fonts::Font4));
-    display_.setTextSize(japanese ? 2 : 1);
-    display_.setTextColor(color);
-    display_.setTextDatum(lgfx::textdatum_t::top_left);
-    const auto titleX = kTitleX + xOffset + scrollOffset;
-    display_.drawString(title, titleX, kTitleY + 1);
-    if (titleScrollActive_ && xOffset == 0) {
-        display_.drawString(title, titleX + titleTextWidth_ + kTitleRepeatGap, kTitleY + 1);
+    const auto theme = renderTheme(nowMs);
+    const auto canvas = canvasBackground(theme);
+    const auto artistColor =
+        color == kText ? kTextMuted : blend565(kTextMuted, canvas, static_cast<std::uint8_t>(105));
+    // The hyphen is intentionally as legible as the artist. It is semantic metadata,
+    // not a decorative divider that should disappear into the album palette.
+    const auto separatorColor = color == kText ? kTextMuted : artistColor;
+    auto& target = metadataBandReady_ ? static_cast<lgfx::LGFXBase&>(metadataBand_)
+                                      : static_cast<lgfx::LGFXBase&>(display_);
+    target.setFont(fontForText(title, &fonts::Font2));
+    target.setTextSize(1);
+    const auto titleWidth = target.textWidth(title);
+    target.setFont(&fonts::Font2);
+    const auto separatorWidth = target.textWidth(kMetadataSeparator);
+
+    const auto field = blend565(blend565(theme.secondary, canvas, 28), canvas, 54);
+    const auto protection = blend565(kPanel, field, kMetadataSurfaceBlend);
+    if (metadataBandReady_) {
+        renderAmbientBubbles(metadataBand_, nowMs, theme, kMetadataX, kMetadataY,
+                             kMetadataWidth, kMetadataHeight);
+        metadataBand_.fillRoundRect(6, 5, 300, 24, 5, protection);
+        metadataBand_.setClipRect(kTitleX, kTitleY, kTitleWidth, kTitleHeight);
+    } else {
+        display_.setClipRect(kTitleX, kTitleY, kTitleWidth, kTitleHeight);
+        display_.fillRoundRect(6, 5, 300, 24, 5, protection);
     }
-    display_.setTextSize(1);
-    display_.drawFastHLine(kTitleX, kTitleY + kTitleHeight - 1, kTitleWidth,
-                           blend565(renderTheme(nowMs).primary, metadataBackground, 92));
-    display_.clearClipRect();
+    target.setTextDatum(lgfx::textdatum_t::top_left);
+
+    const auto drawInlineMetadata = [&](const std::int32_t startX) {
+        auto cursor = startX;
+        target.setFont(fontForText(title, &fonts::Font2));
+        target.setTextColor(color);
+        target.drawString(title, cursor, kTitleY + 1);
+        cursor += titleWidth;
+
+        target.setFont(&fonts::Font2);
+        target.setTextColor(separatorColor);
+        target.drawString(kMetadataSeparator, cursor, kTitleY + 1);
+        cursor += separatorWidth;
+
+        target.setFont(fontForText(artist, &fonts::Font2));
+        target.setTextColor(artistColor);
+        target.drawString(artist, cursor, kTitleY + 1);
+    };
+
+    const auto metadataX = kTitleX + xOffset + scrollOffset;
+    drawInlineMetadata(metadataX);
+    if (titleScrollActive_ && xOffset == 0) {
+        drawInlineMetadata(metadataX + titleTextWidth_ + kTitleRepeatGap);
+    }
+    if (metadataBandReady_) {
+        metadataBand_.clearClipRect();
+        const auto linkColor = status_.hostConnected ? theme.primary : kWarning;
+        metadataBand_.fillCircle(kLinkIndicatorX, kLinkIndicatorY, 2, linkColor);
+        metadataBand_.pushSprite(kMetadataX, kMetadataY);
+    } else {
+        display_.clearClipRect();
+        renderCompactLinkStatus(theme);
+    }
 }
 
 void UiController::renderMetadata(const std::uint32_t nowMs, const std::uint16_t color,
                                   const std::int16_t xOffset) {
     const auto theme = renderTheme(nowMs);
-    const auto canvas = canvasBackground(theme);
-    display_.fillRect(kMetadataX - 3, kMetadataY - 3, kMetadataWidth + 8, kMetadataHeight + 7,
-                      canvas);
-    const auto metadataBackground = panelBackground(theme);
-    display_.fillRoundRect(kMetadataX, kMetadataY, kMetadataWidth, kMetadataHeight, 8,
-                           metadataBackground);
-    display_.drawRoundRect(kMetadataX, kMetadataY, kMetadataWidth, kMetadataHeight, 8,
-                           blend565(theme.secondary, kBackground, 78));
-
-    const auto x = kTitleX + xOffset;
-    const auto fadedAccent = color == kText ? theme.primary : blend565(theme.primary, canvas, 105);
-    const auto fadedArtist = color == kText ? kTextMuted : blend565(kTextMuted, canvas, 105);
-    drawFitted("TRACK", x, kTrackLabelY, 48, &fonts::Font0, fadedAccent);
+    // The full backdrop is composed once by renderAtmosphere. Incremental title and
+    // lyric frames own only their buffered rectangles; clearing the entire field here
+    // exposes a partially rebuilt frame during theme and track handoffs.
     renderTitle(nowMs, color, xOffset);
-    drawFitted(playback_.artist[0] == '\0' ? "Unknown artist" : playback_.artist, x, kArtistY,
-               kTitleWidth, &fonts::Font2, fadedArtist);
-
     renderLyricsCard(nowMs, color, xOffset);
     renderCompactLinkStatus(theme);
 }
@@ -1336,7 +1670,7 @@ std::int8_t UiController::activeLyricIndex(const std::uint32_t nowMs) const noex
     if (playback_.lyricsStatus != app::LyricsStatus::Synced || playback_.lyricCount == 0) {
         return -1;
     }
-    const auto position = progress_.position(nowMs);
+    const auto position = progress_.position(nowMs) + kLyricsAnticipationMs;
     std::int8_t active = -1;
     for (std::uint8_t index = 0; index < playback_.lyricCount; ++index) {
         if (playback_.lyrics[index].timeMs > position) {
@@ -1347,21 +1681,45 @@ std::int8_t UiController::activeLyricIndex(const std::uint32_t nowMs) const noex
     return active;
 }
 
+std::int8_t UiController::lyricIndexForTime(const std::uint64_t timeMs) const noexcept {
+    for (std::uint8_t index = 0; index < playback_.lyricCount; ++index) {
+        if (playback_.lyrics[index].timeMs == timeMs) {
+            return static_cast<std::int8_t>(index);
+        }
+    }
+    return -1;
+}
+
 void UiController::renderLyricsCard(const std::uint32_t nowMs, const std::uint16_t color,
                                     const std::int16_t xOffset) {
     const auto theme = renderTheme(nowMs);
     const auto canvas = canvasBackground(theme);
-    const auto metadataBackground = panelBackground(theme);
-    const auto lyricsX = kMetadataX + 7;
-    const auto lyricsWidth = kMetadataWidth - 14;
-    const auto lyricsBackground = blend565(raisedPanelBackground(theme), metadataBackground, 155);
+    const auto field = blend565(blend565(theme.secondary, canvas, 28), canvas, 54);
     const auto muted = color == kText ? kTextMuted : blend565(kTextMuted, canvas, 105);
     const auto accent = color == kText ? theme.secondary : blend565(theme.secondary, canvas, 100);
-    display_.fillRoundRect(lyricsX, kLyricsY, lyricsWidth, kLyricsHeight, 7, lyricsBackground);
-    display_.drawRoundRect(lyricsX, kLyricsY, lyricsWidth, kLyricsHeight, 7,
-                           blend565(theme.secondary, metadataBackground, 88));
-    drawFitted("LYRICS", lyricsX + 7 + xOffset, kLyricsY + 5, lyricsWidth - 14, &fonts::Font0,
-               accent);
+    // Tight opaque protection follows every text cluster. The album-toned bubbles
+    // remain continuous behind those surfaces but never pass through the glyphs.
+    const auto focusBackground = blend565(kPanelRaised, field, kLyricsSurfaceBlend);
+    // The lyric handoff owns this one bounded patch so old glyphs can be cleared
+    // without rebuilding the title, artwork, progress, or controls around it.
+    auto& surface = lyricsBandReady_ ? static_cast<lgfx::LGFXBase&>(lyricsBand_)
+                                     : static_cast<lgfx::LGFXBase&>(display_);
+    const auto originX = lyricsBandReady_ ? 0 : kLyricsX;
+    const auto originY = lyricsBandReady_ ? 0 : kLyricsY;
+    if (lyricsBandReady_) {
+        renderAmbientBubbles(lyricsBand_, nowMs, theme, kLyricsX, kLyricsY, kLyricsWidth,
+                             kLyricsHeight);
+    } else {
+        display_.fillRect(kLyricsX, kLyricsY, kLyricsWidth, kLyricsHeight, field);
+    }
+    const auto present = [&]() {
+        if (lyricsBandReady_) {
+            lyricsBand_.pushSprite(kLyricsX, kLyricsY);
+        }
+    };
+    surface.fillRoundRect(originX + 5 + xOffset, originY + 1, 48, 12, 3, focusBackground);
+    drawFittedOn(surface, "LYRICS", originX + 8 + xOffset, originY + 3, kLyricsWidth - 16,
+                 &fonts::Font0, accent, lgfx::textdatum_t::top_left);
 
     const char* stateText = nullptr;
     switch (playback_.lyricsStatus) {
@@ -1376,72 +1734,252 @@ void UiController::renderLyricsCard(const std::uint32_t nowMs, const std::uint16
             break;
         case app::LyricsStatus::Synced:
             if (playback_.lyricCount == 0) {
-                stateText = "LYRICS UNAVAILABLE";
+                stateText = "FINDING LYRICS";
             }
             break;
     }
     if (stateText != nullptr) {
-        drawFitted(stateText, lyricsX + 7 + xOffset, kLyricsY + 31, lyricsWidth - 14, &fonts::Font0,
-                   muted);
+        surface.fillRoundRect(originX + 5 + xOffset, originY + 49, kLyricsWidth - 10, 32, 5,
+                              focusBackground);
+        drawFittedOn(surface, stateText, originX + 8 + xOffset, originY + 53, kLyricsWidth - 16,
+                     &fonts::Font2, muted, lgfx::textdatum_t::top_left);
         if (xOffset == 0) {
-            renderedLyricIndex_ = -1;
+            resetLyricTransition(nowMs);
         }
+        present();
         return;
     }
 
     const auto active = activeLyricIndex(nowMs);
     if (active < 0) {
         const auto& next = playback_.lyrics[0];
-        drawFitted(next.text, lyricsX + 7 + xOffset, kLyricsY + 32, lyricsWidth - 14,
-                   fontForText(next.text, &fonts::Font0), muted);
-    } else {
-        const std::array<std::int8_t, 3> indices{static_cast<std::int8_t>(active - 1), active,
-                                                 static_cast<std::int8_t>(active + 1)};
-        constexpr std::array<std::int32_t, 3> yPositions{kLyricsY + 22, kLyricsY + 39,
-                                                         kLyricsY + 56};
-        for (std::size_t row = 0; row < indices.size(); ++row) {
-            const auto index = indices[row];
-            if (index < 0 || index >= static_cast<std::int8_t>(playback_.lyricCount)) {
-                continue;
-            }
-            const auto& line = playback_.lyrics[static_cast<std::size_t>(index)];
-            const bool current = index == active;
-            const auto textX = lyricsX + (current ? 12 : 7) + xOffset;
-            if (current) {
-                display_.fillRoundRect(lyricsX + 7 + xOffset, yPositions[row], 2, 10, 1,
-                                       theme.primary);
-            }
-            drawFitted(line.text, textX, yPositions[row], lyricsWidth - (current ? 19 : 14),
-                       fontForText(line.text, &fonts::Font0), current ? color : muted);
+        surface.fillRoundRect(originX + 5 + xOffset, originY + 49, kLyricsWidth - 10, 46, 5,
+                              focusBackground);
+        drawWrappedLyric(surface, next.text, originX + 8 + xOffset, originY + 53,
+                         kLyricsWidth - 16, 44, &fonts::Font0,
+                         needsJapaneseFont(next.text) ? 13 : 10, muted);
+        present();
+        return;
+    }
+
+    const auto activeTime = playback_.lyrics[static_cast<std::size_t>(active)].timeMs;
+    if (xOffset != 0) {
+        renderLyricLayout(surface, originX, originY, active, 0, 255, field, focusBackground, color,
+                          muted, theme.primary, xOffset);
+        present();
+        return;
+    }
+    if (!renderedLyricTimeKnown_) {
+        renderedLyricTimeMs_ = activeTime;
+        renderedLyricTimeKnown_ = true;
+    } else if (!lyricTransitionActive_ && activeTime != renderedLyricTimeMs_) {
+        if (lyricIndexForTime(renderedLyricTimeMs_) >= 0) {
+            lyricTransitionTargetTimeMs_ = activeTime;
+            lyricTransitionStartedAtMs_ = nowMs;
+            lyricTransitionActive_ = true;
+        } else {
+            renderedLyricTimeMs_ = activeTime;
         }
     }
-    if (xOffset == 0) {
-        renderedLyricIndex_ = active;
+
+    if (!lyricTransitionActive_) {
+        renderLyricLayout(surface, originX, originY, active, 0, 255, field, focusBackground, color,
+                          muted, theme.primary, 0);
+        present();
+        return;
+    }
+
+    auto from = lyricIndexForTime(renderedLyricTimeMs_);
+    auto target = lyricIndexForTime(lyricTransitionTargetTimeMs_);
+    const auto elapsed = static_cast<std::uint32_t>(nowMs - lyricTransitionStartedAtMs_);
+    if (from < 0 || target < 0 || elapsed >= kLyricsTransitionMs) {
+        renderedLyricTimeMs_ = activeTime;
+        renderedLyricTimeKnown_ = true;
+        lyricTransitionActive_ = false;
+        renderLyricLayout(surface, originX, originY, active, 0, 255, field, focusBackground, color,
+                          muted, theme.primary, 0);
+        present();
+        return;
+    }
+
+    const auto amount = core::easedProgress(elapsed, kLyricsTransitionMs);
+    const auto oldVisibility = static_cast<std::uint8_t>(255U - amount);
+    const auto oldOffset = -static_cast<std::int16_t>(amount * kLyricsSlidePixels / 255U);
+    const auto newOffset =
+        static_cast<std::int16_t>(kLyricsSlidePixels - amount * kLyricsSlidePixels / 255U);
+    if (oldVisibility <= amount) {
+        renderLyricLayout(surface, originX, originY, from, oldOffset, oldVisibility, field,
+                          focusBackground, color, muted, theme.primary, 0);
+        renderLyricLayout(surface, originX, originY, target, newOffset, amount, field,
+                          focusBackground, color, muted, theme.primary, 0);
+    } else {
+        renderLyricLayout(surface, originX, originY, target, newOffset, amount, field,
+                          focusBackground, color, muted, theme.primary, 0);
+        renderLyricLayout(surface, originX, originY, from, oldOffset, oldVisibility, field,
+                          focusBackground, color, muted, theme.primary, 0);
+    }
+    present();
+}
+
+void UiController::renderLyricLayout(lgfx::LGFXBase& canvas, const std::int32_t originX,
+                                     const std::int32_t originY, const std::int8_t active,
+                                     const std::int16_t yOffset, const std::uint8_t visibility,
+                                     const std::uint16_t ambientBackground,
+                                     const std::uint16_t focusBackground,
+                                     const std::uint16_t currentColor,
+                                     const std::uint16_t mutedColor,
+                                     const std::uint16_t accentColor, const std::int16_t xOffset) {
+    if (active < 0 || visibility == 0) {
+        return;
+    }
+    const auto visibleCurrent = blend565(currentColor, focusBackground, visibility);
+    const auto visibleMuted = blend565(mutedColor, ambientBackground, visibility);
+    const auto visibleAccent = blend565(accentColor, focusBackground, visibility);
+    canvas.setClipRect(originX + 1, originY + 14, kLyricsWidth - 1, kLyricsHeight - 14);
+
+    const auto previous = static_cast<std::int8_t>(active - 1);
+    if (previous >= 0 && previous < static_cast<std::int8_t>(playback_.lyricCount)) {
+        const auto& line = playback_.lyrics[static_cast<std::size_t>(previous)];
+        canvas.fillRoundRect(originX + 5 + xOffset, originY + 15 + yOffset,
+                             kLyricsWidth - 10, 33, 4,
+                             blend565(focusBackground, ambientBackground, visibility));
+        drawWrappedLyric(canvas, line.text, originX + 8 + xOffset, originY + 17 + yOffset,
+                         kLyricsWidth - 16, 31, &fonts::Font0,
+                         needsJapaneseFont(line.text) ? 13 : 10, visibleMuted);
+    }
+
+    const auto& current = playback_.lyrics[static_cast<std::size_t>(active)];
+    const auto currentWidth = kLyricsWidth - 23;
+    const lgfx::IFont* currentFont = &fonts::Font2;
+    if (wrappedLyricRows(canvas, current.text, currentWidth, currentFont) > 3) {
+        currentFont = &fonts::Font0;
+    }
+    const auto currentLineHeight =
+        needsJapaneseFont(current.text) ? 13 : (currentFont == &fonts::Font2 ? 13 : 10);
+    const auto currentRows = wrappedLyricRows(canvas, current.text, currentWidth, currentFont);
+    const auto markerHeight = std::min<std::int32_t>(
+        43, std::max<std::int32_t>(currentLineHeight, currentRows * currentLineHeight));
+    const auto focusHeight = std::min<std::int32_t>(48, markerHeight + 6);
+    canvas.fillRoundRect(originX + 5 + xOffset, originY + 49 + yOffset, kLyricsWidth - 10,
+                         focusHeight, 5,
+                         blend565(focusBackground, ambientBackground, visibility));
+    canvas.fillRoundRect(originX + 8 + xOffset, originY + 52 + yOffset, 2, markerHeight, 1,
+                         visibleAccent);
+    drawWrappedLyric(canvas, current.text, originX + 15 + xOffset, originY + 51 + yOffset,
+                     currentWidth, 48, currentFont, currentLineHeight, visibleCurrent);
+
+    const auto next = static_cast<std::int8_t>(active + 1);
+    if (next >= 0 && next < static_cast<std::int8_t>(playback_.lyricCount)) {
+        const auto& line = playback_.lyrics[static_cast<std::size_t>(next)];
+        canvas.fillRoundRect(originX + 5 + xOffset, originY + 101 + yOffset,
+                             kLyricsWidth - 10, 36, 4,
+                             blend565(focusBackground, ambientBackground, visibility));
+        drawWrappedLyric(canvas, line.text, originX + 8 + xOffset, originY + 103 + yOffset,
+                         kLyricsWidth - 16, 34, &fonts::Font0,
+                         needsJapaneseFont(line.text) ? 13 : 10, visibleMuted);
+    }
+    canvas.clearClipRect();
+}
+
+std::size_t UiController::fittedLyricBytes(lgfx::LGFXBase& canvas, const char* text,
+                                           const std::int32_t maxWidth) {
+    if (text == nullptr || text[0] == '\0') {
+        return 0;
+    }
+    char source[129];
+    app::copyText(source, text);
+    auto split = std::strlen(source);
+    if (canvas.textWidth(source) <= maxWidth) {
+        return split;
+    }
+    while (split > 0) {
+        do {
+            --split;
+        } while (split > 0 && (static_cast<unsigned char>(source[split]) & 0xC0U) == 0x80U);
+        source[split] = '\0';
+        if (canvas.textWidth(source) <= maxWidth) {
+            break;
+        }
+    }
+    if (auto* wordBreak = std::strrchr(source, ' '); wordBreak != nullptr && wordBreak != source) {
+        split = static_cast<std::size_t>(wordBreak - source);
+    }
+    if (split == 0) {
+        split = 1;
+        while ((static_cast<unsigned char>(text[split]) & 0xC0U) == 0x80U) {
+            ++split;
+        }
+    }
+    return split;
+}
+
+std::uint8_t UiController::wrappedLyricRows(lgfx::LGFXBase& canvas, const char* text,
+                                            const std::int32_t maxWidth,
+                                            const lgfx::IFont* font) {
+    char source[129];
+    app::copyText(source, text == nullptr ? "" : text);
+    canvas.setFont(fontForText(source, font));
+    canvas.setTextSize(1);
+    const char* cursor = source;
+    std::uint8_t rows = 0;
+    while (*cursor != '\0' && rows < 16) {
+        const auto bytes = fittedLyricBytes(canvas, cursor, maxWidth);
+        if (bytes == 0) {
+            break;
+        }
+        cursor += bytes;
+        while (*cursor == ' ') {
+            ++cursor;
+        }
+        ++rows;
+    }
+    return rows;
+}
+
+void UiController::drawWrappedLyric(lgfx::LGFXBase& canvas, const char* text,
+                                    const std::int32_t x, const std::int32_t y,
+                                    const std::int32_t maxWidth, const std::int32_t maxHeight,
+                                    const lgfx::IFont* font, const std::int32_t lineHeight,
+                                    const std::uint16_t color) {
+    char source[129];
+    app::copyText(source, text == nullptr ? "" : text);
+    canvas.setFont(fontForText(source, font));
+    canvas.setTextSize(1);
+    canvas.setTextColor(color);
+    canvas.setTextDatum(lgfx::textdatum_t::top_left);
+    const char* cursor = source;
+    std::int32_t rowY = y;
+    while (*cursor != '\0' && rowY + lineHeight <= y + maxHeight) {
+        const auto bytes = fittedLyricBytes(canvas, cursor, maxWidth);
+        if (bytes == 0) {
+            break;
+        }
+        char row[129];
+        const auto copyBytes = std::min<std::size_t>(bytes, sizeof(row) - 1);
+        std::memcpy(row, cursor, copyBytes);
+        row[copyBytes] = '\0';
+        canvas.drawString(row, x, rowY);
+        cursor += bytes;
+        while (*cursor == ' ') {
+            ++cursor;
+        }
+        rowY += lineHeight;
     }
 }
 
 void UiController::renderCompactLinkStatus(const RenderTheme& theme) {
-    const auto background = panelBackground(theme);
+    if (metadataBandReady_) {
+        return;
+    }
     const auto color = status_.hostConnected ? theme.primary : kWarning;
-    display_.fillRect(kMetadataX + kMetadataWidth - 49, kMetadataY + 3, 44, 11, background);
-    display_.fillCircle(kMetadataX + kMetadataWidth - 43, kMetadataY + 8, 2, color);
-    drawFitted(status_.hostConnected ? "LINK" : "RETRY", kMetadataX + kMetadataWidth - 6,
-               kMetadataY + 4, 34, &fonts::Font0, color, lgfx::textdatum_t::top_right);
+    // A single dot keeps connection state visible without taking a row or competing
+    // with the inline title/artist metadata. Its backdrop is the shared canvas.
+    display_.fillCircle(kLinkIndicatorX, kLinkIndicatorY, 2, color);
 }
 
 void UiController::renderThemeLabels(const RenderTheme& theme) {
-    const auto metadataBackground = panelBackground(theme);
-    const auto lyricsX = kMetadataX + 7;
-    const auto lyricsWidth = kMetadataWidth - 14;
-    const auto lyricsBackground = blend565(raisedPanelBackground(theme), metadataBackground, 155);
-    display_.drawRoundRect(kMetadataX, kMetadataY, kMetadataWidth, kMetadataHeight, 8,
-                           blend565(theme.secondary, kBackground, 78));
-    display_.fillRect(kMetadataX + 8, kMetadataY + 4, 50, 10, metadataBackground);
-    drawFitted("TRACK", kTitleX, kTrackLabelY, 48, &fonts::Font0, theme.primary);
-    display_.drawRoundRect(lyricsX, kLyricsY, lyricsWidth, kLyricsHeight, 7,
-                           blend565(theme.secondary, metadataBackground, 88));
-    display_.fillRect(lyricsX + 6, kLyricsY + 3, 86, 11, lyricsBackground);
-    drawFitted("LYRICS", lyricsX + 7, kLyricsY + 5, 84, &fonts::Font0, theme.secondary);
+    renderNowPlayingBackdrop(theme);
+    drawFitted("LYRICS", kLyricsX + 8, kLyricsY + 3, 70, &fonts::Font0, theme.secondary);
     renderCompactLinkStatus(theme);
 }
 
@@ -1457,27 +1995,86 @@ void UiController::renderThemeAccents(const std::uint32_t nowMs) {
     if (idlePlayback(playback_)) {
         return;
     }
-    // Keep the large visible surfaces in the same palette transition as the icons without
-    // redrawing or re-decoding the JPEG. These are all bounded opaque RGB565 patches.
-    renderNowPlayingBackdrop(theme);
-    renderArtworkGlow(theme);
-    if (!hasPendingPlayback_) {
-        renderMetadata(nowMs, kText);
+    if (podcastPlayback(playback_)) {
+        return;
     }
+    // Keep palette interpolation strictly bounded to complete buffered text regions,
+    // the retained cover rim, and floating islands. Never clear the broad background
+    // during an incremental frame; the ambient renderer refreshes exposed channels.
+    if (!hasPendingPlayback_) {
+        renderTitle(nowMs, kText);
+        renderLyricsCard(nowMs, kText);
+        renderCompactLinkStatus(theme);
+    }
+    renderArtworkGlow(theme);
     renderFooter(nowMs);
 }
 
 void UiController::renderNowPlayingBackdrop(const RenderTheme& theme) {
     const auto canvas = canvasBackground(theme);
-    // Only repaint canvas that is not covered by artwork, metadata, progress, or controls.
-    // This makes the background visibly travel with the palette without a full-screen redraw.
-    display_.fillRect(0, 0, 320, std::max<std::int32_t>(0, kArtworkY - 5), canvas);
-    display_.fillRect(0, kArtworkY - 5, kArtworkX - 1, kMetadataHeight + 10, canvas);
-    display_.fillRect(kArtworkX + kArtworkSize + 6, kArtworkY - 5,
-                      kMetadataX - (kArtworkX + kArtworkSize + 6), kMetadataHeight + 10, canvas);
-    display_.fillRect(kMetadataX + kMetadataWidth + 3, kArtworkY - 5,
-                      320 - (kMetadataX + kMetadataWidth + 3), kMetadataHeight + 10, canvas);
-    display_.fillRect(0, kMainBottomY, 320, kProgressY - kMainBottomY, canvas);
+    const auto field = blend565(blend565(theme.secondary, canvas, 28), canvas, 54);
+    // Paint every exposed patch behind the open metadata and lyric context. The
+    // cover plus its five-pixel rim are retained as the one large artwork island.
+    display_.fillRect(0, 0, 320, kMetadataHeight, field);
+    display_.fillRect(0, kMetadataHeight, 320, kArtworkY - kMetadataHeight - 5, field);
+    display_.fillRect(0, kArtworkY - 5, kArtworkX - 5, kProgressY - (kArtworkY - 5), field);
+    display_.fillRect(kArtworkX + kArtworkSize + 5, kArtworkY - 5,
+                      320 - (kArtworkX + kArtworkSize + 5),
+                      kProgressY - (kArtworkY - 5), field);
+    display_.fillRect(0, kArtworkY + kArtworkSize + 5, 320,
+                      kProgressY - (kArtworkY + kArtworkSize + 5), field);
+}
+
+void UiController::renderAmbientBubbles(lgfx::LGFXBase& canvas, const std::uint32_t nowMs,
+                                        const RenderTheme& theme, const std::int32_t globalX,
+                                        const std::int32_t globalY, const std::int32_t width,
+                                        const std::int32_t height) {
+    const auto base = canvasBackground(theme);
+    const auto field = blend565(blend565(theme.secondary, base, 28), base, 54);
+    canvas.fillRect(0, 0, width, height, field);
+    canvas.setClipRect(0, 0, width, height);
+
+    struct Bubble {
+        std::int16_t startX;
+        std::int16_t endX;
+        std::int16_t centerY;
+        std::int16_t radiusX;
+        std::int16_t radiusY;
+        std::uint32_t periodMs;
+        std::uint32_t phaseMs;
+        std::uint8_t colorRole;
+    };
+    static constexpr std::array<Bubble, 4> kBubbles{{
+        {-76, 396, 24, 70, 47, 22'000, 0, 0},
+        {386, -68, 94, 61, 55, 27'000, 18'000, 1},
+        {-82, 404, 178, 78, 43, 30'000, 12'000, 2},
+        {374, -56, 220, 51, 37, 25'000, 11'000, 0},
+    }};
+    const std::array<std::uint16_t, 3> colors{{
+        blend565(theme.primary, field, 42),
+        blend565(theme.secondary, field, 36),
+        blend565(theme.background, field, 48),
+    }};
+
+    for (const auto& bubble : kBubbles) {
+        const auto elapsed = (nowMs + bubble.phaseMs) % bubble.periodMs;
+        const auto centerX = static_cast<std::int32_t>(
+            bubble.startX +
+            (static_cast<std::int64_t>(bubble.endX - bubble.startX) * elapsed) /
+                bubble.periodMs);
+        canvas.fillEllipse(centerX - globalX, bubble.centerY - globalY, bubble.radiusX,
+                           bubble.radiusY, colors[bubble.colorRole]);
+    }
+    canvas.clearClipRect();
+}
+
+void UiController::renderAnimatedBackdrop(const std::uint32_t nowMs) {
+    // The old direct-to-panel edge channels created visible bars above the title,
+    // beneath the lyrics, and between footer islands. Compose the moving bubbles
+    // only inside the two guaranteed Now Playing sprites, protect their text, and
+    // publish each completed region atomically.
+    renderTitle(nowMs, kText);
+    renderLyricsCard(nowMs, kText);
 }
 
 void UiController::drawTransportIcon(const std::int32_t centerX, const std::int32_t centerY,
@@ -1497,42 +2094,63 @@ void UiController::drawTransportIcon(const std::int32_t centerX, const std::int3
 }
 
 void UiController::renderFooter(const std::uint32_t nowMs) {
+    if (podcastPlayback(playback_)) {
+        renderPodcastFooter(nowMs);
+        return;
+    }
     const auto theme = renderTheme(nowMs);
     const auto canvas = canvasBackground(theme);
-    const auto controlsBackground = panelBackground(theme);
-    const auto playBackground = raisedPanelBackground(theme);
+    const auto progressBackground = blend565(panelBackground(theme), canvas, 172);
     progressPainted_ = false;
-    display_.fillRect(0, kProgressY, 320, kProgressHeight,
-                      blend565(controlsBackground, canvas, 145));
-    display_.fillRect(0, kControlsY, 320, kControlsHeight, controlsBackground);
-    display_.fillRect(118, kControlsY, 84, kControlsHeight, playBackground);
-    display_.fillRect(0, kControlsY, 320, 1, blend565(theme.secondary, canvas, 92));
-    constexpr std::array<std::int16_t, 4> dividers{{64, 118, 202, 256}};
-    for (const auto divider : dividers) {
-        display_.drawFastVLine(divider, kControlsY + 4, kControlsHeight - 8,
-                               blend565(theme.secondary, controlsBackground, 92));
-    }
+    // Keep the progress/time readout as its own centered island. Transport hitboxes
+    // remain unchanged below it, while their transparent gaps reveal the same field.
+    display_.fillRoundRect(kProgressIslandX, kProgressIslandY, kProgressIslandWidth,
+                           kProgressIslandHeight, 5, progressBackground);
+    display_.drawRoundRect(kProgressIslandX, kProgressIslandY, kProgressIslandWidth,
+                           kProgressIslandHeight, 5,
+                           blend565(theme.secondary, progressBackground, 38));
+    // The footer hitboxes stay full-width, but their visible surfaces are transparent.
+    // Repaint the exact ambient field first so a prior theme/track frame cannot leave a
+    // stale translucent panel behind a control. Findability comes from bounded outline
+    // halos around each glyph, not from a filled button slab.
+    const auto field = blend565(blend565(theme.secondary, canvas, 28), canvas, 54);
+    display_.fillRect(0, kControlsY, 320, kControlsHeight, field);
     renderProgress(nowMs);
 
-    renderControlIcons(nowMs, renderTheme(nowMs), false);
+    renderControlIcons(nowMs, theme, false);
 }
 
 void UiController::renderControlIcons(const std::uint32_t nowMs, const RenderTheme& theme,
                                       const bool clear) {
     const auto canvas = canvasBackground(theme);
-    const auto controlsBackground = panelBackground(theme);
     const auto playBackground = raisedPanelBackground(theme);
+    const auto field = blend565(blend565(theme.secondary, canvas, 28), canvas, 54);
     if (clear) {
-        display_.fillRect(0, kControlsY + 1, 64, kControlsHeight - 1, controlsBackground);
-        display_.fillRect(65, kControlsY + 1, 53, kControlsHeight - 1, controlsBackground);
-        display_.fillRect(119, kControlsY, 83, kControlsHeight, playBackground);
-        display_.fillRect(203, kControlsY + 1, 53, kControlsHeight - 1, controlsBackground);
-        display_.fillRect(257, kControlsY + 1, 63, kControlsHeight - 1, controlsBackground);
-        display_.drawFastHLine(119, kControlsY, 83, blend565(theme.secondary, canvas, 92));
+        display_.fillRect(0, kControlsY, 320, kControlsHeight, field);
     }
     const auto shuffleEnabled = playback_.shuffleKnown && playback_.shuffle;
-    const auto shuffleColor =
-        shuffleEnabled ? theme.primary : blend565(theme.secondary, controlsBackground, 120);
+    const auto shuffleColor = shuffleEnabled ? theme.primary : blend565(theme.secondary, field, 170);
+    const auto secondaryColor = theme.secondary;
+
+    // Two opaque strokes provide an album-aware halo without alpha, blur, or a
+    // rectangular background. The outer stroke keeps the control discoverable over
+    // both dark and saturated artwork; the inner stroke carries the selected role.
+    const auto drawControlGlow = [&](const std::int32_t x, const std::int32_t y,
+                                     const std::int32_t width, const std::int32_t height,
+                                     const std::int32_t radius, const std::uint16_t roleColor) {
+        display_.drawRoundRect(x, y, width, height, radius,
+                               blend565(theme.foreground, field, 82));
+        display_.drawRoundRect(x + 1, y + 1, width - 2, height - 2,
+                               std::max<std::int32_t>(1, radius - 1),
+                               blend565(roleColor, field, 178));
+    };
+    drawControlGlow(14, 209, 36, 26, 7, shuffleColor);
+    drawControlGlow(76, 209, 31, 26, 7, secondaryColor);
+    drawControlGlow(213, 209, 31, 26, 7, secondaryColor);
+    drawControlGlow(268, 209, 40, 26, 7, secondaryColor);
+    display_.drawCircle(160, kTransportCenterY, 15, blend565(theme.foreground, field, 82));
+    display_.drawCircle(160, kTransportCenterY, 13, blend565(theme.primary, field, 178));
+
     display_.drawLine(20, 215, 25, 215, shuffleColor);
     display_.drawLine(25, 215, 38, 227, shuffleColor);
     display_.drawLine(38, 227, 43, 227, shuffleColor);
@@ -1549,7 +2167,8 @@ void UiController::renderControlIcons(const std::uint32_t nowMs, const RenderThe
         transportPulseUntilMs_ != 0 && static_cast<std::int32_t>(nowMs - transportPulseUntilMs_) < 0
             ? static_cast<std::uint8_t>((transportPulseUntilMs_ - nowMs) / 90U)
             : 0;
-    drawTransportIcon(160, kTransportCenterY, playback_.status, theme.primary, canvas, canvas,
+    drawTransportIcon(160, kTransportCenterY, playback_.status, theme.primary,
+                      blend565(theme.secondary, playBackground, 72), playBackground,
                       std::min<std::uint8_t>(pulse, 3));
 
     display_.drawFastVLine(236, 214, 16, theme.secondary);
@@ -1562,7 +2181,7 @@ void UiController::renderControlIcons(const std::uint32_t nowMs, const RenderThe
 
 void UiController::renderProgress(const std::uint32_t nowMs) {
     const auto theme = renderTheme(nowMs);
-    const auto footerBackground = blend565(panelBackground(theme), canvasBackground(theme), 145);
+    const auto islandBackground = blend565(panelBackground(theme), canvasBackground(theme), 172);
     char position[16];
     char duration[16];
     formatDuration(progress_.position(nowMs), position);
@@ -1574,18 +2193,15 @@ void UiController::renderProgress(const std::uint32_t nowMs) {
     const auto progressWidth = static_cast<std::int32_t>(progress_.fraction(nowMs) * 304.0F);
     const bool positionChanged = !progressPainted_ || std::strcmp(renderedPosition_, position) != 0;
     const bool durationChanged = !progressPainted_ || std::strcmp(renderedDuration_, duration) != 0;
-    if (!progressPainted_) {
-        display_.fillRect(0, kProgressY, 320, kProgressHeight, footerBackground);
-    }
     if (!progressPainted_ || progressWidth != renderedProgressWidth_) {
         renderProgressBar(nowMs, renderTheme(nowMs));
     }
     if (positionChanged) {
-        display_.fillRect(0, 197, 70, 8, footerBackground);
+        display_.fillRect(8, 197, 60, 7, islandBackground);
         drawFitted(position, 8, 197, 60, &fonts::Font0, kTextMuted);
     }
     if (durationChanged) {
-        display_.fillRect(246, 197, 74, 8, footerBackground);
+        display_.fillRect(252, 197, 60, 7, islandBackground);
         drawFitted(duration, 312, 197, 60, &fonts::Font0, kTextMuted, lgfx::textdatum_t::top_right);
     }
     app::copyText(renderedPosition_, position);
@@ -1594,10 +2210,10 @@ void UiController::renderProgress(const std::uint32_t nowMs) {
 }
 
 void UiController::renderProgressBar(const std::uint32_t nowMs, const RenderTheme& theme) {
-    const auto footerBackground = blend565(panelBackground(theme), canvasBackground(theme), 145);
+    const auto islandBackground = blend565(panelBackground(theme), canvasBackground(theme), 172);
     const auto progressWidth = static_cast<std::int32_t>(progress_.fraction(nowMs) * 304.0F);
-    display_.fillRect(4, 185, 312, 9, footerBackground);
-    display_.fillRoundRect(8, 188, 304, 3, 1, blend565(theme.background, footerBackground, 115));
+    display_.fillRect(8, 187, 304, 6, islandBackground);
+    display_.fillRoundRect(8, 188, 304, 3, 1, blend565(theme.background, islandBackground, 115));
     if (progressWidth > 0) {
         display_.fillRoundRect(8, 188, progressWidth, 3, 1, theme.primary);
         display_.fillCircle(8 + progressWidth, 189, 3, theme.foreground);
@@ -1811,29 +2427,7 @@ void UiController::renderFactoryResetOverlay() {
 void UiController::drawFitted(const char* text, const std::int32_t x, const std::int32_t y,
                               const std::int32_t maxWidth, const lgfx::IFont* font,
                               const std::uint16_t color, const lgfx::textdatum_t datum) {
-    // Keep enough UTF-8 source for a maximum-sized lyric or metadata label until
-    // width fitting removes complete code points below.
-    char buffer[300];
-    app::copyText(buffer, text == nullptr ? "" : text);
-    display_.setFont(fontForText(buffer, font));
-    display_.setTextSize(1);
-    display_.setTextColor(color);
-    display_.setTextDatum(datum);
-    auto length = std::strlen(buffer);
-    if (display_.textWidth(buffer) > maxWidth) {
-        constexpr char kEllipsis[] = "...";
-        const auto ellipsisWidth = display_.textWidth(kEllipsis);
-        while (length > 0 && display_.textWidth(buffer) + ellipsisWidth > maxWidth) {
-            do {
-                --length;
-            } while (length > 0 && (static_cast<unsigned char>(buffer[length]) & 0xC0U) == 0x80U);
-            buffer[length] = '\0';
-        }
-        if (ellipsisWidth <= maxWidth && length + sizeof(kEllipsis) <= sizeof(buffer)) {
-            std::memcpy(buffer + length, kEllipsis, sizeof(kEllipsis));
-        }
-    }
-    display_.drawString(buffer, x, y);
+    drawFittedOn(display_, text, x, y, maxWidth, font, color, datum);
 }
 
 }  // namespace deskwave::ui

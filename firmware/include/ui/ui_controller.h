@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 
+#include <cstddef>
 #include <cstdint>
 
 #include "app/messages.h"
@@ -83,6 +84,10 @@ class UiController {
     void renderHeader(std::uint32_t nowMs);
     void renderConnection(std::uint32_t nowMs);
     void renderNowPlaying(std::uint32_t nowMs);
+    void renderPodcastPlaying(std::uint32_t nowMs);
+    void renderPodcastCaptions(std::uint32_t nowMs);
+    void renderPodcastFooter(std::uint32_t nowMs);
+    void renderPodcastProgress(std::uint32_t nowMs);
     void renderIdle(std::uint32_t nowMs);
     void renderIdleAnimation(std::uint32_t nowMs);
     void renderIdleClock(std::uint32_t nowMs, bool clear);
@@ -97,8 +102,28 @@ class UiController {
     void renderThemeAccents(std::uint32_t nowMs);
     void renderThemeLabels(const RenderTheme& theme);
     void renderActionAccents(const RenderTheme& theme, bool clear);
+    void renderAnimatedBackdrop(std::uint32_t nowMs);
+    void renderAmbientBubbles(lgfx::LGFXBase& canvas, std::uint32_t nowMs,
+                              const RenderTheme& theme, std::int32_t globalX,
+                              std::int32_t globalY, std::int32_t width,
+                              std::int32_t height);
     void renderMetadata(std::uint32_t nowMs, std::uint16_t color, std::int16_t xOffset = 0);
     void renderLyricsCard(std::uint32_t nowMs, std::uint16_t color, std::int16_t xOffset = 0);
+    void renderLyricLayout(lgfx::LGFXBase& canvas, std::int32_t originX, std::int32_t originY,
+                           std::int8_t active, std::int16_t yOffset, std::uint8_t visibility,
+                           std::uint16_t ambientBackground, std::uint16_t focusBackground,
+                           std::uint16_t currentColor, std::uint16_t mutedColor,
+                           std::uint16_t accentColor,
+                           std::int16_t xOffset);
+    void drawWrappedLyric(lgfx::LGFXBase& canvas, const char* text, std::int32_t x, std::int32_t y,
+                          std::int32_t maxWidth, std::int32_t maxHeight, const lgfx::IFont* font,
+                          std::int32_t lineHeight, std::uint16_t color);
+    [[nodiscard]] std::uint8_t wrappedLyricRows(lgfx::LGFXBase& canvas, const char* text,
+                                                std::int32_t maxWidth,
+                                                const lgfx::IFont* font);
+    [[nodiscard]] std::size_t fittedLyricBytes(lgfx::LGFXBase& canvas, const char* text,
+                                               std::int32_t maxWidth);
+    void resetLyricTransition(std::uint32_t nowMs) noexcept;
     void renderTitle(std::uint32_t nowMs, std::uint16_t color, std::int16_t xOffset = 0);
     void resetTitleScroll(std::uint32_t nowMs);
     void renderFooter(std::uint32_t nowMs);
@@ -130,6 +155,7 @@ class UiController {
     [[nodiscard]] static bool sameTrack(const app::PlaybackSnapshot& left,
                                         const app::PlaybackSnapshot& right) noexcept;
     [[nodiscard]] static bool idlePlayback(const app::PlaybackSnapshot& snapshot) noexcept;
+    [[nodiscard]] static bool podcastPlayback(const app::PlaybackSnapshot& snapshot) noexcept;
     void drawFitted(const char* text, std::int32_t x, std::int32_t y, std::int32_t maxWidth,
                     const lgfx::IFont* font, std::uint16_t color,
                     lgfx::textdatum_t datum = lgfx::textdatum_t::top_left);
@@ -140,10 +166,13 @@ class UiController {
     [[nodiscard]] bool trackChanged(const app::PlaybackSnapshot& snapshot) const noexcept;
     [[nodiscard]] bool lyricsChanged(const app::PlaybackSnapshot& snapshot) const noexcept;
     [[nodiscard]] std::int8_t activeLyricIndex(std::uint32_t nowMs) const noexcept;
+    [[nodiscard]] std::int8_t lyricIndexForTime(std::uint64_t timeMs) const noexcept;
     [[nodiscard]] static const char* screenName(Screen screen) noexcept;
 
     display::DisplayDriver& display_;
     lgfx::LGFX_Sprite idleBand_;
+    lgfx::LGFX_Sprite metadataBand_;
+    lgfx::LGFX_Sprite lyricsBand_;
     app::PlaybackSnapshot playback_{};
     app::PlaybackSnapshot pendingPlayback_{};
     app::PlayerListSnapshot players_{};
@@ -166,13 +195,17 @@ class UiController {
     std::uint32_t lastAnimationFrameMs_{0};
     std::uint32_t lastIdleFrameMs_{0};
     std::uint32_t lastThemeFrameMs_{0};
+    std::uint32_t lastAmbientFrameMs_{0};
     std::uint32_t lastProgressFrameMs_{0};
+    std::uint32_t lastLyricFrameMs_{0};
+    std::uint32_t lyricTransitionStartedAtMs_{0};
     std::uint32_t titleScrollStartedAtMs_{0};
     std::uint32_t lastTitleFrameMs_{0};
     std::int16_t volumeOverlayPercent_{-1};
     std::int16_t titleTextWidth_{0};
-    std::int8_t renderedLyricIndex_{-2};
     std::int32_t renderedProgressWidth_{0};
+    std::uint64_t renderedLyricTimeMs_{0};
+    std::uint64_t lyricTransitionTargetTimeMs_{0};
     std::uint32_t artworkGeneration_{0};
     std::uint32_t themeTransitionStartedAtMs_{0};
     std::uint32_t restTransitionStartedAtMs_{0};
@@ -194,9 +227,13 @@ class UiController {
     bool factoryResetChordVisible_{false};
     bool bootRendered_{false};
     bool titleScrollActive_{false};
+    bool renderedLyricTimeKnown_{false};
+    bool lyricTransitionActive_{false};
     bool progressPainted_{false};
     bool clockRendered_{false};
     bool idleBandReady_{false};
+    bool metadataBandReady_{false};
+    bool lyricsBandReady_{false};
     bool dirty_{true};
 };
 

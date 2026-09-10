@@ -161,7 +161,7 @@ def _state_payload(state: PlaybackState) -> dict[str, Any]:
     capabilities = payload.get("capabilities")
     if isinstance(capabilities, dict):
         capabilities.pop("queue", None)
-    payload["lyrics"] = {
+    captions = {
         "status": state.lyrics_status.value,
         "lines": [
             {
@@ -171,6 +171,11 @@ def _state_payload(state: PlaybackState) -> dict[str, Any]:
             for line in state.lyrics
         ],
     }
+    if state.media_kind.value == "podcast":
+        payload.pop("lyrics", None)
+        payload["transcript"] = captions
+    else:
+        payload["lyrics"] = captions
     payload["artwork_path"] = (
         f"/v1/artwork/{state.artwork_id}.jpg" if state.artwork_id is not None else None
     )
@@ -270,7 +275,13 @@ async def artwork(request: web.Request) -> web.StreamResponse:
     if path is None:
         raise web.HTTPNotFound(text="artwork is not cached")
     request.app[STORE_KEY].touch(device_id)
-    response = web.FileResponse(path)
+    # Do not use FileResponse/sendfile here. ESP32 HTTPClient clients on this
+    # LAN can receive the response headers but fail to consume the zero-copy
+    # body, leaving the device with a 326-byte-looking response and an
+    # incomplete artwork cache. Normal buffered writes keep the body bounded
+    # by the host's normalized-artwork limit and make Content-Length explicit.
+    body = await asyncio.to_thread(path.read_bytes)
+    response = web.Response(body=body)
     response.headers.update(
         {
             "Cache-Control": "private, max-age=31536000, immutable",

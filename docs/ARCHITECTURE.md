@@ -182,9 +182,11 @@ snapshots and local actions from the application coordinator.
   primary/secondary palette tints transport, shuffle, repeat, mute, progress,
   and other action roles while the foreground/background pair preserves
   contrast.
-- Now Playing removes the former full-width player header. Its enlarged 166 px
-  cover and reflowed metadata occupy the reclaimed space, while only a compact
-  top-right `LINK`/`RETRY` indicator remains.
+- Now Playing uses a shallow 34 px title/artist strip with title and artist on one
+  smooth proportional row and only a four-pixel top-right connection indicator.
+  When the combined row overflows, the renderer uses a bounded horizontal handoff
+  at UTF-8 character boundaries. Below it, a borderless 136 px cover remains
+  prominent beside a 166 x 138 synchronized-lyrics region.
 - The entire exposed Now Playing canvas uses a dark, muted artwork-derived
   support color, and the CYD physical RGB light samples that final rendered
   canvas color at runtime. Firmware normalizes its channel ratios so the dark
@@ -194,12 +196,19 @@ snapshots and local actions from the application coordinator.
   output. Neither output is reduced automatically after inactivity; Error
   retains its red semantic override.
 - UTF-8 metadata containing non-ASCII characters selects LovyanGFX's complete
-  proportional Japanese font. The title renderer measures and scrolls with that
-  font, while fitted labels remove whole UTF-8 code points before adding an
-  ellipsis so a multibyte character is never split.
+  proportional Japanese font. The inline title/artist renderer measures the
+  combined row with that font and hands it off at UTF-8 character boundaries, so
+  a multibyte character is never split.
 - Track changes interpolate the complete theme over 750 ms. The old cover
   remains visible until the SHA-verified replacement for the same generation
   is ready; metadata and theme changes cannot pair with a stale artwork result.
+- While Now Playing is active, four oversized opaque RGB565 ellipses drift through
+  the exposed metadata and lyrics buffers with staggered 22 s, 25 s, 27 s, and
+  30 s linear cycles. Their colors are recomputed from the same sampled
+  album-derived theme on every frame; integer-pixel movement is redrawn at a low
+  cadence only inside bounded buffered regions, with opaque text-protection boxes
+  preventing motion from crossing glyphs. Paused/resting states suppress motion
+  and keep the softened palette static.
 - Paused/idle presentation keeps the active palette, with reduced saturation
   and glow intensity, and interpolates back to full intensity on resume. Brief
   host rediscovery also preserves the last confirmed cover and palette.
@@ -211,11 +220,21 @@ snapshots and local actions from the application coordinator.
   `millis()` and redraws the central clock only when the minute changes.
 - Progress is synchronized from host position and extrapolated from local
   monotonic time only while playing.
+- A detected podcast switches Now Playing to a separate monochrome composition:
+  the validated episode artwork currently occupies the 306 x 170 video-frame
+  bounds as a poster/fallback (or a player-provided
+  `deskwave:videoFrameUrl` JPEG frame), captions are drawn directly over that picture
+  when `transcript` lines exist, and the 304 x 19 progress island is centered
+  in the 29 px gap between the frame bottom at y=176 and the footer at y=205.
+  Music continues to use the artwork-plus-lyrics composition. MPRIS does not
+  expose a portable video-frame stream, so live podcast video capture remains
+  an integration extension rather than being inferred from artwork.
 - Volume, transport, seek, shuffle, and repeat actions update visible state
   immediately. Confirmed host snapshots reconcile optimistic state; command
   errors produce a visible toast.
 - Full-screen redraws occur only for screen/state transitions. Theme animation,
-  idle ambient motion, artwork glow, progress, and connection updates use bounded dirty regions.
+  active/idle ambient motion, artwork glow, progress, and connection updates use
+  bounded dirty regions.
   JPEG decode occurs once when a verified cover is installed, never on a
   transition animation frame.
 - The saved manual brightness applies continuously; inactivity does not change
@@ -227,11 +246,19 @@ complete Japanese font, while a 1.875 MiB LittleFS partition remains available
 for the disposable artwork cache.
 
 The host resolves LRCLIB synchronized lyrics once per track and keeps a
-permission-restricted XDG cache. Each playback snapshot contains only a bounded
-five-line window around the current position. The ESP32 selects the active line
-from local progress and redraws only when that selection changes. Loading,
-instrumental, and unavailable states remain explicit. The Device screen
-requests a bounded player list only while visible.
+permission-restricted XDG cache for synchronized or instrumental results. An
+exact metadata miss or response without timestamped lines falls back to LRCLIB's
+structured title/artist search; unavailable results are not cached. Retryable
+transport or response errors retain the loading state through bounded retries,
+so they cannot falsely publish a terminal unavailable result.
+
+Each playback snapshot contains only a bounded five-line window around the
+current position. The ESP32 uses local progress with a 24 ms anticipation,
+checks lyric selection independently every 64 ms, and presents one fully
+wrapped previous, current, and upcoming section. A selection change redraws
+only the 166 x 138 lyrics region through a 170 ms opaque upward slide and color
+crossfade. Loading, instrumental, and conclusive unavailable states remain
+explicit. The Device screen requests a bounded player list only while visible.
 
 ## Persistence
 

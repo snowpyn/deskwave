@@ -10,10 +10,11 @@ from conftest import FakeBackend
 import deskwave_host.service.media as media_module
 from deskwave_host.artwork import FALLBACK_THEME, ArtworkCache, ResolvedArtwork
 from deskwave_host.config import HostConfig
-from deskwave_host.lyrics import LyricsCache, LyricsDocument
+from deskwave_host.lyrics import LyricsCache, LyricsDocument, LyricsError
 from deskwave_host.models import (
     LyricLine,
     LyricsStatus,
+    MediaKind,
     PlaybackState,
     PlaybackStatus,
     ThemePalette,
@@ -99,6 +100,104 @@ async def test_lyrics_publish_loading_then_positioned_window(host_config: HostCo
         "Line 4",
         "Line 5",
     ]
+    await service.stop()
+
+
+async def test_podcast_transcript_bypasses_music_lyrics_lookup(host_config: HostConfig) -> None:
+    state = PlaybackState(
+        title="Episode 42",
+        artists=("The Show",),
+        album="The Show",
+        track_id="podcast-42",
+        media_kind=MediaKind.PODCAST,
+        status=PlaybackStatus.PLAYING,
+        lyrics_status=LyricsStatus.SYNCED,
+        lyrics=(LyricLine(0, "Welcome back."),),
+    )
+    lyrics = DelayedLyricsCache(host_config, LyricsDocument(LyricsStatus.SYNCED))
+    service = MediaService(FakeBackend(state), CountingArtworkCache(host_config), lyrics)
+
+    await service.start()
+    await settle()
+
+    assert not lyrics.started.is_set()
+    assert service.state.lyrics_status is LyricsStatus.SYNCED
+    assert [line.text for line in service.state.lyrics] == ["Welcome back."]
+    await service.stop()
+
+
+async def test_lyrics_retry_preserves_loading_until_a_late_success(
+    host_config: HostConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FlakyLyricsCache(LyricsCache):
+        def __init__(self, config: HostConfig) -> None:
+            super().__init__(config)
+            self.calls = 0
+
+        async def resolve(self, state: PlaybackState) -> LyricsDocument:
+            del state
+            self.calls += 1
+            if self.calls < 3:
+                raise LyricsError("temporary LRCLIB failure")
+            return LyricsDocument(
+                LyricsStatus.SYNCED,
+                (LyricLine(1_000, "Recovered line"),),
+            )
+
+    monkeypatch.setattr(media_module, "LYRICS_RETRY_BACKOFF_SECONDS", (0.0, 0.0, 0.0))
+    state = PlaybackState(
+        title="Retry Test",
+        artists=("DeskWave",),
+        track_id="lyrics-retry",
+        status=PlaybackStatus.PLAYING,
+    )
+    backend = FakeBackend(state)
+    lyrics = FlakyLyricsCache(host_config)
+    service = MediaService(backend, CountingArtworkCache(host_config), lyrics)
+    updates = service.subscribe()
+
+    await service.start()
+    loading = await asyncio.wait_for(updates.get(), timeout=1)
+    assert loading.lyrics_status is LyricsStatus.LOADING
+    await settle(16)
+
+    assert lyrics.calls == 3
+    assert service.state.lyrics_status is LyricsStatus.SYNCED
+    assert [line.text for line in service.state.lyrics] == ["Recovered line"]
+    await service.stop()
+
+
+async def test_exhausted_temporary_lyrics_failures_do_not_publish_unavailable(
+    host_config: HostConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FailingLyricsCache(LyricsCache):
+        def __init__(self, config: HostConfig) -> None:
+            super().__init__(config)
+            self.calls = 0
+
+        async def resolve(self, state: PlaybackState) -> LyricsDocument:
+            del state
+            self.calls += 1
+            raise LyricsError("temporary LRCLIB failure")
+
+    monkeypatch.setattr(media_module, "LYRICS_RETRY_BACKOFF_SECONDS", (0.0,))
+    state = PlaybackState(
+        title="Retry Test",
+        artists=("DeskWave",),
+        track_id="lyrics-retry",
+        status=PlaybackStatus.PLAYING,
+    )
+    backend = FakeBackend(state)
+    lyrics = FailingLyricsCache(host_config)
+    service = MediaService(backend, CountingArtworkCache(host_config), lyrics)
+
+    await service.start()
+    await settle(12)
+
+    assert lyrics.calls == 2
+    assert service.state.lyrics_status is LyricsStatus.LOADING
     await service.stop()
 
 

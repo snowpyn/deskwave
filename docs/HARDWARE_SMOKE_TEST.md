@@ -151,9 +151,10 @@ responses. Do not expose the fixture outside the trusted test LAN.
       documented limits.
 - [ ] The host-derived primary, secondary, background, and readable foreground
       colors visibly correspond to the same displayed cover.
-- [ ] Now Playing has no full-width top bar, Spotify mark, player-name banner,
-      or `NOW PLAYING` label; only the tiny top-right `LINK`/`RETRY` indicator
-      remains, and the 166 px cover is not clipped.
+- [ ] Now Playing has no player-brand/status bar, Spotify mark, player-name
+      banner, or `NOW PLAYING` label; the compact 34 px metadata strip keeps title
+      and artist on one aligned row with only a tiny connection dot, and the 136 px
+      cover is not clipped.
 - [ ] The complete exposed canvas is a deep, readable artwork-derived tone rather
       than the fixed neutral gray fallback.
 - [ ] The rear RGB light visibly matches the current song-reactive canvas
@@ -171,14 +172,19 @@ responses. Do not expose the fixture outside the trusted test LAN.
       changed. Leaving the device untouched does not reduce TFT or RGB intensity.
 - [ ] Play tracks with Japanese-only and mixed Japanese/Latin titles, artists,
       and synchronized lyric lines (for example `夜に駆ける` / `YOASOBI`). Japanese glyphs
-      render instead of boxes or mojibake, fitted rows end with a clean ellipsis,
-      and a long Japanese title scrolls continuously without clipped UTF-8.
-- [ ] The former Up Next card is absent. The same area shows `LYRICS`, with the
-      current timestamped line clearly highlighted and adjacent lines subdued.
+      render instead of boxes or mojibake, lyric rows remain readable, and long
+      combined title/artist metadata hands off smoothly without clipped UTF-8.
+- [ ] The former Up Next card is absent. A 166 x 138 right-hand region shows
+      `LYRICS`, with one fully wrapped previous section, one emphasized current
+      section, and one fully wrapped upcoming section. The three zones remain
+      readable without colliding on normal lyric sentences.
 - [ ] The lyric highlight advances with playback, pauses in place, follows a
       seek, and changes tracks without briefly showing the prior track's words.
+      Line changes use the bounded upward slide/color crossfade and do not trail
+      playback by the progress bar's slower refresh interval.
 - [ ] Loading, instrumental, and unavailable lyric states are explicit and do
-      not displace artwork, transport controls, or the progress bar.
+      not displace artwork, transport controls, or the progress bar. Temporary
+      lookup failures stay in `FINDING LYRICS`; a valid late result replaces it.
 - [ ] Artwork has no hard frame; its restrained edge glow uses the active
       primary accent without obscuring the cover.
 - [ ] Play/pause, previous, next, shuffle, repeat, mute, and progress roles use
@@ -186,10 +192,33 @@ responses. Do not expose the fixture outside the trusted test LAN.
       saturated artwork cases.
 - [ ] A track change interpolates glow, icons, progress, and other themed regions
       smoothly for about 750 ms, with no white/black flash or abrupt color snap.
+- [ ] While a track is playing, the exposed background shows only slow, subtle
+      palette-matched tonal motion; it never reveals an unpainted edge or paints
+      over artwork, metadata, lyrics, progress, controls, or overlays. Pause or
+      a resting state stops the motion on an attractive softened composition.
 - [ ] The old valid cover remains visible while its replacement is downloading;
       it is replaced only after the new JPEG and matching theme are ready.
 - [ ] Repeated position resyncs retain the same cover/theme without flicker,
       download, JPEG decode, or palette extraction.
+
+### Podcast alternate playback
+
+- [ ] With an MPRIS podcast signal (`deskwave:mediaType`, podcast genre/content
+      type, or a podcast/episode URL), Now Playing switches to the monochrome
+      podcast composition. A normal music track remains on the existing
+      artwork/lyrics screen.
+- [ ] The podcast frame occupies x=7..312 and y=6..176 without an outline; the
+      validated episode artwork is shown as the bounded poster fallback when no
+      live frame source is available.
+- [ ] The progress island is centered in the free space between the frame and
+      footer: y=181..200, with the footer beginning at y=205. It remains
+      readable and seekable while the episode position advances.
+- [ ] A supplied timestamped transcript appears only as captions over the
+      picture, with a light-opacity/pre-blended backing and no dedicated lyrics
+      or transcript section. An unavailable transcript leaves that area free.
+- [ ] Podcast controls are compact, black-and-white, and borderless. The
+      music control layout and colored artwork-derived theme are unchanged for
+      non-podcast playback.
 
 ### Ordering, delayed metadata, and fallback
 

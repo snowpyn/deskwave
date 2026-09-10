@@ -68,6 +68,10 @@ class NetworkManager {
     std::uint32_t outgoingSequence_{0};
     std::uint32_t lastConnectedAtMs_{0};
     std::uint32_t disconnectedAtMs_{0};
+    char lastArtworkRequestId_[65]{};
+    std::uint32_t lastArtworkRequestGeneration_{0};
+    bool lastArtworkRequestHasTheme_{false};
+    core::ThemePalette lastArtworkRequestTheme_{};
     bool webSocketConnected_{false};
     bool mdnsStarted_{false};
 };

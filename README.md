@@ -18,7 +18,8 @@ the automated checks.
   and smoothly extrapolated progress.
 - Derives a restrained accent palette from each validated cover on the Linux
   host, then uses it for a borderless artwork glow, control tints, and progress
-  accents on the ESP32.
+  accents on the ESP32. While a track is playing, the same sampled palette also
+  drives a slow, low-contrast ambient field around the foreground UI.
 - Controls play/pause, previous/next, volume, mute, seeking, shuffle, repeat,
   and manual MPRIS player selection where the active application supports it.
 - Works with Spotify, VLC, browsers, and other Linux applications that expose
@@ -63,16 +64,18 @@ The following is a documentation layout diagram, not a photograph, generated
 render, or claim of physical-device verification:
 
 ```text
-+------------+--------------------------------+
-|            | TRACK TITLE                    |
-|  ARTWORK   | Artist                         |
-|            | 01:42  ========-----  03:58    |
-|            | LYRICS                         |
-|            |   previous line                |
-|            | > current synchronized line    |
-|            |   next line                    |
-+------------+--------------------------------+
-| Host connected     PREV   PLAY   NEXT   72% |
++---------------------------------------------+
+| TRACK TITLE  -  Artist                    • |
++--------------------+------------------------+
+|                    | LYRICS                 |
+|     ARTWORK        |   previous line        |
+|                    | > current lyric        |
+|                    |   may wrap here        |
+|                    |   next line            |
++--------------------+------------------------+
+| 01:42  ================---------      03:58 |
++---------------------------------------------+
+| SHUFFLE     PREV      PLAY      NEXT    MORE |
 +---------------------------------------------+
 ```
 
@@ -108,7 +111,8 @@ previous/next. Build and flash it with:
 ```
 
 On the headerless Now Playing screen, tap the footer controls directly. Tap the
-tiny top-right `LINK`/`RETRY` target to open the full action palette. A phone is controllable when
+tiny top-right connection dot (the whole upper-right status target is actionable)
+to open the full action palette. A phone is controllable when
 it is exposed to the Linux desktop as an MPRIS player, such as through KDE
 Connect; otherwise the host has no phone media session to command.
 
@@ -255,8 +259,9 @@ extracts a palette or decodes JPEG data on animation frames.
 
 Playback metadata remains UTF-8 end to end. The firmware automatically selects
 its bundled proportional Japanese font for non-ASCII titles, artists, and lyric
-lines; long strings are shortened only at UTF-8 character boundaries, and long
-titles use the normal continuous marquee.
+lines. The Now Playing metadata keeps title and artist on one smooth proportional
+row; long combined metadata uses a bounded continuous handoff at UTF-8 character
+boundaries rather than an unbounded marquee.
 
 Device settings are changed on the Settings screen and stored in versioned NVS.
 They include brightness, default screen, and volume step. The selected
@@ -330,8 +335,10 @@ TLS, so network confidentiality depends on the trusted LAN. See
 - Linux/MPRIS is the only production host backend in `0.1.0`; Windows and macOS
   can be added behind the existing backend abstraction.
 - Synchronized lyrics depend on LRCLIB coverage and a network lookup on the
-  first play. Results, including unavailable and instrumental states, are cached
-  locally; lyrics lookup can be disabled in the host configuration.
+  first play. Synchronized and instrumental results are cached locally;
+  unavailable results are retried rather than persisted, and an exact-match
+  miss falls back to LRCLIB's structured search. Lyrics lookup can be disabled
+  in the host configuration.
 - The published firmware targets the locally verified ILI9341/XPT2046
   ESP32-D0WD-V3 Revision 3.1 wiring profile; other boards and displays require a
   hardware adapter in the centralized config layer.

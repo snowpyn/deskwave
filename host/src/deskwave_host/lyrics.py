@@ -27,6 +27,7 @@ from deskwave_host.models import (
 
 LOGGER = logging.getLogger("lyrics")
 LRCLIB_ENDPOINT = "https://lrclib.net/api/get"
+LRCLIB_SEARCH_ENDPOINT = "https://lrclib.net/api/search"
 LYRICS_CACHE_SCHEMA = 1
 MAX_LYRICS_RESPONSE_BYTES = 512 * 1024
 MAX_LYRICS_CACHE_BYTES = 768 * 1024
@@ -36,6 +37,10 @@ _TIMESTAMP = re.compile(r"\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?\]")
 
 class LyricsError(ValueError):
     """A remote or cached lyrics document could not be used safely."""
+
+
+class LyricsTransientError(LyricsError):
+    """LRCLIB is temporarily unavailable and the lookup can be retried."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,15 +129,18 @@ class LyricsCache:
                     LOGGER.warning(
                         "Lyrics lookup failed for track %.12s: %s", key, self._error_summary(error)
                     )
-                    return LyricsDocument(LyricsStatus.UNAVAILABLE)
-                try:
-                    await asyncio.to_thread(self._store, key, result)
-                except (LyricsError, OSError) as error:
-                    LOGGER.warning(
-                        "Lyrics cache write failed for track %.12s: %s",
-                        key,
-                        self._error_summary(error),
-                    )
+                    if isinstance(error, LyricsError):
+                        raise
+                    raise LyricsTransientError(self._error_summary(error)) from error
+                if result.status in (LyricsStatus.SYNCED, LyricsStatus.INSTRUMENTAL):
+                    try:
+                        await asyncio.to_thread(self._store, key, result)
+                    except (LyricsError, OSError) as error:
+                        LOGGER.warning(
+                            "Lyrics cache write failed for track %.12s: %s",
+                            key,
+                            self._error_summary(error),
+                        )
                 return result
         finally:
             remaining = self._lock_users.get(key, 1) - 1
@@ -173,6 +181,10 @@ class LyricsCache:
             if not isinstance(status_value, str):
                 return None
             status = LyricsStatus(status_value)
+            # Negative cache entries from earlier versions must not permanently
+            # hide lyrics that become available or match through the search fallback.
+            if status not in (LyricsStatus.SYNCED, LyricsStatus.INSTRUMENTAL):
+                return None
             raw_lines = document.get("lines", [])
             if not isinstance(raw_lines, list) or len(raw_lines) > MAX_LYRIC_LINES:
                 return None
@@ -230,48 +242,180 @@ class LyricsCache:
                 pass
 
     async def _fetch(self, state: PlaybackState) -> LyricsDocument:
-        params = {
+        exact_params = {
             "track_name": state.title,
             "artist_name": ", ".join(state.artists[:3]),
         }
         if state.album:
-            params["album_name"] = state.album
+            exact_params["album_name"] = state.album
         if state.duration_ms is not None:
-            params["duration"] = f"{state.duration_ms / 1000:.3f}"
-        timeout = aiohttp.ClientTimeout(total=5.0, connect=2.0)
+            exact_params["duration"] = f"{state.duration_ms / 1000:.3f}"
+        search_params = {
+            "track_name": state.title,
+            "artist_name": ", ".join(state.artists[:3]),
+        }
+        free_search_params = {
+            "q": " ".join((state.title, *state.artists[:3])),
+        }
+        # Lyrics are a secondary decoration. Bound a bad remote response tightly
+        # so it cannot make a song change look stalled.
+        timeout = aiohttp.ClientTimeout(total=3.0, connect=1.0, sock_read=2.0)
         headers = {
             "Accept": "application/json",
             "User-Agent": f"DeskWave/{__version__} (https://github.com/snowpyn/deskwave)",
         }
         async with aiohttp.ClientSession(timeout=timeout, headers=headers) as session:
-            async with session.get(
-                LRCLIB_ENDPOINT, params=params, allow_redirects=False
-            ) as response:
-                if response.status == 404:
-                    return LyricsDocument(LyricsStatus.UNAVAILABLE)
-                if response.status != 200:
-                    raise LyricsError(f"LRCLIB returned HTTP {response.status}")
-                content_length = response.content_length
-                if content_length is not None and content_length > MAX_LYRICS_RESPONSE_BYTES:
-                    raise LyricsError("lyrics response exceeds its size limit")
-                raw = await response.content.read(MAX_LYRICS_RESPONSE_BYTES + 1)
+            exact_error: LyricsError | None = None
+            try:
+                exact = await self._request_json(session, LRCLIB_ENDPOINT, exact_params)
+            except LyricsTransientError:
+                # A server/transport failure is shared by the exact and search
+                # endpoints; avoid spending two more timeouts on redundant fallbacks.
+                raise
+            except LyricsError as error:
+                # LRCLIB occasionally serves an HTML proxy/error body with HTTP 200.
+                # A broken exact-match response says nothing about the independent
+                # search endpoint, so keep going before reporting a lookup failure.
+                exact = None
+                exact_error = error
+                LOGGER.info("Exact lyrics lookup failed; trying search fallback: %s", error)
+            if exact is not None:
+                if not isinstance(exact, dict):
+                    raise LyricsError("lyrics response has an invalid shape")
+                result = self._record_document(exact)
+                if result is not None:
+                    return result
+            try:
+                search = await self._request_json(session, LRCLIB_SEARCH_ENDPOINT, search_params)
+            except LyricsTransientError:
+                raise
+            except LyricsError as structured_error:
+                # Some releases and punctuation-heavy metadata fail LRCLIB's
+                # structured search parser while its documented q search remains
+                # usable. Make one bounded final request before surfacing failure.
+                LOGGER.info(
+                    "Structured lyrics search failed; trying free-text fallback: %s",
+                    structured_error,
+                )
+                try:
+                    search = await self._request_json(
+                        session,
+                        LRCLIB_SEARCH_ENDPOINT,
+                        free_search_params,
+                    )
+                except LyricsError as fallback_error:
+                    if isinstance(fallback_error, LyricsTransientError):
+                        raise
+                    if exact_error is not None:
+                        raise structured_error from None
+                    raise
+        if search is None:
+            return LyricsDocument(LyricsStatus.UNAVAILABLE)
+        if not isinstance(search, list) or len(search) > 20:
+            raise LyricsError("lyrics search response has an invalid shape")
+        return self._select_search_result(search, state)
+
+    async def _request_json(
+        self,
+        session: aiohttp.ClientSession,
+        endpoint: str,
+        params: dict[str, str],
+    ) -> Any | None:
+        async with session.get(endpoint, params=params, allow_redirects=False) as response:
+            if response.status == 404:
+                return None
+            if response.status == 429 or response.status >= 500:
+                raise LyricsTransientError(f"LRCLIB returned HTTP {response.status}")
+            if response.status != 200:
+                raise LyricsError(f"LRCLIB returned HTTP {response.status}")
+            content_length = response.content_length
+            if content_length is not None and content_length > MAX_LYRICS_RESPONSE_BYTES:
+                raise LyricsError("lyrics response exceeds its size limit")
+            raw = await response.content.read(MAX_LYRICS_RESPONSE_BYTES + 1)
         if len(raw) > MAX_LYRICS_RESPONSE_BYTES:
             raise LyricsError("lyrics response exceeds its size limit")
         try:
-            document: Any = json.loads(raw)
+            return json.loads(raw)
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
             raise LyricsError("lyrics response is not valid JSON") from error
-        if not isinstance(document, dict):
-            raise LyricsError("lyrics response has an invalid shape")
+
+    @staticmethod
+    def _record_document(document: dict[str, Any]) -> LyricsDocument | None:
         if document.get("instrumental") is True:
             return LyricsDocument(LyricsStatus.INSTRUMENTAL)
         synced = document.get("syncedLyrics")
         if not isinstance(synced, str) or not synced.strip():
-            return LyricsDocument(LyricsStatus.UNAVAILABLE)
+            return None
         lines = parse_lrc(synced)
         if not lines:
-            raise LyricsError("synchronized lyrics contain no valid timestamps")
+            return None
         return LyricsDocument(LyricsStatus.SYNCED, lines)
+
+    @classmethod
+    def _select_search_result(
+        cls,
+        records: list[Any],
+        state: PlaybackState,
+    ) -> LyricsDocument:
+        best: tuple[int, LyricsDocument] | None = None
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            document = cls._record_document(record)
+            if document is None:
+                continue
+            score = cls._record_score(record, state)
+            if score is None:
+                continue
+            if document.status is LyricsStatus.SYNCED:
+                score += 20
+            if best is None or score > best[0]:
+                best = (score, document)
+        return best[1] if best is not None else LyricsDocument(LyricsStatus.UNAVAILABLE)
+
+    @staticmethod
+    def _match_text(value: str) -> str:
+        return "".join(character for character in value.casefold() if character.isalnum())
+
+    @classmethod
+    def _record_score(cls, record: dict[str, Any], state: PlaybackState) -> int | None:
+        track_name = record.get("trackName", record.get("name"))
+        artist_name = record.get("artistName")
+        if not isinstance(track_name, str) or not isinstance(artist_name, str):
+            return None
+        wanted_track = cls._match_text(state.title)
+        candidate_track = cls._match_text(track_name)
+        wanted_artist = cls._match_text(" ".join(state.artists[:3]))
+        candidate_artist = cls._match_text(artist_name)
+        if not wanted_track or not candidate_track or not wanted_artist or not candidate_artist:
+            return None
+        if candidate_track == wanted_track:
+            score = 100
+        elif candidate_track in wanted_track or wanted_track in candidate_track:
+            score = 70
+        else:
+            return None
+        if candidate_artist == wanted_artist:
+            score += 60
+        elif candidate_artist in wanted_artist or wanted_artist in candidate_artist:
+            score += 40
+        else:
+            return None
+        album_name = record.get("albumName")
+        if state.album and isinstance(album_name, str):
+            if cls._match_text(album_name) == cls._match_text(state.album):
+                score += 15
+        duration = record.get("duration")
+        if (
+            state.duration_ms is not None
+            and isinstance(duration, (int, float))
+            and not isinstance(duration, bool)
+        ):
+            difference = abs(float(duration) - state.duration_ms / 1_000)
+            if difference > 15.0:
+                return None
+            score += max(0, 15 - int(difference))
+        return score
 
     @staticmethod
     def _error_summary(error: BaseException) -> str:

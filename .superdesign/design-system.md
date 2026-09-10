@@ -7,7 +7,7 @@ This design system has two explicit layers:
 - **Current implementation** records what the checked-out firmware renders today.
 - **Artwork-reactive target** records the requested enhancement direction for future design and implementation.
 
-When they differ, current inputs, screen structure, and hardware limits remain authoritative. The artwork-reactive target supersedes the old static accent treatment, visible artwork frame, abrupt accent-state behavior, and the former 32 px Now Playing header. The Now Playing target is deliberately headerless.
+When they differ, current inputs, screen structure, and hardware limits remain authoritative. The artwork-reactive target supersedes the old static accent treatment, visible artwork frame, abrupt accent-state behavior, and former player-brand header. The current Now Playing target uses only a shallow metadata strip for title, artist, and compact link status.
 
 ## Product and rendering contract
 
@@ -21,9 +21,9 @@ The only breakpoint is the physical `320 × 240` landscape display. Do not desig
 
 | Region | Current geometry | Contract |
 | --- | --- | --- |
-| Now Playing status | compact overlay within `x 276–319`, `y 3–13` | A tiny linked/retry dot or glyph plus abbreviated text. It is not a bar, title, player-brand banner, or full-width surface. |
-| Artwork | approximately `x 6`, `y 7`, `166 × 166` | Square JPEG or branded fallback; no visible frame, with only a restrained palette glow. |
-| Metadata | approximately `x 180`, `y 7`, `134 × 166` | Track title, artist, honest queue preview, and enough inset at the top right for the compact link indicator. |
+| Now Playing metadata | `x 0`, `y 0`, `320 × 34` | One compact title line, one small artist line, and enough inset at the top right for the tiny linked/retry indicator. No album text or player branding. |
+| Artwork | approximately `x 6`, `y 40`, `136 × 136` | Square JPEG or branded fallback; no visible frame, with only a restrained palette glow. |
+| Lyrics | approximately `x 148`, `y 39`, `166 × 138` | Three fully wrapped timestamp sections: readable previous and upcoming copy around a larger emphasized current lyric. Honest loading, instrumental, and unavailable states use the same region. |
 | Progress | `x 0–319`, `y 184–204` | `304 px` rail from `x 8`; position left and duration right. |
 | Transport footer | visually `y 205–239`; touch begins at `y 190` | Five exact actions: Shuffle, Previous, Play/Pause, Next, More. |
 
@@ -68,7 +68,7 @@ These source RGB values are encoded to RGB565 by `rgb565()` and remain the no-ar
 | Error | `#F66969` | `0xF34D` | Failures and destructive action |
 | Divider | `#373E69` | `0x31ED` | Rails, borders, separators |
 
-Warning and error colors are semantic and must not be replaced by artwork colors. Linked status may use a small contrast-safe artwork-palette cue; there is no persistent Spotify logo or player-brand banner in the headerless Now Playing target.
+Warning and error colors are semantic and must not be replaced by artwork colors. Linked status may use a small contrast-safe artwork-palette cue; there is no persistent Spotify logo or player-brand banner in the compact Now Playing metadata strip.
 
 ## Artwork-reactive palette contract
 
@@ -114,6 +114,11 @@ Use the active palette consistently but sparingly:
 - Tint Play/Pause, Previous, Next, Shuffle, and More icon strokes/fills from the runtime roles. State is still visible through intensity and shape, not color alone.
 - Tint repeat and mute indicators on their existing Actions/overlay surfaces.
 - Use `primary` for the progress fill and scrub marker detail; keep the unfilled rail subdued.
+- Keep the five transport hitboxes transparent over the ambient field. Do not paint a filled
+  rectangle or pill behind Shuffle, Previous, Next, or More; use two small opaque RGB565
+  outline strokes around each glyph (and two concentric rings around Play/Pause) so controls
+  remain easy to find without creating off-center translucent slabs. The central play disk is
+  the only intentionally filled transport surface.
 - Use `primary` and `secondary` for the artwork halo.
 - Use `darkSupport`, mixed with a restrained amount of `primary`, to color the entire exposed Now Playing canvas and its tonal surfaces. The result should resemble Spotify's artwork-derived lyrics backdrop: unmistakably related to the cover but always deep, muted, and text-safe rather than bright or literal.
 - Keep title, artist, timestamps, warning, error, and destructive-action copy on their semantic neutral colors unless a measured support color is required.
@@ -129,7 +134,7 @@ Simulate a soft edge glow with cheap concentric RGB565 shapes behind the JPEG:
 
 1. An outer, low-intensity `secondary` halo offset by roughly `2–4 px`.
 2. A tighter, slightly brighter `primary` halo around the cover perimeter.
-3. The JPEG drawn cleanly on top at the enlarged headerless-layout size, approximately `166 × 166`.
+3. The JPEG drawn cleanly on top at approximately `136 × 136`, remaining a primary visual anchor beside the expanded lyrics region.
 
 The glow should read as light leaking from the cover, not as a colored stroke. Use a small number of preblended rectangles/rounded rectangles; do not require blur, per-pixel alpha, or repeated JPEG decoding. The fallback artwork receives the same treatment from the fallback palette.
 
@@ -144,7 +149,7 @@ Theme identity is independent of playback status. Maintain `currentPalette`, `st
 - On a track change, coordinate the palette transition with the existing metadata/artwork swap so there is no one-frame fallback flash.
 - A palette-only update for the same artwork may transition in place; it must not restart title or progress state.
 
-Keep the existing `220 ms` metadata fade/slide as a separate motion unless implementation deliberately unifies the timelines. The existing long-title behavior is a clipped, repeating horizontal marquee at `34 px/s` with a `33 ms` frame target; the headerless layout may widen or narrow its clip region but does not change the motion contract.
+Keep the existing `220 ms` metadata fade/slide as a separate motion unless implementation deliberately unifies the timelines. The existing long-title behavior is a clipped, repeating horizontal marquee at `34 px/s` with a `33 ms` frame target; the compact metadata strip widens its clip region but does not change the motion contract.
 
 ## Physical RGB synchronization
 
@@ -172,17 +177,17 @@ Do not discard the retained palette merely because title fields momentarily clea
 
 Use only firmware-available LovyanGFX bitmap faces:
 
-- `fonts::Font4`: track title, large state/value, DeskWave wordmark.
-- `fonts::Font2`: artist, card values, important labels.
+- `fonts::Font4`: large state/value and DeskWave wordmark.
+- `fonts::Font2`: compact track title, active lyric, card values, and important labels.
 - `fonts::Font0`: compact labels, timestamps, secondary instructions.
 - `fonts::AsciiFont24x48`: pairing code only.
 
-Text never wraps. `drawFitted()` truncates with an ellipsis to a fixed pixel width; the title is the exception because it renders inside a clip rectangle and scrolls when wider than `144 px`. Do not design multiline metadata that the renderer cannot support.
+Metadata never wraps. `drawFitted()` truncates metadata with an ellipsis to a fixed pixel width and the title scrolls inside its clip rectangle. In the dedicated lyrics region, previous, current, and upcoming sections wrap independently inside fixed vertical zones; do not truncate normal lyric sentences to a single row.
 
 ## Shape, spacing, and density
 
 - Primary content gutter: `8–10 px`.
-- Main inter-column gap: approximately `8 px` between the enlarged artwork and metadata panel.
+- Main inter-column gap: approximately `6 px` between the artwork glow and expanded lyrics panel.
 - Card radii: typically `7–10 px`; large modal/connection surfaces `13–16 px`.
 - Lines and dividers: `1 px` unless used as a tiny progress rail (`3 px`).
 - Footer control height: `35 px`; central target width: `84 px`.
@@ -285,7 +290,7 @@ These names are design-level recommendations for a maintainable implementation:
 - No visible old artwork border remains in the target state.
 - The same accepted palette drives halo, active icons, and progress accents.
 - The same sampled accepted palette drives the physical RGB LED, subject only to brightness scaling and semantic error override.
-- The Now Playing screen has no full-width top bar, no `NOW PLAYING` label, no Spotify/player logo, and no player-name subtitle.
+- The Now Playing screen has no full-width player-brand/status bar, no `NOW PLAYING` label, no Spotify/player logo, and no player-name subtitle. A shallow 34 px metadata strip is permitted for title and artist only.
 - Linked/retry status remains present as a tiny top-right indicator that occupies only a small corner of the content canvas.
 - New palettes transition; they never snap or flash through fallback.
 - The previous validated cover and palette remain visible while the next bundle loads.
@@ -299,13 +304,15 @@ These names are design-level recommendations for a maintainable implementation:
 
 ## Synchronized lyrics and no-auto-dim target
 
-This target supersedes the queue-specific and automatic-idle-dimming requirements above while preserving every unrelated geometry, palette, typography, transition, touch, artwork, and ambient-clock contract.
+This target supersedes the queue-specific, prior narrow lyrics-card, and automatic-idle-dimming requirements above while preserving every unrelated palette, transition, touch, artwork-lifetime, and ambient-clock contract.
 
-- Replace the active Now Playing queue card at approximately `x 187`, `y 88`, `120 x 76` with a synchronized lyrics card. Do not add a separate lyrics screen or displace artwork, title, artist, progress, or transport controls.
-- Label the card `LYRICS` in the runtime secondary accent.
-- Show a compact three-line window: previous lyric in subdued muted text, current lyric in foreground text with a slim runtime-primary accent marker, and next lyric in subdued muted text.
-- Fit or truncate each lyric line inside the existing 106 px inner width. The firmware renderer remains single-line and allocation-free; do not introduce a scrolling paragraph or tiny wrapped copy.
+- Use a compact full-width metadata strip at `x 0`, `y 0`, `320 x 34`; title and artist are supporting information, album text is omitted, and linked/retry remains tiny at the top right.
+- Present the borderless artwork at approximately `x 6`, `y 40`, `136 x 136` with its restrained glow.
+- Give synchronized lyrics the primary right-hand region at approximately `x 148`, `y 39`, `166 x 138`. Use an open tonal surface with only a subtle left divider and a tiny `LYRICS` label.
+- Use the bounded five-line protocol window to render three readable sections: one subdued previous section, a clearly emphasized current section with a slim runtime-primary marker, and one subdued upcoming section.
+- Wrap all three displayed sections inside their own fixed zones. Prefer `Font2` for the active section and step it down to `Font0` when needed to protect the neighboring sections. Rendering stays allocation-free.
 - Use short honest states: `FINDING LYRICS`, `INSTRUMENTAL`, and `LYRICS UNAVAILABLE`. Never fabricate lyric text.
-- Advance the current-line highlight from the authoritative playback position, respecting pause and seek. Redraw only the bounded lyrics-card region when the active line changes.
+- Advance the current-line highlight from the authoritative playback position, respecting pause and seek. Check selection independently of the 500 ms progress refresh at roughly 64 ms with only a tiny anticipation allowance. Redraw only the bounded lyrics-card region and hand lines off through a roughly 170 ms opaque upward slide/color crossfade.
+- Keep lookup, retry, and track-generation changes in `FINDING LYRICS`. Publish `LYRICS UNAVAILABLE` only after a conclusive current-track no-result, never for a transient transport/parse failure or stale negative cache entry.
 - Disable automatic TFT and rear-RGB idle dimming. Manual brightness remains available, and playback-status theme softening remains separate from inactivity dimming.
 - Remove the Idle dim row from Settings once the behavior is disabled; preserve Brightness, Volume step, Default screen, and Factory reset.

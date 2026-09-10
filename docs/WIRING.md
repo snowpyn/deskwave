@@ -83,8 +83,9 @@ the separate rear RGB LED.
 The footer's visible boundaries and touch hitboxes are identical: Shuffle
 0–63, Previous 64–117, Play/Pause 118–201, Next 202–255, and More 256–319.
 The headerless Now Playing artwork and lyrics card are informational. The tiny
-upper-right `LINK`/`RETRY` status target opens the Actions screen; the footer
-More target also opens or closes Actions.
+upper-right connection dot is the compact status cue; its existing upper-right
+touch target opens the Actions screen. The footer More target also opens or
+closes Actions.
 
 ### Backlight caution
 

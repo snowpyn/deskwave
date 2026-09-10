@@ -3,6 +3,7 @@ import pytest
 from deskwave_host.models import (
     LyricLine,
     LyricsStatus,
+    MediaKind,
     PlaybackState,
     PlaybackStatus,
     PlayerSummary,
@@ -64,6 +65,22 @@ def test_state_payload_contains_bounded_synchronized_lyric_window() -> None:
     assert payload["lyrics"]["lines"] == [
         {"time_ms": index * 1_000, "text": f"Line {index}"} for index in range(5)
     ]
+
+
+def test_podcast_state_publishes_transcript_instead_of_lyrics() -> None:
+    state = PlaybackState(
+        media_kind=MediaKind.PODCAST,
+        lyrics_status=LyricsStatus.SYNCED,
+        lyrics=(LyricLine(0, "Caption one"),),
+    )
+
+    payload = state.to_payload()
+
+    assert "lyrics" not in payload
+    assert payload["transcript"] == {
+        "status": "synced",
+        "lines": [{"time_ms": 0, "text": "Caption one"}],
+    }
 
 
 def test_state_payload_contains_strict_theme_and_generation() -> None:

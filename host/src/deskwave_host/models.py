@@ -45,6 +45,13 @@ class PlaybackStatus(StrEnum):
     STOPPED = "stopped"
 
 
+class MediaKind(StrEnum):
+    """The presentation family for the active media item."""
+
+    MUSIC = "music"
+    PODCAST = "podcast"
+
+
 class RepeatMode(StrEnum):
     OFF = "off"
     TRACK = "track"
@@ -60,7 +67,7 @@ class LyricsStatus(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class LyricLine:
-    """One timestamped lyric line selected for the device's rolling window."""
+    """One timestamped text line selected for the device's rolling window."""
 
     time_ms: int
     text: str
@@ -100,6 +107,7 @@ class PlaybackState:
     duration_ms: int | None = None
     position_ms: int = 0
     status: PlaybackStatus = PlaybackStatus.STOPPED
+    media_kind: MediaKind = MediaKind.MUSIC
     artwork_url: str | None = None
     artwork_id: str | None = None
     theme: ThemePalette | None = None
@@ -160,6 +168,7 @@ class PlaybackState:
             self.album,
             self.duration_ms,
             self.status,
+            self.media_kind,
             self.artwork_url,
             self.artwork_id,
             self.theme,
@@ -206,13 +215,18 @@ class PlaybackState:
         return replace(self, lyrics_status=status, lyrics=lines).normalized()
 
     def to_payload(self) -> dict[str, Any]:
-        return {
+        captions = {
+            "status": self.lyrics_status.value,
+            "lines": [{"time_ms": line.time_ms, "text": line.text} for line in self.lyrics],
+        }
+        payload = {
             "title": self.title,
             "artists": list(self.artists),
             "album": self.album,
             "duration_ms": self.duration_ms,
             "position_ms": self.position_ms,
             "status": self.status.value,
+            "media_kind": self.media_kind.value,
             "artwork_id": self.artwork_id,
             "theme": None if self.theme is None else self.theme.to_payload(),
             "artwork_generation": self.artwork_generation,
@@ -234,12 +248,12 @@ class PlaybackState:
                 {"title": entry.title, "artist": entry.artist, "track_id": entry.track_id}
                 for entry in self.queue
             ],
-            "lyrics": {
-                "status": self.lyrics_status.value,
-                "lines": [{"time_ms": line.time_ms, "text": line.text} for line in self.lyrics],
-            },
+            "lyrics": captions,
             "captured_at_ms": self.captured_at_ms,
         }
+        if self.media_kind is MediaKind.PODCAST:
+            payload["transcript"] = payload.pop("lyrics")
+        return payload
 
 
 @dataclass(frozen=True, slots=True)

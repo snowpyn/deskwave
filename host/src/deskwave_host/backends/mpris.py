@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import re
 from dataclasses import dataclass
 from time import monotonic, time
 from typing import Any
@@ -16,6 +18,9 @@ from dbus_next.errors import InterfaceNotFoundError
 from deskwave_host.backends.base import MediaBackend, StateCallback
 from deskwave_host.models import (
     CommandResult,
+    LyricLine,
+    LyricsStatus,
+    MediaKind,
     PlaybackState,
     PlaybackStatus,
     PlayerSummary,
@@ -31,7 +36,9 @@ PLAYER_INTERFACE = "org.mpris.MediaPlayer2.Player"
 ROOT_INTERFACE = "org.mpris.MediaPlayer2"
 TRACKLIST_INTERFACE = "org.mpris.MediaPlayer2.TrackList"
 PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
-POLL_SECONDS = 0.4
+# A track change is detected on the next poll. Keep this short now that the
+# snapshot no longer performs the retired queue/TrackList round trip.
+POLL_SECONDS = 0.2
 PLAYER_SCAN_SECONDS = 2.0
 POSITION_SYNC_SECONDS = 2.0
 MAX_SNAPSHOT_FAILURES = 3
@@ -66,6 +73,71 @@ def _repeat(value: object) -> RepeatMode | None:
         "Track": RepeatMode.TRACK,
         "Playlist": RepeatMode.PLAYLIST,
     }.get(str(value))
+
+
+def _media_kind(metadata: dict[str, Any]) -> MediaKind:
+    """Detect podcasts from explicit player metadata or strong URL signals.
+
+    MPRIS has no universal media-type field, so this intentionally avoids
+    guessing from an arbitrary episode-looking title. Players can opt in with
+    ``deskwave:mediaType``; Spotify/browser integrations that expose a URL are
+    covered by the strong podcast/episode URL markers below.
+    """
+
+    explicit = _value(metadata, "deskwave:mediaType") or _value(metadata, "mpris:mediaType")
+    if str(explicit).strip().lower() in {"podcast", "episode", "spoken-word"}:
+        return MediaKind.PODCAST
+
+    for key in ("xesam:genre", "xesam:contentType", "mpris:trackid"):
+        value = _value(metadata, key)
+        values = value if isinstance(value, (list, tuple)) else (value,)
+        for item in values:
+            text = str(item).strip().lower()
+            if text == "podcast" or "podcast" in text or "spotify:episode:" in text:
+                return MediaKind.PODCAST
+
+    for key in ("xesam:url", "xesam:contentUrl", "mpris:url"):
+        value = _value(metadata, key)
+        for item in value if isinstance(value, (list, tuple)) else (value,):
+            url = str(item).strip().lower()
+            if re.search(r"(?:^|[/:._-])podcasts?(?:$|[/:._-])", url):
+                return MediaKind.PODCAST
+            if re.search(r"(?:^|[/:._-])episodes?(?:$|[/:._-])", url):
+                return MediaKind.PODCAST
+    return MediaKind.MUSIC
+
+
+def _transcript(value: object) -> tuple[LyricLine, ...]:
+    """Parse an optional bounded ``deskwave:transcript`` MPRIS extension.
+
+    The extension accepts a JSON array or a native D-Bus array of objects with
+    ``time_ms`` and ``text`` fields. Standard MPRIS players remain unaffected;
+    the host simply publishes no captions when the extension is absent.
+    """
+
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return ()
+    if not isinstance(value, (list, tuple)):
+        return ()
+    lines: list[LyricLine] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        time_ms = item.get("time_ms")
+        text = item.get("text")
+        if (
+            isinstance(time_ms, bool)
+            or not isinstance(time_ms, (int, float))
+            or not isinstance(text, str)
+        ):
+            continue
+        line = LyricLine(int(time_ms), text).normalized()
+        if line.text:
+            lines.append(line)
+    return tuple(lines[:5])
 
 
 @dataclass(slots=True)
@@ -171,9 +243,24 @@ class _MPRISPlayer:
         position_ms = int(position_us // 1000) if isinstance(position_us, int) else 0
         volume_value = _value(player_properties, "Volume")
         volume = float(volume_value) if isinstance(volume_value, (int, float)) else None
-        artwork = _safe_text(_value(metadata, "mpris:artUrl"), 2048) or None
+        media_kind = _media_kind(metadata)
+        # A player-specific low-resolution JPEG frame can override cover art for
+        # the podcast hero. It travels through the existing bounded artwork
+        # cache/HTTP path, so a missing frame naturally falls back to the cover.
+        video_frame = (
+            _safe_text(_value(metadata, "deskwave:videoFrameUrl"), 2048) or None
+            if media_kind is MediaKind.PODCAST
+            else None
+        )
+        artwork = video_frame or _safe_text(_value(metadata, "mpris:artUrl"), 2048) or None
         track_id = _safe_text(_value(metadata, "mpris:trackid"), 512) or None
-        queue, queue_available = await self.queue_snapshot(track_id)
+        # The device protocol deliberately omits the retired Up Next/queue card.
+        # Do not query TrackList on the hot polling path: some players answer
+        # GetTracksMetadata slowly (or not at all), which used to hold up the
+        # next-track snapshot and therefore delayed both the display and lyrics.
+        queue: tuple[QueueEntry, ...] = ()
+        queue_available = False
+        transcript = _transcript(_value(metadata, "deskwave:transcript"))
         return PlaybackState(
             title=_safe_text(_value(metadata, "xesam:title"), 256),
             artists=artists,
@@ -181,6 +268,7 @@ class _MPRISPlayer:
             duration_ms=duration_ms,
             position_ms=position_ms,
             status=_status(_value(player_properties, "PlaybackStatus")),
+            media_kind=media_kind,
             artwork_url=artwork,
             volume=volume,
             muted=None if volume is None else volume <= 0.0001,
@@ -200,6 +288,8 @@ class _MPRISPlayer:
             can_control=bool(_value(player_properties, "CanControl", False)),
             queue=queue,
             queue_available=queue_available,
+            lyrics_status=LyricsStatus.SYNCED if transcript else LyricsStatus.UNAVAILABLE,
+            lyrics=transcript,
             captured_at_ms=int(time() * 1000),
         ).normalized()
 
@@ -428,16 +518,14 @@ class MPRISBackend(MediaBackend):
                 ) as error:
                     LOGGER.debug("Could not inspect MPRIS player %s: %s", new_player, error)
             self._last_scan = now
-        for player_id, player in list(self._players.items()):
-            try:
-                self._snapshots[player_id] = await player.snapshot()
-                self._snapshot_failures.pop(player_id, None)
-            except (DBusError, OSError, RuntimeError, TimeoutError) as error:
-                LOGGER.debug("Could not refresh MPRIS player %s: %s", player_id, error)
-                failures = self._snapshot_failures.get(player_id, 0) + 1
-                self._snapshot_failures[player_id] = failures
-                if failures >= MAX_SNAPSHOT_FAILURES:
-                    self._snapshots.pop(player_id, None)
+        # Refresh players concurrently. A stalled secondary player must not add
+        # its D-Bus timeout to the active player's track-change latency.
+        await asyncio.gather(
+            *(
+                self._refresh_snapshot(player_id, player)
+                for player_id, player in self._players.items()
+            )
+        )
         summaries = [
             PlayerSummary(player_id, state.player_name or player_id, state.status)
             for player_id, state in self._snapshots.items()
@@ -454,6 +542,17 @@ class MPRISBackend(MediaBackend):
         self._current = self._snapshots[selected.player_id]
         force = previous.content_key() != self._current.content_key()
         await self._publish(force=force)
+
+    async def _refresh_snapshot(self, player_id: str, player: Any) -> None:
+        try:
+            self._snapshots[player_id] = await player.snapshot()
+            self._snapshot_failures.pop(player_id, None)
+        except (DBusError, OSError, RuntimeError, TimeoutError) as error:
+            LOGGER.debug("Could not refresh MPRIS player %s: %s", player_id, error)
+            failures = self._snapshot_failures.get(player_id, 0) + 1
+            self._snapshot_failures[player_id] = failures
+            if failures >= MAX_SNAPSHOT_FAILURES:
+                self._snapshots.pop(player_id, None)
 
     async def _set_empty_state(self) -> None:
         if (

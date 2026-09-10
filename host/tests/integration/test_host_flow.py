@@ -82,6 +82,16 @@ async def test_pair_control_disconnect_and_reconnect(
             "foreground",
         }
 
+        artwork_response = await client.get(
+            f"/v1/artwork/{state['payload']['artwork_id']}.jpg", headers=headers
+        )
+        artwork_body = await artwork_response.read()
+        assert artwork_response.status == 200
+        assert artwork_response.headers["Content-Type"].startswith("image/jpeg")
+        assert int(artwork_response.headers["Content-Length"]) == len(artwork_body)
+        assert artwork_body[:2] == b"\xff\xd8"
+        assert artwork_body[-2:] == b"\xff\xd9"
+
         await websocket.send_str(json.dumps(make_message("list_players", 43, {})))
         player_list = await receive_type(websocket, "players")
         assert player_list["payload"]["players"][0]["name"] == "Test Player"

@@ -20,12 +20,12 @@
         "firmware/src/app/application.cpp:640:689"
       ],
       "fingerprints": {
-        ".superdesign/design-system.md": "86b5f0f2ace72ad62c531c91b9706ed9c891ea3ff86c351cca13025f4c984697",
+        ".superdesign/design-system.md": "3f04db9944b6b573ab9f140d4a96847b6b0c2276f1a88f05bf93a7ea0dd62263",
         ".superdesign/init/theme.md": "d61516bcdd1d94b4016c7cf19098ff6abc2ec41199a21692491231cf6684f0b5",
-        "firmware/include/ui/ui_controller.h": "09b7e03dd08f114ee380efdf20d92ff9be53e2867c11f25831da5a53c8297835",
-        "firmware/include/app/messages.h": "ea35b8be46b8f782e2b9364b40568ef6e53877e4d387985a9360c08712757780",
+        "firmware/include/ui/ui_controller.h": "3fbe09ea0999fb32a094ebc03c75bcd509215beb7839ddf78ff2d3d4a845867d",
+        "firmware/include/app/messages.h": "ee7d493c9b6aad8d5b17143d2fa0ad3fa12ced2821311e4e60c93232cea273bc",
         "firmware/lib/deskwave_core/src/deskwave/core/theme.h": "a63575b2e897efcb281e602eca4a7bd8bbde04fda0bd54d2690e036e73b86e23",
-        "firmware/src/ui/ui_controller.cpp": "05f98cffbae48f5d6cb9c3c060225e3ddfac21786dedad2c622603303419b2f3",
+        "firmware/src/ui/ui_controller.cpp": "2de4745ac9ac8046e89e0145086f31dc4adb0d0d8516492b0edab648c0c1bd8d",
         "firmware/src/app/application.cpp": "a72e8c0e1ed13c38dacc8c02f366320eb855ab66fd951eda78bb136999bbc5ec"
       },
       "components": [
@@ -42,12 +42,61 @@
       ],
       "drafts": {
         "d9d79005-836a-4075-ae23-798633bc98de": {
-          "title": "DeskWave Synchronized Lyrics Now Playing",
-          "visualDirection": "headerless artwork-derived full-canvas backdrop with synchronized lyrics replacing the queue card",
-          "currentVersion": 5
+          "title": "DeskWave Unified Ambient Now Playing",
+          "visualDirection": "smooth dark album-toned bubbles flowing across the unified background with transparent footer hitboxes, compact opaque halo strokes around controls, no animated edge bars, and tight opaque protection surfaces that prevent motion from crossing title, label, or lyric glyphs",
+          "currentVersion": 14
         }
       },
-      "updatedAt": "2026-09-02T21:47:33-04:00"
+      "updatedAt": "2026-09-09T23:54:00-04:00"
+    },
+    "/now-playing/podcast": {
+      "targetKind": "new-ui",
+      "projectId": "3a924890-89a1-45fc-a11b-d87d8193389d",
+      "activeDraftId": "00bef74f-860b-425f-9c78-ab87d7aa478b",
+      "sourceTarget": "/now-playing",
+      "sourceDraftId": "d9d79005-836a-4075-ae23-798633bc98de",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "firmware/include/ui/ui_controller.h",
+        "firmware/include/app/messages.h",
+        "firmware/lib/deskwave_core/src/deskwave/core/theme.h",
+        "firmware/src/ui/ui_controller.cpp:1:250",
+        "firmware/src/ui/ui_controller.cpp:690:845",
+        "firmware/src/ui/ui_controller.cpp:850:1430",
+        "firmware/src/app/application.cpp:1:50",
+        "firmware/src/app/application.cpp:640:689"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "3f04db9944b6b573ab9f140d4a96847b6b0c2276f1a88f05bf93a7ea0dd62263",
+        ".superdesign/init/theme.md": "d61516bcdd1d94b4016c7cf19098ff6abc2ec41199a21692491231cf6684f0b5",
+        "firmware/include/ui/ui_controller.h": "3fbe09ea0999fb32a094ebc03c75bcd509215beb7839ddf78ff2d3d4a845867d",
+        "firmware/include/app/messages.h": "ee7d493c9b6aad8d5b17143d2fa0ad3fa12ced2821311e4e60c93232cea273bc",
+        "firmware/lib/deskwave_core/src/deskwave/core/theme.h": "a63575b2e897efcb281e602eca4a7bd8bbde04fda0bd54d2690e036e73b86e23",
+        "firmware/src/ui/ui_controller.cpp": "2de4745ac9ac8046e89e0145086f31dc4adb0d0d8516492b0edab648c0c1bd8d",
+        "firmware/src/app/application.cpp": "a72e8c0e1ed13c38dacc8c02f366320eb855ab66fd951eda78bb136999bbc5ec"
+      },
+      "components": [
+        {
+          "name": "HeaderBar",
+          "id": "76db2fb3-c1c1-47ac-8092-1f678b162558",
+          "sourcePath": "firmware/src/ui/ui_controller.cpp"
+        },
+        {
+          "name": "TransportFooter",
+          "id": "2d2f9139-c3db-489b-8ffd-e3fad4d919c1",
+          "sourcePath": "firmware/src/ui/ui_controller.cpp"
+        }
+      ],
+      "drafts": {
+        "00bef74f-860b-425f-9c78-ab87d7aa478b": {
+          "title": "DeskWave Podcast Playback Alternate GUI",
+          "visualDirection": "monochrome broadcast-console alternate state with a dominant grayscale podcast video frame, tiny linked status, translucent captions over the picture only, a centered progress island in the video-to-footer gap, and a compact control footer",
+          "currentVersion": 4
+        }
+      },
+      "updatedAt": "2026-09-09T22:12:00.000Z"
     },
     "/now-playing/idle": {
       "targetKind": "existing-ui",
@@ -65,12 +114,12 @@
         "firmware/src/ui/ui_controller.cpp:690:1215"
       ],
       "fingerprints": {
-        ".superdesign/design-system.md": "86b5f0f2ace72ad62c531c91b9706ed9c891ea3ff86c351cca13025f4c984697",
+        ".superdesign/design-system.md": "3f04db9944b6b573ab9f140d4a96847b6b0c2276f1a88f05bf93a7ea0dd62263",
         ".superdesign/init/theme.md": "d61516bcdd1d94b4016c7cf19098ff6abc2ec41199a21692491231cf6684f0b5",
-        "firmware/include/ui/ui_controller.h": "09b7e03dd08f114ee380efdf20d92ff9be53e2867c11f25831da5a53c8297835",
+        "firmware/include/ui/ui_controller.h": "41642a02ed3ed6bc19a4cdfd37abd81d92e6b744d1af1c95ca8dfa5913959e2d",
         "firmware/include/app/messages.h": "ea35b8be46b8f782e2b9364b40568ef6e53877e4d387985a9360c08712757780",
         "firmware/lib/deskwave_core/src/deskwave/core/theme.h": "a63575b2e897efcb281e602eca4a7bd8bbde04fda0bd54d2690e036e73b86e23",
-        "firmware/src/ui/ui_controller.cpp": "05f98cffbae48f5d6cb9c3c060225e3ddfac21786dedad2c622603303419b2f3"
+        "firmware/src/ui/ui_controller.cpp": "817198cd9d58b76aff4c34ba4bf890b21592fd5517d97054f1b093df5bb1fa9a"
       },
       "drafts": {
         "649f78ec-31b1-4398-8125-f9708e61c5e0": {
@@ -80,7 +129,7 @@
           "currentVersion": 3
         }
       },
-      "updatedAt": "2026-09-01T03:30:00Z"
+      "updatedAt": "2026-09-03T23:37:28-04:00"
     }
   }
 }

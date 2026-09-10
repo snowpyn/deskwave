@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 #include "config/build_config.h"
 #include "system/logging.h"
@@ -18,6 +19,7 @@ namespace {
 constexpr std::size_t kMaximumHttpBody = 2'048;
 constexpr std::uint32_t kWebSocketDiscoveryTimeoutMs = 30'000;
 constexpr std::uint32_t kMaximumProtocolSequence = 2'147'483'647;
+constexpr std::uint32_t kWebSocketLoopDelayMs = 1;
 
 bool isHexIdentifier(const char* value) {
     if (value == nullptr || std::strlen(value) != 64) {
@@ -389,6 +391,12 @@ bool NetworkManager::pairDevice(storage::DeviceSettings& settings) {
 
 void NetworkManager::configureWebSocket(const String& token) {
     activeToken_ = token;
+    // A new session must revalidate the current cover from the device cache;
+    // within one session, position-only playback updates must not enqueue the
+    // same artwork over and over while the artwork task is still working.
+    lastArtworkRequestId_[0] = '\0';
+    lastArtworkRequestGeneration_ = 0;
+    lastArtworkRequestHasTheme_ = false;
     const String authorization = "Bearer " + token;
     const auto reconnectIntervalMs = webSocketBackoff_.next(esp_random());
     // WebSocketsClient::begin() clears its authorization fields, so configure
@@ -426,7 +434,10 @@ bool NetworkManager::runWebSocket(storage::DeviceSettings& settings) {
             transition(core::StateEvent::HostDisconnected, "DeskWave Host offline", "Reconnecting");
             return false;
         }
-        vTaskDelay(pdMS_TO_TICKS(5));
+        // Keep the WebSocket task responsive to a just-advanced track. The
+        // previous 5 ms yield was visible on top of the host poll interval and
+        // needlessly delayed commands and incoming playback snapshots.
+        vTaskDelay(pdMS_TO_TICKS(kWebSocketLoopDelayMs));
     }
     return false;
 }
@@ -450,6 +461,9 @@ void NetworkManager::handleWebSocketEvent(const WStype_t type, std::uint8_t* pay
     switch (type) {
         case WStype_CONNECTED:
             webSocketConnected_ = true;
+            lastArtworkRequestId_[0] = '\0';
+            lastArtworkRequestGeneration_ = 0;
+            lastArtworkRequestHasTheme_ = false;
             webSocketBackoff_.reset();
             lastConnectedAtMs_ = millis();
             transition(core::StateEvent::HostConnected, "Connected");
@@ -571,6 +585,15 @@ void NetworkManager::handlePlaybackState(const JsonObjectConst payload) {
         DW_LOG_WARN("protocol", "Playback status is invalid");
         return;
     }
+    const String mediaKind = payload["media_kind"] | "music";
+    if (mediaKind == "podcast") {
+        snapshot.mediaKind = app::MediaKind::Podcast;
+    } else if (mediaKind == "music" || mediaKind.isEmpty()) {
+        snapshot.mediaKind = app::MediaKind::Music;
+    } else {
+        DW_LOG_WARN("protocol", "Playback media kind is invalid");
+        return;
+    }
     if (payload["volume"].is<float>()) {
         const float volume = payload["volume"].as<float>();
         if (std::isfinite(volume) && volume >= 0.0F && volume <= 1.0F) {
@@ -596,8 +619,11 @@ void NetworkManager::handlePlaybackState(const JsonObjectConst payload) {
     snapshot.canNext = capabilities["next"] | false;
     snapshot.canPrevious = capabilities["previous"] | false;
     snapshot.canControl = capabilities["control"] | false;
-    if (payload["lyrics"].is<JsonObjectConst>()) {
-        const JsonObjectConst lyrics = payload["lyrics"].as<JsonObjectConst>();
+    const JsonVariantConst captionValue = snapshot.mediaKind == app::MediaKind::Podcast
+                                              ? payload["transcript"]
+                                              : payload["lyrics"];
+    if (captionValue.is<JsonObjectConst>()) {
+        const JsonObjectConst lyrics = captionValue.as<JsonObjectConst>();
         const String lyricsStatus = lyrics["status"] | "unavailable";
         if (lyricsStatus == "loading") {
             snapshot.lyricsStatus = app::LyricsStatus::Loading;
@@ -669,7 +695,21 @@ void NetworkManager::handlePlaybackState(const JsonObjectConst payload) {
     // Publish playback intent before enabling even a warm-cache artwork result
     // so the main loop can stage or commit the exact matching bundle.
     xQueueOverwrite(playbackQueue_, &snapshot);
-    if (hasArtworkRequest) {
+    const bool artworkRequestChanged =
+        hasArtworkRequest &&
+        (!app::artworkIdentityMatches(lastArtworkRequestId_, lastArtworkRequestGeneration_,
+                                      artworkRequest.artworkId,
+                                      artworkRequest.artworkGeneration) ||
+         lastArtworkRequestHasTheme_ != artworkRequest.hasTheme ||
+         (artworkRequest.hasTheme &&
+          !core::themesEqual(lastArtworkRequestTheme_, artworkRequest.theme)));
+    if (artworkRequestChanged) {
+        app::copyText(lastArtworkRequestId_, artworkRequest.artworkId);
+        lastArtworkRequestGeneration_ = artworkRequest.artworkGeneration;
+        lastArtworkRequestHasTheme_ = artworkRequest.hasTheme;
+        if (artworkRequest.hasTheme) {
+            lastArtworkRequestTheme_ = artworkRequest.theme;
+        }
         xQueueOverwrite(artworkQueue_, &artworkRequest);
     }
 }
